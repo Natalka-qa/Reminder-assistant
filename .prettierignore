@@ -1,0 +1,8 @@
+.next
+node_modules
+prisma/migrations
+
+# Vendor/generated content — not ours to reformat
+.claude/skills
+docs/mvp
+src/components/ui
