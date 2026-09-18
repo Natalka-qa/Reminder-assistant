@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { startTransition, useActionState, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { TaskActionState } from "@/features/tasks/actions";
 
 export type TaskFormValues = {
@@ -40,6 +50,33 @@ export function TaskForm({
   submitLabel: string;
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
+  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
+
+  // React resets uncontrolled <form> fields once an action wired via `<form
+  // action={fn}>` completes — including a "conflict"/"error" result, not
+  // just success. The conflict dialog needs the fields to survive that, so
+  // every data-bearing field below is controlled from this state instead of
+  // `defaultValue`, which React can't silently clear out from under us.
+  const [title, setTitle] = useState(defaultValues.title);
+  const [description, setDescription] = useState(defaultValues.description);
+  const [date, setDate] = useState(defaultValues.date);
+  const [time, setTime] = useState(defaultValues.time);
+  const [durationMinutes, setDurationMinutes] = useState(
+    String(defaultValues.durationMinutes),
+  );
+  const [priority, setPriority] = useState(defaultValues.priority);
+  const [flexibility, setFlexibility] = useState(defaultValues.flexibility);
+
+  // Opening the dialog reacts to a *new* action result, not just its value,
+  // so this adjusts state during render (React's documented pattern for
+  // "state changed, derive from it once") instead of in an effect.
+  const [seenState, setSeenState] = useState(state);
+  if (state !== seenState) {
+    setSeenState(state);
+    if (state.status === "conflict") {
+      setConflictDialogOpen(true);
+    }
+  }
 
   useEffect(() => {
     if (state.status === "error" && state.message) {
@@ -47,122 +84,207 @@ export function TaskForm({
     }
   }, [state]);
 
+  function handleCreateAnyway() {
+    // Bypasses the DOM form entirely (no requestSubmit()): a hidden input's
+    // `value` set via setState is only guaranteed to reach the DOM on the
+    // *next* render, which requestSubmit() can't wait for, and using it
+    // resubmitted with the stale "false" every time — the server kept
+    // finding the same conflict and reopening this dialog in a loop. Every
+    // field is already in React state, so the FormData is built straight
+    // from it, with confirmConflicts forced to "true".
+    const data = new FormData();
+    data.set("title", title);
+    data.set("description", description);
+    data.set("date", date);
+    data.set("time", time);
+    data.set("durationMinutes", durationMinutes);
+    data.set("priority", priority);
+    data.set("flexibility", flexibility);
+    data.set("confirmConflicts", "true");
+    setConflictDialogOpen(false);
+    // Calling the useActionState dispatch directly (not via <form action>)
+    // needs an explicit transition, or `pending` stops tracking it.
+    startTransition(() => formAction(data));
+  }
+
   return (
-    <form action={formAction} className="flex max-w-lg flex-col gap-4">
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="title">Title</Label>
-        <Input
-          id="title"
-          name="title"
-          defaultValue={defaultValues.title}
-          maxLength={200}
-          required
-        />
-      </div>
+    <>
+      <form action={formAction} className="flex max-w-lg flex-col gap-4">
+        {/* Only read on a normal submit — "Create anyway" bypasses the DOM
+            form and dispatches its own FormData with this forced to "true". */}
+        <input type="hidden" name="confirmConflicts" defaultValue="false" />
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="description">Description</Label>
-        <Textarea
-          id="description"
-          name="description"
-          defaultValue={defaultValues.description}
-          maxLength={2000}
-          rows={3}
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="date">Date</Label>
+          <Label htmlFor="title">Title</Label>
           <Input
-            id="date"
-            name="date"
-            type="date"
-            defaultValue={defaultValues.date}
+            id="title"
+            name="title"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            maxLength={200}
             required
           />
         </div>
+
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="time">Time</Label>
+          <Label htmlFor="description">Description</Label>
+          <Textarea
+            id="description"
+            name="description"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            maxLength={2000}
+            rows={3}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="date">Date</Label>
+            <Input
+              id="date"
+              name="date"
+              type="date"
+              value={date}
+              onChange={(event) => setDate(event.target.value)}
+              required
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="time">Time</Label>
+            <Input
+              id="time"
+              name="time"
+              type="time"
+              value={time}
+              onChange={(event) => setTime(event.target.value)}
+              required
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="durationMinutes">Duration (minutes)</Label>
           <Input
-            id="time"
-            name="time"
-            type="time"
-            defaultValue={defaultValues.time}
+            id="durationMinutes"
+            name="durationMinutes"
+            type="number"
+            min={0}
+            max={1440}
+            value={durationMinutes}
+            onChange={(event) => setDurationMinutes(event.target.value)}
             required
           />
         </div>
-      </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="durationMinutes">Duration (minutes)</Label>
-        <Input
-          id="durationMinutes"
-          name="durationMinutes"
-          type="number"
-          min={0}
-          max={1440}
-          defaultValue={defaultValues.durationMinutes}
-          required
-        />
-      </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="priority">Priority</Label>
+            <Select
+              name="priority"
+              value={priority}
+              onValueChange={(value) =>
+                setPriority(value as TaskFormValues["priority"])
+              }
+            >
+              <SelectTrigger id="priority" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="LOW">Low</SelectItem>
+                <SelectItem value="NORMAL">Normal</SelectItem>
+                <SelectItem value="HIGH">High</SelectItem>
+                <SelectItem value="CRITICAL">Critical</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="flexibility">Flexibility</Label>
+            <Select
+              name="flexibility"
+              value={flexibility}
+              onValueChange={(value) =>
+                setFlexibility(value as TaskFormValues["flexibility"])
+              }
+            >
+              <SelectTrigger id="flexibility" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="FIXED">Fixed</SelectItem>
+                <SelectItem value="FLEXIBLE">Flexible</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="priority">Priority</Label>
-          <Select name="priority" defaultValue={defaultValues.priority}>
-            <SelectTrigger id="priority" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="LOW">Low</SelectItem>
-              <SelectItem value="NORMAL">Normal</SelectItem>
-              <SelectItem value="HIGH">High</SelectItem>
-              <SelectItem value="CRITICAL">Critical</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="flex flex-col gap-4 border-t pt-4">
+          <div className="flex flex-col gap-1.5 opacity-50">
+            <Label htmlFor="repeat">Repeat</Label>
+            <Input
+              id="repeat"
+              name="repeat"
+              disabled
+              placeholder="Does not repeat"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5 opacity-50">
+            <Label htmlFor="reminder">Reminder</Label>
+            <Input
+              id="reminder"
+              name="reminder"
+              disabled
+              placeholder="At time of task"
+            />
+          </div>
+          <p className="text-muted-foreground text-xs">
+            Coming in a later sprint.
+          </p>
         </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="flexibility">Flexibility</Label>
-          <Select name="flexibility" defaultValue={defaultValues.flexibility}>
-            <SelectTrigger id="flexibility" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="FIXED">Fixed</SelectItem>
-              <SelectItem value="FLEXIBLE">Flexible</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
 
-      <div className="flex flex-col gap-4 border-t pt-4">
-        <div className="flex flex-col gap-1.5 opacity-50">
-          <Label htmlFor="repeat">Repeat</Label>
-          <Input
-            id="repeat"
-            name="repeat"
-            disabled
-            placeholder="Does not repeat"
-          />
-        </div>
-        <div className="flex flex-col gap-1.5 opacity-50">
-          <Label htmlFor="reminder">Reminder</Label>
-          <Input
-            id="reminder"
-            name="reminder"
-            disabled
-            placeholder="At time of task"
-          />
-        </div>
-        <p className="text-muted-foreground text-xs">
-          Coming in a later sprint.
-        </p>
-      </div>
+        <Button type="submit" disabled={pending} className="self-start">
+          {pending ? "Saving…" : submitLabel}
+        </Button>
+      </form>
 
-      <Button type="submit" disabled={pending} className="self-start">
-        {pending ? "Saving…" : submitLabel}
-      </Button>
-    </form>
+      <AlertDialog
+        open={conflictDialogOpen}
+        onOpenChange={setConflictDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Scheduling conflict</AlertDialogTitle>
+            <AlertDialogDescription>
+              This overlaps with {state.conflicts?.length ?? 0} existing task
+              {state.conflicts?.length === 1 ? "" : "s"}:
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <ul className="flex flex-col gap-2 text-sm">
+            {state.conflicts?.map((conflict) => (
+              <li
+                key={conflict.occurrenceId}
+                className="bg-muted/50 flex flex-col rounded-lg p-2"
+              >
+                <span className="font-medium">{conflict.title}</span>
+                <span className="text-muted-foreground text-xs">
+                  {conflict.timeLabel} · {conflict.priority} ·{" "}
+                  {conflict.flexibility}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button">Edit time</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              disabled={pending}
+              onClick={handleCreateAnyway}
+            >
+              Create anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

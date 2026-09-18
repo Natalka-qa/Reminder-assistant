@@ -8,6 +8,8 @@ import {
 } from "@/features/tasks/task.errors";
 import { occurrenceRepository } from "@/features/scheduling/occurrence.repository";
 import { occurrenceService } from "@/features/scheduling/occurrence.service";
+import { conflictService } from "@/features/scheduling/conflict.service";
+import { ScheduleConflictError } from "@/features/scheduling/conflict.errors";
 import { createTaskSchema, updateTaskSchema } from "@/lib/validation/task";
 
 function parseOrThrow<T>(schema: z.ZodType<T>, input: unknown): T {
@@ -32,6 +34,25 @@ export const taskService = {
     const data = parseOrThrow(createTaskSchema, rawInput);
 
     return runInTransaction(async (tx) => {
+      if (!data.confirmConflicts) {
+        const scheduledStart = zonedDateTimeToUtc(
+          data.date,
+          data.time,
+          timezone,
+        );
+        const scheduledEnd = addMinutes(scheduledStart, data.durationMinutes);
+        const conflicts = await conflictService.findConflicts(
+          userId,
+          scheduledStart,
+          scheduledEnd,
+          undefined,
+          tx,
+        );
+        if (conflicts.length > 0) {
+          throw new ScheduleConflictError(conflicts);
+        }
+      }
+
       const task = await taskRepository.create(
         {
           userId,
@@ -69,6 +90,28 @@ export const taskService = {
         throw new TaskNotFoundError(taskId);
       }
 
+      const occurrences = await occurrenceRepository.findByTaskId(
+        taskId,
+        userId,
+        tx,
+      );
+      const occurrence = occurrences[0];
+      const scheduledStart = zonedDateTimeToUtc(data.date, data.time, timezone);
+      const scheduledEnd = addMinutes(scheduledStart, data.durationMinutes);
+
+      if (!data.confirmConflicts) {
+        const conflicts = await conflictService.findConflicts(
+          userId,
+          scheduledStart,
+          scheduledEnd,
+          occurrence?.id,
+          tx,
+        );
+        if (conflicts.length > 0) {
+          throw new ScheduleConflictError(conflicts);
+        }
+      }
+
       const task = await taskRepository.update(
         taskId,
         userId,
@@ -83,19 +126,7 @@ export const taskService = {
         tx,
       );
 
-      const occurrences = await occurrenceRepository.findByTaskId(
-        taskId,
-        userId,
-        tx,
-      );
-      const occurrence = occurrences[0];
       if (occurrence) {
-        const scheduledStart = zonedDateTimeToUtc(
-          data.date,
-          data.time,
-          timezone,
-        );
-        const scheduledEnd = addMinutes(scheduledStart, data.durationMinutes);
         await occurrenceRepository.update(
           occurrence.id,
           userId,

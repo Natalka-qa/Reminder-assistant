@@ -29,6 +29,9 @@ const taskFormFields = {
   // accepted so the form can submit them, not validated or acted on.
   repeat: z.string().optional(),
   reminder: z.string().optional(),
+  // Set by the conflict dialog's "Create anyway" action (Sprint 4) to skip
+  // the conflict check for this one submission — see TaskService.
+  confirmConflicts: z.coerce.boolean().optional().default(false),
 };
 
 export const createTaskSchema = z.object(taskFormFields);

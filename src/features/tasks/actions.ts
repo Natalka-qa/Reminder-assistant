@@ -2,16 +2,29 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import type { Priority, Flexibility } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth/dal";
+import { formatDateInZone, formatTimeInZone } from "@/lib/date";
 import { taskService } from "@/features/tasks/task.service";
 import {
   TaskNotFoundError,
   TaskValidationError,
 } from "@/features/tasks/task.errors";
+import { ScheduleConflictError } from "@/features/scheduling/conflict.errors";
+import type { ScheduleConflict } from "@/features/scheduling/conflict.service";
+
+export type ConflictSummary = {
+  occurrenceId: string;
+  title: string;
+  timeLabel: string;
+  priority: Priority;
+  flexibility: Flexibility;
+};
 
 export type TaskActionState = {
-  status: "idle" | "success" | "error";
+  status: "idle" | "success" | "error" | "conflict";
   message?: string;
+  conflicts?: ConflictSummary[];
 };
 
 function readTaskForm(formData: FormData) {
@@ -23,7 +36,21 @@ function readTaskForm(formData: FormData) {
     durationMinutes: formData.get("durationMinutes"),
     priority: formData.get("priority"),
     flexibility: formData.get("flexibility"),
+    confirmConflicts: formData.get("confirmConflicts") === "true",
   };
+}
+
+function summarizeConflicts(
+  conflicts: ScheduleConflict[],
+  timezone: string,
+): ConflictSummary[] {
+  return conflicts.map((conflict) => ({
+    occurrenceId: conflict.occurrenceId,
+    title: conflict.title,
+    timeLabel: `${formatDateInZone(conflict.start, timezone)}, ${formatTimeInZone(conflict.start, timezone)}–${formatTimeInZone(conflict.end, timezone)}`,
+    priority: conflict.priority,
+    flexibility: conflict.flexibility,
+  }));
 }
 
 function revalidateTaskPaths(taskId?: string) {
@@ -52,6 +79,13 @@ export async function createTaskAction(
     );
     taskId = task.id;
   } catch (error) {
+    if (error instanceof ScheduleConflictError) {
+      return {
+        status: "conflict",
+        message: error.message,
+        conflicts: summarizeConflicts(error.conflicts, user.timezone),
+      };
+    }
     if (error instanceof TaskValidationError) {
       return { status: "error", message: error.message };
     }
@@ -80,6 +114,13 @@ export async function updateTaskAction(
       readTaskForm(formData),
     );
   } catch (error) {
+    if (error instanceof ScheduleConflictError) {
+      return {
+        status: "conflict",
+        message: error.message,
+        conflicts: summarizeConflicts(error.conflicts, user.timezone),
+      };
+    }
     if (
       error instanceof TaskValidationError ||
       error instanceof TaskNotFoundError
