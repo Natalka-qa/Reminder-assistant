@@ -5,6 +5,7 @@ import { taskService } from "@/features/tasks/task.service";
 import { formatDateInZone, formatTimeInZone } from "@/lib/date";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { OccurrenceActions } from "@/components/tasks/occurrence-actions";
 import { TaskActions } from "./task-actions";
 
 export default async function TaskDetailPage({
@@ -77,12 +78,18 @@ export default async function TaskDetailPage({
         <CardHeader>
           <CardTitle>Scheduled</CardTitle>
         </CardHeader>
-        <CardContent className="text-sm">
+        <CardContent className="flex items-center justify-between gap-4 text-sm">
           {occurrence ? (
-            <p>
-              {formatDateInZone(occurrence.scheduledStart, user.timezone)} at{" "}
-              {formatTimeInZone(occurrence.scheduledStart, user.timezone)}
-            </p>
+            <>
+              <p>
+                {formatDateInZone(occurrence.scheduledStart, user.timezone)} at{" "}
+                {formatTimeInZone(occurrence.scheduledStart, user.timezone)}
+              </p>
+              <OccurrenceActions
+                occurrenceId={occurrence.id}
+                status={occurrence.status}
+              />
+            </>
           ) : (
             <p className="text-muted-foreground">No scheduled occurrence.</p>
           )}

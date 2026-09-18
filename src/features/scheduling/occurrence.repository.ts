@@ -15,6 +15,13 @@ export const occurrenceRepository = {
     });
   },
 
+  findById(id: string, userId: string, db: Db = prisma) {
+    return db.taskOccurrence.findFirst({
+      where: { id, userId },
+      include: { task: true },
+    });
+  },
+
   update(
     id: string,
     userId: string,
