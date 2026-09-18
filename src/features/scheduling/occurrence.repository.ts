@@ -64,4 +64,28 @@ export const occurrenceRepository = {
       include: { task: true },
     });
   },
+
+  // Mirrors the `hasOverlap` predicate in `scheduling/overlap.ts`
+  // (`aStart < bEnd && bStart < aEnd`) as a `where` clause. Only `SCHEDULED`
+  // occurrences count as active conflicts — a completed/skipped/cancelled
+  // occurrence no longer occupies its time slot.
+  findOverlapping(
+    userId: string,
+    start: Date,
+    end: Date,
+    excludeOccurrenceId?: string,
+    db: Db = prisma,
+  ) {
+    return db.taskOccurrence.findMany({
+      where: {
+        userId,
+        status: "SCHEDULED",
+        scheduledStart: { lt: end },
+        scheduledEnd: { gt: start },
+        ...(excludeOccurrenceId ? { id: { not: excludeOccurrenceId } } : {}),
+      },
+      orderBy: { scheduledStart: "asc" },
+      include: { task: true },
+    });
+  },
 };
