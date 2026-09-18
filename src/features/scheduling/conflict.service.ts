@@ -1,4 +1,9 @@
-import type { Prisma, PrismaClient, Priority, Flexibility } from "@prisma/client";
+import type {
+  Prisma,
+  PrismaClient,
+  Priority,
+  Flexibility,
+} from "@prisma/client";
 import { occurrenceRepository } from "@/features/scheduling/occurrence.repository";
 
 type Db = PrismaClient | Prisma.TransactionClient;

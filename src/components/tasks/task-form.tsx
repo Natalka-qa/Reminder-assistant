@@ -247,20 +247,23 @@ export function TaskForm({
         </Button>
       </form>
 
-      <AlertDialog open={conflictDialogOpen} onOpenChange={setConflictDialogOpen}>
+      <AlertDialog
+        open={conflictDialogOpen}
+        onOpenChange={setConflictDialogOpen}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Scheduling conflict</AlertDialogTitle>
             <AlertDialogDescription>
-              This overlaps with {state.conflicts?.length ?? 0} existing
-              task{state.conflicts?.length === 1 ? "" : "s"}:
+              This overlaps with {state.conflicts?.length ?? 0} existing task
+              {state.conflicts?.length === 1 ? "" : "s"}:
             </AlertDialogDescription>
           </AlertDialogHeader>
           <ul className="flex flex-col gap-2 text-sm">
             {state.conflicts?.map((conflict) => (
               <li
                 key={conflict.occurrenceId}
-                className="flex flex-col rounded-lg bg-muted/50 p-2"
+                className="bg-muted/50 flex flex-col rounded-lg p-2"
               >
                 <span className="font-medium">{conflict.title}</span>
                 <span className="text-muted-foreground text-xs">
