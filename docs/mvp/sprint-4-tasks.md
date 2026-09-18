@@ -213,18 +213,19 @@
 **Backlog:** MVP-018 · **Оценка:** 3 ч · **Зависит от:** S4-07
 
 **Что сделать**
-- `useRef<HTMLFormElement>` на `<form>`, `useRef<HTMLInputElement>` на скрытое поле `confirmConflicts` (`defaultValue="false"`).
-- `useState` для `conflictDialogOpen`; `useEffect` по `state` — если `state.status === "conflict"`, открыть диалог (аналогично существующему `useEffect` для `toast.error`).
-- `onChange` на `<form>` — сбрасывает `confirmConflicts`-ref обратно в `"false"` при любом изменении полей (см. «Расхождения» п.6).
-- Диалог — переиспользуем `AlertDialog`/`AlertDialogContent`/`AlertDialogHeader`/`AlertDialogTitle`/`AlertDialogDescription`/`AlertDialogFooter`/`AlertDialogAction`/`AlertDialogCancel` (как в `task-actions.tsx`):
+- `useRef<HTMLFormElement>` на `<form>` (для `requestSubmit()` из «Create anyway»).
+- `useState` для `conflictDialogOpen`; открывается adjust-during-render по смене `state` (см. ниже), не в `useEffect` — `setState` синхронно внутри эффекта ловится ESLint-правилом `react-hooks/set-state-in-effect`.
+- **Найдено ручным тестированием после первой реализации:** React сбрасывает несontrolled-поля `<form action={fn}>` после **любого** завершения action — не только успеха, но и возврата `"conflict"`/`"error"`-статуса (задокументированное поведение React 19, а не баг конкретно этого кода). С `defaultValue`-полями (как в Sprint 2) это было незаметно, потому что единственный «неуспешный» путь — `TaskValidationError` — почти всегда перехватывается HTML5-валидацией раньше, чем долетает до сервера. Конфликт — штатный, частый исход, поэтому сброс полей стал видимым и блокирующим сценарий «Edit time» / «Create anyway» целиком.
+  - **Решение:** все data-полня формы (title/description/date/time/durationMinutes/priority/flexibility) переведены с `defaultValue` на controlled (`value` + `onChange`/`onValueChange`, локальный `useState` на каждое поле) — React не может тихо сбросить значение, которое рендерится из его собственного state. Скрытое поле `confirmConflicts` — тоже `value` (controlled) вместо `ref`+`defaultValue`, с тем же `useState`, который сбрасывается в `false` при изменении `date`/`time`/`durationMinutes` (полей, влияющих на окно конфликта; `title`/`description`/`priority`/`flexibility` на конфликт не влияют — сброс на их изменение не нужен).
+- Диалог — переиспользуем `AlertDialog`/`AlertDialogContent`/`AlertDialogHeader`/`AlertDialogTitle`/`AlertDialogDescription`/`AlertDialogFooter`/`AlertDialogAction`/`AlertDialogCancel` (как в `task-actions.tsx`), рендерится **вне** `<form>` (сиблингом, не потомком) — `AlertDialogAction`/`AlertDialogCancel` рендерят `<button>` без явного `type`, что внутри формы означало бы `type="submit"` по умолчанию и случайный лишний сабмит при клике «Edit time»; вдобавок оба явно получили `type="button"`.
   - Title: «Scheduling conflict».
   - Список `state.conflicts`: название, `timeLabel`, priority/flexibility.
-  - `AlertDialogCancel` → «Edit time» (закрывает диалог, значения формы не трогает).
-  - `AlertDialogAction` → «Create anyway»: `onClick` — выставить `confirmRef.current.value = "true"`, закрыть диалог (`setConflictDialogOpen(false)`), `formRef.current?.requestSubmit()`.
+  - `AlertDialogCancel` → «Edit time» (закрывает диалог, значения формы не трогает — они всё равно в React state, не в DOM).
+  - `AlertDialogAction` → «Create anyway»: `onClick` — `setConfirmConflicts(true)`, закрыть диалог, `formRef.current?.requestSubmit()`.
 
 **Acceptance criteria**
 - [ ] После «Create anyway» форма реально пересабмитится и (если новых конфликтов на этот момент нет) произойдёт `redirect` как при обычном успешном сохранении.
-- [ ] После «Edit time» значения полей формы остаются как были — ничего не сбрасывается.
+- [ ] После «Edit time» значения полей формы остаются как были — ничего не сбрасывается (проверено вручную: без controlled-полей это ломалось).
 - [ ] Изменение даты/времени после показа диалога и повторный сабмит без нажатия «Create anyway» — заново проверяется на конфликт (флаг не «залипает» в `true`).
 
 ---

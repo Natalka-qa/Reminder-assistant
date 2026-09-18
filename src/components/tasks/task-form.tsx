@@ -51,8 +51,23 @@ export function TaskForm({
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const formRef = useRef<HTMLFormElement>(null);
-  const confirmConflictsRef = useRef<HTMLInputElement>(null);
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
+
+  // React resets uncontrolled <form> fields once an action wired via `<form
+  // action={fn}>` completes — including a "conflict"/"error" result, not
+  // just success. The conflict dialog needs the fields to survive that, so
+  // every data-bearing field below is controlled from this state instead of
+  // `defaultValue`, which React can't silently clear out from under us.
+  const [title, setTitle] = useState(defaultValues.title);
+  const [description, setDescription] = useState(defaultValues.description);
+  const [date, setDate] = useState(defaultValues.date);
+  const [time, setTime] = useState(defaultValues.time);
+  const [durationMinutes, setDurationMinutes] = useState(
+    String(defaultValues.durationMinutes),
+  );
+  const [priority, setPriority] = useState(defaultValues.priority);
+  const [flexibility, setFlexibility] = useState(defaultValues.flexibility);
+  const [confirmConflicts, setConfirmConflicts] = useState(false);
 
   // Opening the dialog reacts to a *new* action result, not just its value,
   // so this adjusts state during render (React's documented pattern for
@@ -71,17 +86,11 @@ export function TaskForm({
     }
   }, [state]);
 
-  function resetConflictConfirmation() {
-    if (confirmConflictsRef.current) {
-      confirmConflictsRef.current.value = "false";
-    }
-  }
-
   function handleCreateAnyway() {
-    if (confirmConflictsRef.current) {
-      confirmConflictsRef.current.value = "true";
-    }
+    setConfirmConflicts(true);
     setConflictDialogOpen(false);
+    // Form fields are controlled, so requestSubmit() reads the current
+    // `confirmConflicts` state via the hidden input's `value` below.
     formRef.current?.requestSubmit();
   }
 
@@ -90,14 +99,13 @@ export function TaskForm({
       <form
         ref={formRef}
         action={formAction}
-        onChange={resetConflictConfirmation}
         className="flex max-w-lg flex-col gap-4"
       >
         <input
-          ref={confirmConflictsRef}
           type="hidden"
           name="confirmConflicts"
-          defaultValue="false"
+          value={confirmConflicts ? "true" : "false"}
+          readOnly
         />
 
         <div className="flex flex-col gap-1.5">
@@ -105,7 +113,8 @@ export function TaskForm({
           <Input
             id="title"
             name="title"
-            defaultValue={defaultValues.title}
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
             maxLength={200}
             required
           />
@@ -116,7 +125,8 @@ export function TaskForm({
           <Textarea
             id="description"
             name="description"
-            defaultValue={defaultValues.description}
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
             maxLength={2000}
             rows={3}
           />
@@ -129,7 +139,11 @@ export function TaskForm({
               id="date"
               name="date"
               type="date"
-              defaultValue={defaultValues.date}
+              value={date}
+              onChange={(event) => {
+                setDate(event.target.value);
+                setConfirmConflicts(false);
+              }}
               required
             />
           </div>
@@ -139,7 +153,11 @@ export function TaskForm({
               id="time"
               name="time"
               type="time"
-              defaultValue={defaultValues.time}
+              value={time}
+              onChange={(event) => {
+                setTime(event.target.value);
+                setConfirmConflicts(false);
+              }}
               required
             />
           </div>
@@ -153,7 +171,11 @@ export function TaskForm({
             type="number"
             min={0}
             max={1440}
-            defaultValue={defaultValues.durationMinutes}
+            value={durationMinutes}
+            onChange={(event) => {
+              setDurationMinutes(event.target.value);
+              setConfirmConflicts(false);
+            }}
             required
           />
         </div>
@@ -161,7 +183,13 @@ export function TaskForm({
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="priority">Priority</Label>
-            <Select name="priority" defaultValue={defaultValues.priority}>
+            <Select
+              name="priority"
+              value={priority}
+              onValueChange={(value) =>
+                setPriority(value as TaskFormValues["priority"])
+              }
+            >
               <SelectTrigger id="priority" className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -175,7 +203,13 @@ export function TaskForm({
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="flexibility">Flexibility</Label>
-            <Select name="flexibility" defaultValue={defaultValues.flexibility}>
+            <Select
+              name="flexibility"
+              value={flexibility}
+              onValueChange={(value) =>
+                setFlexibility(value as TaskFormValues["flexibility"])
+              }
+            >
               <SelectTrigger id="flexibility" className="w-full">
                 <SelectValue />
               </SelectTrigger>
