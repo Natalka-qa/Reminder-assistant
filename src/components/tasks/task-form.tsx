@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { startTransition, useActionState, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,7 +50,6 @@ export function TaskForm({
   submitLabel: string;
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
-  const formRef = useRef<HTMLFormElement>(null);
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
 
   // React resets uncontrolled <form> fields once an action wired via `<form
@@ -67,7 +66,6 @@ export function TaskForm({
   );
   const [priority, setPriority] = useState(defaultValues.priority);
   const [flexibility, setFlexibility] = useState(defaultValues.flexibility);
-  const [confirmConflicts, setConfirmConflicts] = useState(false);
 
   // Opening the dialog reacts to a *new* action result, not just its value,
   // so this adjusts state during render (React's documented pattern for
@@ -87,26 +85,34 @@ export function TaskForm({
   }, [state]);
 
   function handleCreateAnyway() {
-    setConfirmConflicts(true);
+    // Bypasses the DOM form entirely (no requestSubmit()): a hidden input's
+    // `value` set via setState is only guaranteed to reach the DOM on the
+    // *next* render, which requestSubmit() can't wait for, and using it
+    // resubmitted with the stale "false" every time — the server kept
+    // finding the same conflict and reopening this dialog in a loop. Every
+    // field is already in React state, so the FormData is built straight
+    // from it, with confirmConflicts forced to "true".
+    const data = new FormData();
+    data.set("title", title);
+    data.set("description", description);
+    data.set("date", date);
+    data.set("time", time);
+    data.set("durationMinutes", durationMinutes);
+    data.set("priority", priority);
+    data.set("flexibility", flexibility);
+    data.set("confirmConflicts", "true");
     setConflictDialogOpen(false);
-    // Form fields are controlled, so requestSubmit() reads the current
-    // `confirmConflicts` state via the hidden input's `value` below.
-    formRef.current?.requestSubmit();
+    // Calling the useActionState dispatch directly (not via <form action>)
+    // needs an explicit transition, or `pending` stops tracking it.
+    startTransition(() => formAction(data));
   }
 
   return (
     <>
-      <form
-        ref={formRef}
-        action={formAction}
-        className="flex max-w-lg flex-col gap-4"
-      >
-        <input
-          type="hidden"
-          name="confirmConflicts"
-          value={confirmConflicts ? "true" : "false"}
-          readOnly
-        />
+      <form action={formAction} className="flex max-w-lg flex-col gap-4">
+        {/* Only read on a normal submit — "Create anyway" bypasses the DOM
+            form and dispatches its own FormData with this forced to "true". */}
+        <input type="hidden" name="confirmConflicts" defaultValue="false" />
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="title">Title</Label>
@@ -140,10 +146,7 @@ export function TaskForm({
               name="date"
               type="date"
               value={date}
-              onChange={(event) => {
-                setDate(event.target.value);
-                setConfirmConflicts(false);
-              }}
+              onChange={(event) => setDate(event.target.value)}
               required
             />
           </div>
@@ -154,10 +157,7 @@ export function TaskForm({
               name="time"
               type="time"
               value={time}
-              onChange={(event) => {
-                setTime(event.target.value);
-                setConfirmConflicts(false);
-              }}
+              onChange={(event) => setTime(event.target.value)}
               required
             />
           </div>
@@ -172,10 +172,7 @@ export function TaskForm({
             min={0}
             max={1440}
             value={durationMinutes}
-            onChange={(event) => {
-              setDurationMinutes(event.target.value);
-              setConfirmConflicts(false);
-            }}
+            onChange={(event) => setDurationMinutes(event.target.value)}
             required
           />
         </div>
