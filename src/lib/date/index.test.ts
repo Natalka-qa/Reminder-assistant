@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { addDaysInZone, endOfDayInZone, startOfDayInZone } from "./index";
+import {
+  addDaysInZone,
+  endOfDayInZone,
+  startOfDayInZone,
+  zonedDateTimeToUtc,
+} from "./index";
 
 describe("addDaysInZone", () => {
   it("stays on the same local wall-clock time across a DST spring-forward", () => {
@@ -29,5 +34,34 @@ describe("startOfDayInZone / endOfDayInZone", () => {
     expect(endOfDayInZone(date, zone).toISOString()).toBe(
       "2026-01-15T07:59:59.999Z",
     );
+  });
+});
+
+describe("zonedDateTimeToUtc", () => {
+  it("combines local date + time into the correct UTC instant across a DST spring-forward", () => {
+    // America/New_York DST begins 2026-03-08 at 02:00 local (clocks jump to 03:00).
+    // Both dates below are 09:00 local wall-clock time, but on opposite sides
+    // of the transition, so they're offset from UTC by different amounts.
+    expect(
+      zonedDateTimeToUtc(
+        "2026-03-07",
+        "09:00",
+        "America/New_York",
+      ).toISOString(),
+    ).toBe("2026-03-07T14:00:00.000Z"); // EST, UTC-5
+
+    expect(
+      zonedDateTimeToUtc(
+        "2026-03-08",
+        "09:00",
+        "America/New_York",
+      ).toISOString(),
+    ).toBe("2026-03-08T13:00:00.000Z"); // EDT, UTC-4
+  });
+
+  it("throws on an invalid zone instead of silently misinterpreting the time", () => {
+    expect(() =>
+      zonedDateTimeToUtc("2026-03-07", "09:00", "Not/AZone"),
+    ).toThrow();
   });
 });

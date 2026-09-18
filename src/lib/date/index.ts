@@ -8,6 +8,10 @@
  * 5. Never advance a recurring date with a flat "+24 hours" — DST transitions
  *    make a calendar day longer or shorter than 24 hours in wall-clock time.
  *    Use `addDaysInZone`, which adds calendar days in the given zone.
+ * 6. `zonedDateTimeToUtc` is the only place a local date and time are ever
+ *    combined into an instant. Never write `new Date(\`${date}T${time}\`)` —
+ *    that's parsed in the server/engine's zone, not the user's, and silently
+ *    produces the wrong instant.
  */
 import { DateTime } from "luxon";
 
@@ -30,6 +34,24 @@ export function endOfDayInZone(date: Date, zone: string): Date {
 /** Advances by calendar days in `zone`, DST-safe. Never use `+24h` for this. */
 export function addDaysInZone(date: Date, days: number, zone: string): Date {
   return utcToZoned(date, zone).plus({ days }).toUTC().toJSDate();
+}
+
+/**
+ * Combines a wall-clock date and time (as produced by `<input type="date">` /
+ * `<input type="time">`) into a UTC instant, interpreted in `zone`.
+ */
+export function zonedDateTimeToUtc(
+  dateStr: string,
+  timeStr: string,
+  zone: string,
+): Date {
+  const dt = DateTime.fromISO(`${dateStr}T${timeStr}`, { zone });
+  if (!dt.isValid) {
+    throw new Error(
+      `Invalid date/time for zone "${zone}": ${dateStr} ${timeStr} (${dt.invalidReason}: ${dt.invalidExplanation})`,
+    );
+  }
+  return dt.toUTC().toJSDate();
 }
 
 /** Pure duration arithmetic (e.g. task endAt = startAt + duration) — not calendar math. */

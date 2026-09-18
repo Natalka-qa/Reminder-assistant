@@ -7,9 +7,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Sprint 1 scope only: User + the tables required by Auth.js's PrismaAdapter
-// (https://authjs.dev/getting-started/adapters/prisma). Task/TaskOccurrence/
-// Notification land in Sprint 2+.
+// Sprint 1: User + the tables required by Auth.js's PrismaAdapter
+// (https://authjs.dev/getting-started/adapters/prisma).
+// Sprint 2: Task + TaskOccurrence (one occurrence per task until recurrence
+// generation lands in Sprint 5). Notification is Sprint 6.
 
 model User {
   id            String    @id @default(cuid())
@@ -24,8 +25,10 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  accounts Account[]
-  sessions Session[]
+  accounts    Account[]
+  sessions    Session[]
+  tasks       Task[]
+  occurrences TaskOccurrence[]
 }
 
 model Account {
@@ -62,4 +65,73 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model Task {
+  id     String @id @default(cuid())
+  userId String
+
+  title       String
+  description String?
+
+  priority    Priority    @default(NORMAL)
+  flexibility Flexibility @default(FLEXIBLE)
+
+  durationMinutes Int @default(0)
+
+  // Sprint 2 stores the field so the schema doesn't need a second migration
+  // in Sprint 5, but nothing parses or generates occurrences from it yet —
+  // the "Repeat" form field is a disabled placeholder until then.
+  recurrenceRule String?
+  active         Boolean @default(true)
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  occurrences TaskOccurrence[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TaskOccurrence {
+  id String @id @default(cuid())
+
+  taskId String
+  userId String
+
+  scheduledStart DateTime
+  scheduledEnd   DateTime?
+
+  status OccurrenceStatus @default(SCHEDULED)
+
+  snoozeCount Int       @default(0)
+  completedAt DateTime?
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, scheduledStart])
+}
+
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+  CRITICAL
+}
+
+enum Flexibility {
+  FIXED
+  FLEXIBLE
+}
+
+enum OccurrenceStatus {
+  SCHEDULED
+  DONE
+  PARTIALLY_DONE
+  SKIPPED
+  SNOOZED
+  CANCELLED
 }
