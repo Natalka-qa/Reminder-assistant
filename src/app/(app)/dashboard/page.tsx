@@ -4,6 +4,7 @@ import { formatDateInZone, formatTimeInZone } from "@/lib/date";
 import { dashboardService } from "@/features/scheduling/dashboard.service";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { OccurrenceActions } from "@/components/tasks/occurrence-actions";
 
 type DashboardOccurrences = Awaited<
   ReturnType<typeof dashboardService.getTodayTasks>
@@ -12,9 +13,11 @@ type DashboardOccurrences = Awaited<
 function OccurrenceList({
   occurrences,
   timezone,
+  showActions = false,
 }: {
   occurrences: DashboardOccurrences;
   timezone: string;
+  showActions?: boolean;
 }) {
   if (occurrences.length === 0) {
     return <p className="text-muted-foreground text-sm">No tasks yet.</p>;
@@ -23,16 +26,29 @@ function OccurrenceList({
   return (
     <ul className="flex flex-col gap-2">
       {occurrences.map((occurrence) => (
-        <li key={occurrence.id}>
+        <li
+          key={occurrence.id}
+          className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-1.5"
+        >
           <Link
             href={`/tasks/${occurrence.task.id}`}
-            className="hover:bg-muted -mx-2 flex items-center justify-between gap-4 rounded-lg px-2 py-1.5 text-sm transition-colors"
+            className="flex flex-1 items-center justify-between gap-4 text-sm hover:underline"
           >
             <span className="font-medium">{occurrence.task.title}</span>
             <span className="text-muted-foreground shrink-0">
               {formatTimeInZone(occurrence.scheduledStart, timezone)}
             </span>
           </Link>
+          {showActions ? (
+            <OccurrenceActions
+              occurrenceId={occurrence.id}
+              status={occurrence.status}
+            />
+          ) : (
+            <span className="text-muted-foreground shrink-0 text-xs">
+              {occurrence.status !== "SCHEDULED" ? occurrence.status : null}
+            </span>
+          )}
         </li>
       ))}
     </ul>
@@ -67,7 +83,11 @@ export default async function DashboardPage() {
           <CardTitle>Today</CardTitle>
         </CardHeader>
         <CardContent>
-          <OccurrenceList occurrences={todayTasks} timezone={timezone} />
+          <OccurrenceList
+            occurrences={todayTasks}
+            timezone={timezone}
+            showActions
+          />
         </CardContent>
       </Card>
 
@@ -76,7 +96,11 @@ export default async function DashboardPage() {
           <CardTitle>Overdue</CardTitle>
         </CardHeader>
         <CardContent>
-          <OccurrenceList occurrences={overdueTasks} timezone={timezone} />
+          <OccurrenceList
+            occurrences={overdueTasks}
+            timezone={timezone}
+            showActions
+          />
         </CardContent>
       </Card>
 
