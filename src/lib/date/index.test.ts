@@ -4,9 +4,11 @@ import {
   addMinutes,
   addMonthsInZone,
   endOfDayInZone,
+  endOfMonthInZone,
   formatDateInZone,
   formatTimeInZone,
   startOfDayInZone,
+  startOfMonthInZone,
   zonedDateTimeToUtc,
 } from "./index";
 
@@ -67,6 +69,23 @@ describe("startOfDayInZone / endOfDayInZone", () => {
     );
     expect(endOfDayInZone(date, zone).toISOString()).toBe(
       "2026-01-15T07:59:59.999Z",
+    );
+  });
+});
+
+describe("startOfMonthInZone / endOfMonthInZone", () => {
+  it("resolves month boundaries by local calendar month, not the UTC date component", () => {
+    // Same instant/zone as the startOfDayInZone/endOfDayInZone case above:
+    // 2026-01-15T05:00:00Z is 2026-01-14 21:00 in America/Los_Angeles, so the
+    // local calendar month is January even though the UTC date is the 15th.
+    const date = new Date("2026-01-15T05:00:00.000Z");
+    const zone = "America/Los_Angeles";
+
+    expect(startOfMonthInZone(date, zone).toISOString()).toBe(
+      "2026-01-01T08:00:00.000Z",
+    );
+    expect(endOfMonthInZone(date, zone).toISOString()).toBe(
+      "2026-02-01T07:59:59.999Z",
     );
   });
 });
