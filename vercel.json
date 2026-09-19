@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/extend-occurrences",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/send-notifications",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

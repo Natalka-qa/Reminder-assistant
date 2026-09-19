@@ -9,6 +9,7 @@ import {
 import { occurrenceRepository } from "@/features/scheduling/occurrence.repository";
 import { occurrenceService } from "@/features/scheduling/occurrence.service";
 import { conflictService } from "@/features/scheduling/conflict.service";
+import { notificationService } from "@/features/notifications/notification.service";
 import { ScheduleConflictError } from "@/features/scheduling/conflict.errors";
 import { createTaskSchema, updateTaskSchema } from "@/lib/validation/task";
 import {
@@ -89,6 +90,7 @@ export const taskService = {
           priority: data.priority,
           flexibility: data.flexibility,
           durationMinutes: data.durationMinutes,
+          reminderOffsetMinutes: data.reminderOffsetMinutes,
           recurrenceRule: serializeRecurrenceRule(rule),
         },
         tx,
@@ -144,6 +146,7 @@ export const taskService = {
             priority: data.priority,
             flexibility: data.flexibility,
             durationMinutes: data.durationMinutes,
+            reminderOffsetMinutes: data.reminderOffsetMinutes,
             ...(data.active !== undefined ? { active: data.active } : {}),
           },
           tx,
@@ -154,6 +157,15 @@ export const taskService = {
             taskId,
             userId,
             data.durationMinutes,
+            tx,
+          );
+        }
+
+        if (data.reminderOffsetMinutes !== existing.reminderOffsetMinutes) {
+          await notificationService.rescheduleForTask(
+            taskId,
+            userId,
+            data.reminderOffsetMinutes,
             tx,
           );
         }
@@ -192,6 +204,7 @@ export const taskService = {
           priority: data.priority,
           flexibility: data.flexibility,
           durationMinutes: data.durationMinutes,
+          reminderOffsetMinutes: data.reminderOffsetMinutes,
           ...(data.active !== undefined ? { active: data.active } : {}),
         },
         tx,
@@ -202,6 +215,17 @@ export const taskService = {
           occurrence.id,
           userId,
           { scheduledStart, scheduledEnd },
+          tx,
+        );
+        // Recomputes sendAt from the occurrence's (possibly just-changed)
+        // scheduledStart and the (possibly just-changed) offset in one
+        // pass — unconditional, like the occurrence resync above, since a
+        // non-recurring task's date/time isn't locked the way a recurring
+        // one's is.
+        await notificationService.rescheduleForTask(
+          taskId,
+          userId,
+          data.reminderOffsetMinutes,
           tx,
         );
       }
@@ -229,10 +253,17 @@ export const taskService = {
       // lingering on the dashboard — applies to non-recurring tasks too
       // (a still-future single occurrence), not just recurring ones. Past
       // occurrences (DONE/SKIPPED/etc.) are history and untouched.
+      const deactivatedAt = new Date();
       await occurrenceService.cancelFutureOccurrences(
         taskId,
         userId,
-        new Date(),
+        deactivatedAt,
+        tx,
+      );
+      await notificationService.cancelForTaskAfter(
+        taskId,
+        userId,
+        deactivatedAt,
         tx,
       );
       return task;

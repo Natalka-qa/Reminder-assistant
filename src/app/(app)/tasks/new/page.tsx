@@ -25,6 +25,7 @@ export default async function NewTaskPage() {
           flexibility: "FLEXIBLE",
           repeatFrequency: "NONE",
           repeatDaysOfWeek: [],
+          reminderOffsetMinutes: 5,
         }}
       />
     </div>

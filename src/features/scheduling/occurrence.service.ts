@@ -8,7 +8,8 @@ import {
   zonedDateTimeToUtc,
 } from "@/lib/date";
 import { occurrenceRepository } from "@/features/scheduling/occurrence.repository";
-import { canTransitionFromScheduled } from "@/features/scheduling/occurrence-status";
+import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-status";
+import { notificationService } from "@/features/notifications/notification.service";
 import {
   InvalidOccurrenceTransitionError,
   OccurrenceNotFoundError,
@@ -29,6 +30,7 @@ export type OccurrenceScheduleInput = {
   date: string;
   time: string;
   durationMinutes: number;
+  reminderOffsetMinutes: number;
 };
 
 export type RecurringOccurrenceInput = OccurrenceScheduleInput & {
@@ -42,6 +44,24 @@ type OccurrenceCandidate = {
   scheduledEnd: Date;
   status: "SCHEDULED";
 };
+
+// createMany doesn't return the ids of the rows it inserted (see
+// "Расхождения" п.4 in sprint-6-tasks.md), so after inserting a batch we
+// re-fetch the task's occurrences and match them back to the just-inserted
+// candidates by scheduledStart — unique within one generation call, and
+// never shared with an older occurrence either (recurring generation only
+// ever extends strictly forward from the latest existing one).
+function matchCreatedOccurrences<
+  T extends { scheduledStart: Date },
+  U extends { scheduledStart: Date },
+>(candidates: T[], created: U[]): U[] {
+  const targetTimes = new Set(
+    candidates.map((candidate) => candidate.scheduledStart.getTime()),
+  );
+  return created.filter((occurrence) =>
+    targetTimes.has(occurrence.scheduledStart.getTime()),
+  );
+}
 
 function buildCandidates(
   taskId: string,
@@ -75,26 +95,35 @@ async function transitionOccurrence(
   if (!occurrence) {
     throw new OccurrenceNotFoundError(occurrenceId);
   }
-  if (!canTransitionFromScheduled(occurrence.status)) {
+  if (!isActionableOccurrenceStatus(occurrence.status)) {
     throw new InvalidOccurrenceTransitionError(occurrenceId);
   }
-  return occurrenceRepository.update(occurrenceId, userId, data);
+  const updated = await occurrenceRepository.update(occurrenceId, userId, data);
+  // Best-effort, not transactional: the worst case if this fails is one
+  // extra reminder for an already-closed occurrence, not corrupted state.
+  await notificationService.cancelForOccurrence(occurrenceId);
+  return updated;
 }
 
 export const occurrenceService = {
   // Always called from within the transaction task.service opens (S2-06),
   // so it takes the transaction client rather than defaulting to the
   // shared `prisma` singleton.
-  createForTask(
+  async createForTask(
     task: { id: string; userId: string },
-    { date, time, durationMinutes }: OccurrenceScheduleInput,
+    {
+      date,
+      time,
+      durationMinutes,
+      reminderOffsetMinutes,
+    }: OccurrenceScheduleInput,
     timezone: string,
     tx: Tx,
   ) {
     const scheduledStart = zonedDateTimeToUtc(date, time, timezone);
     const scheduledEnd = addMinutes(scheduledStart, durationMinutes);
 
-    return occurrenceRepository.create(
+    const occurrence = await occurrenceRepository.create(
       {
         taskId: task.id,
         userId: task.userId,
@@ -104,6 +133,14 @@ export const occurrenceService = {
       },
       tx,
     );
+
+    await notificationService.createForOccurrence(
+      occurrence,
+      reminderOffsetMinutes,
+      tx,
+    );
+
+    return occurrence;
   },
 
   // Same transaction-only contract as createForTask. Generates the next
@@ -114,7 +151,13 @@ export const occurrenceService = {
   async createOccurrencesForTask(
     task: { id: string; userId: string },
     rule: RecurrenceRule,
-    { date, time, durationMinutes, confirmConflicts }: RecurringOccurrenceInput,
+    {
+      date,
+      time,
+      durationMinutes,
+      reminderOffsetMinutes,
+      confirmConflicts,
+    }: RecurringOccurrenceInput,
     timezone: string,
     tx: Tx,
   ) {
@@ -150,6 +193,18 @@ export const occurrenceService = {
     }
 
     await occurrenceRepository.createMany(candidates, tx);
+
+    const created = await occurrenceRepository.findByTaskId(
+      task.id,
+      task.userId,
+      tx,
+    );
+    await notificationService.createForOccurrences(
+      matchCreatedOccurrences(candidates, created),
+      reminderOffsetMinutes,
+      tx,
+    );
+
     return candidates;
   },
 
@@ -163,7 +218,12 @@ export const occurrenceService = {
     tx: Tx,
   ) {
     await occurrenceRepository.updateMany(
-      { taskId, userId, status: "SCHEDULED", scheduledStart: { gt: after } },
+      {
+        taskId,
+        userId,
+        status: { in: ["SCHEDULED", "SNOOZED"] },
+        scheduledStart: { gt: after },
+      },
       { status: "CANCELLED" },
       tx,
     );
@@ -186,7 +246,8 @@ export const occurrenceService = {
     const now = new Date();
     const future = occurrences.filter(
       (occurrence) =>
-        occurrence.status === "SCHEDULED" && occurrence.scheduledStart > now,
+        isActionableOccurrenceStatus(occurrence.status) &&
+        occurrence.scheduledStart > now,
     );
     for (const occurrence of future) {
       await occurrenceRepository.update(
@@ -266,6 +327,18 @@ export const occurrenceService = {
         zone,
       );
       await occurrenceRepository.createMany(candidates, db);
+
+      const created = await occurrenceRepository.findByTaskId(
+        task.id,
+        task.userId,
+        db,
+      );
+      await notificationService.createForOccurrences(
+        matchCreatedOccurrences(candidates, created),
+        task.reminderOffsetMinutes,
+        db,
+      );
+
       extended += 1;
     }
 

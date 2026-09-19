@@ -20,6 +20,14 @@ describe("pickCurrentOccurrence", () => {
     expect(pickCurrentOccurrence(occurrences, now)?.id).toBe("near");
   });
 
+  it("picks a future SNOOZED occurrence like a SCHEDULED one", () => {
+    const occurrences = [
+      occurrence("done", "DONE", "2026-09-01T09:00:00Z"),
+      occurrence("snoozed", "SNOOZED", "2026-09-11T09:00:00Z"),
+    ];
+    expect(pickCurrentOccurrence(occurrences, now)?.id).toBe("snoozed");
+  });
+
   it("ignores a SCHEDULED occurrence that's already in the past (overdue, not upcoming)", () => {
     const occurrences = [
       occurrence("overdue", "SCHEDULED", "2026-09-05T09:00:00Z"),

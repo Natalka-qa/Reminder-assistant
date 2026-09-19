@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { verifySession, getCurrentUser } from "@/lib/auth/dal";
 import { taskService } from "@/features/tasks/task.service";
+import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-status";
+import { notificationService } from "@/features/notifications/notification.service";
 import { formatDateInZone, formatTimeInZone } from "@/lib/date";
 import {
   describeRecurrenceRule,
@@ -35,21 +37,30 @@ export default async function TaskDetailPage({
 
   // task.occurrences is already ordered by scheduledStart ascending
   // (taskRepository.findByIdWithOccurrences), so filtering preserves order.
-  const now = new Date();
-  const upcoming = task.occurrences.filter(
-    (occurrence) =>
-      occurrence.status === "SCHEDULED" && occurrence.scheduledStart >= now,
+  // SCHEDULED/SNOOZED are still pending action regardless of whether their
+  // original scheduledStart has passed (an overdue-but-unactioned occurrence,
+  // or one snoozed past its own start time, both still belong in Upcoming,
+  // not History).
+  const upcoming = task.occurrences.filter((occurrence) =>
+    isActionableOccurrenceStatus(occurrence.status),
   );
   const history = task.occurrences
-    .filter(
-      (occurrence) =>
-        !(
-          occurrence.status === "SCHEDULED" && occurrence.scheduledStart >= now
-        ),
-    )
+    .filter((occurrence) => !isActionableOccurrenceStatus(occurrence.status))
     .slice()
     .reverse()
     .slice(0, HISTORY_LIMIT);
+
+  const snoozedIds = upcoming
+    .filter((occurrence) => occurrence.status === "SNOOZED")
+    .map((occurrence) => occurrence.id);
+  const nextReminderTimes =
+    await notificationService.findNextReminderTimes(snoozedIds);
+  const nextReminderLabels = new Map(
+    [...nextReminderTimes].map(([occurrenceId, sendAt]) => [
+      occurrenceId,
+      `${formatDateInZone(sendAt, user.timezone, "LLL d")} ${formatTimeInZone(sendAt, user.timezone)}`,
+    ]),
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -123,6 +134,7 @@ export default async function TaskDetailPage({
                 <OccurrenceActions
                   occurrenceId={occurrence.id}
                   status={occurrence.status}
+                  nextReminderLabel={nextReminderLabels.get(occurrence.id)}
                 />
               </div>
             ))

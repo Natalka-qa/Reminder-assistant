@@ -92,12 +92,14 @@ export const occurrenceRepository = {
     });
   },
 
+  // A SNOOZED occurrence is still overdue — snoozing only defers its
+  // reminder, not the fact that its scheduled time has passed unresolved.
   findOverdueForUser(userId: string, before: Date, db: Db = prisma) {
     return db.taskOccurrence.findMany({
       where: {
         userId,
         scheduledStart: { lt: before },
-        status: "SCHEDULED",
+        status: { in: ["SCHEDULED", "SNOOZED"] },
       },
       orderBy: { scheduledStart: "asc" },
       include: { task: true },
@@ -105,9 +107,10 @@ export const occurrenceRepository = {
   },
 
   // Mirrors the `hasOverlap` predicate in `scheduling/overlap.ts`
-  // (`aStart < bEnd && bStart < aEnd`) as a `where` clause. Only `SCHEDULED`
-  // occurrences count as active conflicts — a completed/skipped/cancelled
-  // occurrence no longer occupies its time slot.
+  // (`aStart < bEnd && bStart < aEnd`) as a `where` clause. SCHEDULED and
+  // SNOOZED occurrences count as active conflicts (snoozing doesn't free up
+  // the time slot) — a completed/skipped/cancelled occurrence no longer
+  // occupies it.
   findOverlapping(
     userId: string,
     start: Date,
@@ -118,7 +121,7 @@ export const occurrenceRepository = {
     return db.taskOccurrence.findMany({
       where: {
         userId,
-        status: "SCHEDULED",
+        status: { in: ["SCHEDULED", "SNOOZED"] },
         scheduledStart: { lt: end },
         scheduledEnd: { gt: start },
         ...(excludeOccurrenceId ? { id: { not: excludeOccurrenceId } } : {}),

@@ -33,9 +33,15 @@ const taskFormFields = {
     .array(z.coerce.number().int().min(1).max(7))
     .optional()
     .default([]),
-  // Disabled placeholder in the form this sprint (Sprint 6) — accepted so
-  // the form can submit it, not validated or acted on.
-  reminder: z.string().optional(),
+  // 0 = "at time of task". Shared by every occurrence of the task, cascaded
+  // to future notifications on change — see TaskService.updateTask.
+  reminderOffsetMinutes: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(1440)
+    .optional()
+    .default(0),
   // Set by the conflict dialog's "Create anyway" action (Sprint 4) to skip
   // the conflict check for this one submission — see TaskService.
   confirmConflicts: z.coerce.boolean().optional().default(false),

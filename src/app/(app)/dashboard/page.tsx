@@ -2,9 +2,12 @@ import Link from "next/link";
 import { verifySession, getCurrentUser } from "@/lib/auth/dal";
 import { formatDateInZone, formatTimeInZone } from "@/lib/date";
 import { dashboardService } from "@/features/scheduling/dashboard.service";
+import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-status";
+import { notificationService } from "@/features/notifications/notification.service";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { OccurrenceActions } from "@/components/tasks/occurrence-actions";
+import { DueNotificationsToast } from "@/components/notifications/due-notifications-toast";
 
 type DashboardOccurrences = Awaited<
   ReturnType<typeof dashboardService.getTodayTasks>
@@ -14,10 +17,14 @@ function OccurrenceList({
   occurrences,
   timezone,
   showActions = false,
+  showDate = false,
+  nextReminderLabels,
 }: {
   occurrences: DashboardOccurrences;
   timezone: string;
   showActions?: boolean;
+  showDate?: boolean;
+  nextReminderLabels?: Map<string, string>;
 }) {
   if (occurrences.length === 0) {
     return <p className="text-muted-foreground text-sm">No tasks yet.</p>;
@@ -36,17 +43,22 @@ function OccurrenceList({
           >
             <span className="font-medium">{occurrence.task.title}</span>
             <span className="text-muted-foreground shrink-0">
-              {formatTimeInZone(occurrence.scheduledStart, timezone)}
+              {showDate
+                ? `${formatDateInZone(occurrence.scheduledStart, timezone, "LLL d")}, ${formatTimeInZone(occurrence.scheduledStart, timezone)}`
+                : formatTimeInZone(occurrence.scheduledStart, timezone)}
             </span>
           </Link>
           {showActions ? (
             <OccurrenceActions
               occurrenceId={occurrence.id}
               status={occurrence.status}
+              nextReminderLabel={nextReminderLabels?.get(occurrence.id)}
             />
           ) : (
             <span className="text-muted-foreground shrink-0 text-xs">
-              {occurrence.status !== "SCHEDULED" ? occurrence.status : null}
+              {!isActionableOccurrenceStatus(occurrence.status)
+                ? occurrence.status
+                : null}
             </span>
           )}
         </li>
@@ -61,6 +73,15 @@ export default async function DashboardPage() {
   const timezone = user?.timezone ?? "UTC";
   const today = formatDateInZone(new Date(), timezone);
 
+  // Lazy delivery trigger — the primary channel for timely reminders, since
+  // Vercel Cron can't be relied on for sub-daily frequency on the Hobby plan
+  // (see "Расхождения" п.5 in sprint-6-tasks.md). Runs before the queries
+  // below so a just-sent notification's occurrence still reflects its
+  // current (unrelated) status in this same render.
+  const dueNotifications = user
+    ? await notificationService.sendDueNotifications(new Date(), user.id)
+    : [];
+
   const [todayTasks, overdueTasks, upcomingTasks] = user
     ? await Promise.all([
         dashboardService.getTodayTasks(user.id, timezone),
@@ -69,8 +90,21 @@ export default async function DashboardPage() {
       ])
     : [[], [], []];
 
+  const snoozedIds = [...todayTasks, ...overdueTasks]
+    .filter((occurrence) => occurrence.status === "SNOOZED")
+    .map((occurrence) => occurrence.id);
+  const nextReminderTimes =
+    await notificationService.findNextReminderTimes(snoozedIds);
+  const nextReminderLabels = new Map(
+    [...nextReminderTimes].map(([occurrenceId, sendAt]) => [
+      occurrenceId,
+      `${formatDateInZone(sendAt, timezone, "LLL d")} ${formatTimeInZone(sendAt, timezone)}`,
+    ]),
+  );
+
   return (
     <div className="flex flex-col gap-6">
+      <DueNotificationsToast notifications={dueNotifications} />
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">
           {user?.name ? `Hi, ${user.name}` : "Hi there"}
@@ -87,6 +121,7 @@ export default async function DashboardPage() {
             occurrences={todayTasks}
             timezone={timezone}
             showActions
+            nextReminderLabels={nextReminderLabels}
           />
         </CardContent>
       </Card>
@@ -100,6 +135,7 @@ export default async function DashboardPage() {
             occurrences={overdueTasks}
             timezone={timezone}
             showActions
+            nextReminderLabels={nextReminderLabels}
           />
         </CardContent>
       </Card>
@@ -118,7 +154,11 @@ export default async function DashboardPage() {
           <CardTitle>Upcoming</CardTitle>
         </CardHeader>
         <CardContent>
-          <OccurrenceList occurrences={upcomingTasks} timezone={timezone} />
+          <OccurrenceList
+            occurrences={upcomingTasks}
+            timezone={timezone}
+            showDate
+          />
         </CardContent>
       </Card>
     </div>
