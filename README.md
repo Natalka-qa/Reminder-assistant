@@ -42,7 +42,7 @@ See `docs/adr/` for the architectural decisions behind the project structure and
 | Script                      | Purpose                                                     |
 | --------------------------- | ----------------------------------------------------------- |
 | `npm run dev`               | Start the dev server (Turbopack)                            |
-| `npm run build`             | Production build                                            |
+| `npm run build`             | Applies pending migrations, then production build           |
 | `npm run start`             | Start the production server                                 |
 | `npm run lint`              | ESLint                                                      |
 | `npm run typecheck`         | `tsc --noEmit`                                              |
@@ -52,6 +52,17 @@ See `docs/adr/` for the architectural decisions behind the project structure and
 | `npm run db:migrate:deploy` | Apply migrations in CI/production (`prisma migrate deploy`) |
 | `npm run db:studio`         | Open Prisma Studio                                          |
 | `npm run db:reset`          | Reset the database and re-seed (`prisma migrate reset`)     |
+
+## Deployment
+
+The app is designed to deploy to [Vercel](https://vercel.com):
+
+1. Import the repository as a new Vercel project (Vercel dashboard → Add New → Project).
+2. Set every variable from `.env.example` in the project's Vercel dashboard (Settings → Environment Variables) — `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `CRON_SECRET`.
+3. Set `AUTH_URL` to the app's real production domain (not `http://localhost:3000`), and add that domain's `/api/auth/callback/google` as an authorized redirect URI in the Google Cloud Console.
+4. Deploy. `npm run build` (Vercel's default build command) runs `prisma migrate deploy` before `next build`, so pending migrations are applied automatically on every deploy — no separate migration step needed.
+
+`vercel.json` also registers the two cron endpoints (`/api/cron/extend-occurrences`, `/api/cron/send-notifications`); Vercel schedules them automatically once the project is deployed, no extra setup required. `GET /api/health` (no auth) does a lightweight database ping — point an external uptime monitor at it.
 
 ## Architecture
 

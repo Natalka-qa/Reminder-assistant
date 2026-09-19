@@ -12,7 +12,14 @@ export async function GET(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const sent = await notificationService.sendDueNotifications(new Date());
-
-  return Response.json({ sent: sent.length });
+  try {
+    const sent = await notificationService.sendDueNotifications(new Date());
+    return Response.json({ sent: sent.length });
+  } catch (error) {
+    console.error("send-notifications cron failed:", error);
+    return Response.json(
+      { error: "Failed to send notifications." },
+      { status: 500 },
+    );
+  }
 }

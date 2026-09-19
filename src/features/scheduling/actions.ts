@@ -46,6 +46,7 @@ function runOccurrenceAction(
     revalidatePath("/dashboard");
     revalidatePath("/tasks");
     revalidatePath(`/tasks/${taskId}`);
+    revalidatePath("/calendar");
     return { status: "success" };
   };
 }
@@ -96,5 +97,6 @@ export async function snoozeOccurrenceAction(
   revalidatePath("/dashboard");
   revalidatePath("/tasks");
   revalidatePath(`/tasks/${taskId}`);
+  revalidatePath("/calendar");
   return { status: "success" };
 }

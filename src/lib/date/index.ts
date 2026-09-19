@@ -32,6 +32,14 @@ export function endOfDayInZone(date: Date, zone: string): Date {
   return utcToZoned(date, zone).endOf("day").toUTC().toJSDate();
 }
 
+export function startOfMonthInZone(date: Date, zone: string): Date {
+  return utcToZoned(date, zone).startOf("month").toUTC().toJSDate();
+}
+
+export function endOfMonthInZone(date: Date, zone: string): Date {
+  return utcToZoned(date, zone).endOf("month").toUTC().toJSDate();
+}
+
 /** Advances by calendar days in `zone`, DST-safe. Never use `+24h` for this. */
 export function addDaysInZone(date: Date, days: number, zone: string): Date {
   return utcToZoned(date, zone).plus({ days }).toUTC().toJSDate();

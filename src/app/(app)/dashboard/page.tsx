@@ -2,70 +2,11 @@ import Link from "next/link";
 import { verifySession, getCurrentUser } from "@/lib/auth/dal";
 import { formatDateInZone, formatTimeInZone } from "@/lib/date";
 import { dashboardService } from "@/features/scheduling/dashboard.service";
-import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-status";
 import { notificationService } from "@/features/notifications/notification.service";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { OccurrenceActions } from "@/components/tasks/occurrence-actions";
+import { OccurrenceList } from "@/components/tasks/occurrence-list";
 import { DueNotificationsToast } from "@/components/notifications/due-notifications-toast";
-
-type DashboardOccurrences = Awaited<
-  ReturnType<typeof dashboardService.getTodayTasks>
->;
-
-function OccurrenceList({
-  occurrences,
-  timezone,
-  showActions = false,
-  showDate = false,
-  nextReminderLabels,
-}: {
-  occurrences: DashboardOccurrences;
-  timezone: string;
-  showActions?: boolean;
-  showDate?: boolean;
-  nextReminderLabels?: Map<string, string>;
-}) {
-  if (occurrences.length === 0) {
-    return <p className="text-muted-foreground text-sm">No tasks yet.</p>;
-  }
-
-  return (
-    <ul className="flex flex-col gap-2">
-      {occurrences.map((occurrence) => (
-        <li
-          key={occurrence.id}
-          className="-mx-2 flex items-center gap-3 rounded-lg px-2 py-1.5"
-        >
-          <Link
-            href={`/tasks/${occurrence.task.id}`}
-            className="flex flex-1 items-center justify-between gap-4 text-sm hover:underline"
-          >
-            <span className="font-medium">{occurrence.task.title}</span>
-            <span className="text-muted-foreground shrink-0">
-              {showDate
-                ? `${formatDateInZone(occurrence.scheduledStart, timezone, "LLL d")}, ${formatTimeInZone(occurrence.scheduledStart, timezone)}`
-                : formatTimeInZone(occurrence.scheduledStart, timezone)}
-            </span>
-          </Link>
-          {showActions ? (
-            <OccurrenceActions
-              occurrenceId={occurrence.id}
-              status={occurrence.status}
-              nextReminderLabel={nextReminderLabels?.get(occurrence.id)}
-            />
-          ) : (
-            <span className="text-muted-foreground shrink-0 text-xs">
-              {!isActionableOccurrenceStatus(occurrence.status)
-                ? occurrence.status
-                : null}
-            </span>
-          )}
-        </li>
-      ))}
-    </ul>
-  );
-}
 
 export default async function DashboardPage() {
   await verifySession();

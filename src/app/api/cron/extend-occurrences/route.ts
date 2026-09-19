@@ -10,9 +10,16 @@ export async function GET(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const extended = await occurrenceService.extendOccurrencesForAllActiveTasks(
-    new Date(),
-  );
-
-  return Response.json({ extended });
+  try {
+    const extended = await occurrenceService.extendOccurrencesForAllActiveTasks(
+      new Date(),
+    );
+    return Response.json({ extended });
+  } catch (error) {
+    console.error("extend-occurrences cron failed:", error);
+    return Response.json(
+      { error: "Failed to extend occurrences." },
+      { status: 500 },
+    );
+  }
 }
