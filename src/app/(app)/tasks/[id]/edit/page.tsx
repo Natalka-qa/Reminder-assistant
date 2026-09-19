@@ -45,6 +45,7 @@ export default async function EditTaskPage({
           flexibility: task.flexibility,
           repeatFrequency: rule?.frequency ?? "NONE",
           repeatDaysOfWeek: rule?.frequency === "WEEKLY" ? rule.daysOfWeek : [],
+          reminderOffsetMinutes: task.reminderOffsetMinutes,
         }}
       />
     </div>

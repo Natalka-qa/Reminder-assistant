@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { canTransitionFromScheduled } from "./occurrence-status";
+import { isActionableOccurrenceStatus } from "./occurrence-status";
 
-describe("canTransitionFromScheduled", () => {
-  it("allows completion actions only from SCHEDULED", () => {
-    expect(canTransitionFromScheduled("SCHEDULED")).toBe(true);
+describe("isActionableOccurrenceStatus", () => {
+  it("treats SCHEDULED and SNOOZED as active", () => {
+    expect(isActionableOccurrenceStatus("SCHEDULED")).toBe(true);
+    expect(isActionableOccurrenceStatus("SNOOZED")).toBe(true);
   });
 
-  it("rejects every other status", () => {
-    expect(canTransitionFromScheduled("DONE")).toBe(false);
-    expect(canTransitionFromScheduled("PARTIALLY_DONE")).toBe(false);
-    expect(canTransitionFromScheduled("SKIPPED")).toBe(false);
-    expect(canTransitionFromScheduled("SNOOZED")).toBe(false);
-    expect(canTransitionFromScheduled("CANCELLED")).toBe(false);
+  it("rejects every terminal status", () => {
+    expect(isActionableOccurrenceStatus("DONE")).toBe(false);
+    expect(isActionableOccurrenceStatus("PARTIALLY_DONE")).toBe(false);
+    expect(isActionableOccurrenceStatus("SKIPPED")).toBe(false);
+    expect(isActionableOccurrenceStatus("CANCELLED")).toBe(false);
   });
 });

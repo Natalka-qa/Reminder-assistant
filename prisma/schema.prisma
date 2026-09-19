@@ -10,7 +10,7 @@ datasource db {
 // Sprint 1: User + the tables required by Auth.js's PrismaAdapter
 // (https://authjs.dev/getting-started/adapters/prisma).
 // Sprint 2: Task + TaskOccurrence (one occurrence per task until recurrence
-// generation lands in Sprint 5). Notification is Sprint 6.
+// generation lands in Sprint 5). Sprint 6: Notification.
 
 model User {
   id            String    @id @default(cuid())
@@ -25,10 +25,11 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  accounts    Account[]
-  sessions    Session[]
-  tasks       Task[]
-  occurrences TaskOccurrence[]
+  accounts      Account[]
+  sessions      Session[]
+  tasks         Task[]
+  occurrences   TaskOccurrence[]
+  notifications Notification[]
 }
 
 model Account {
@@ -85,6 +86,10 @@ model Task {
   recurrenceRule String?
   active         Boolean @default(true)
 
+  // 0 = "at time of task" (Sprint 6). Shared by every occurrence of this
+  // task, same as durationMinutes/priority.
+  reminderOffsetMinutes Int @default(0)
+
   user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   occurrences TaskOccurrence[]
 
@@ -109,10 +114,32 @@ model TaskOccurrence {
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  notifications Notification[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([userId, scheduledStart])
+}
+
+model Notification {
+  id           String @id @default(cuid())
+  occurrenceId String
+  userId       String
+
+  sendAt DateTime
+  status NotificationStatus @default(PENDING)
+
+  attemptCount Int       @default(0)
+  sentAt       DateTime?
+
+  occurrence TaskOccurrence @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, sendAt])
 }
 
 enum Priority {
@@ -133,5 +160,13 @@ enum OccurrenceStatus {
   PARTIALLY_DONE
   SKIPPED
   SNOOZED
+  CANCELLED
+}
+
+enum NotificationStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
   CANCELLED
 }

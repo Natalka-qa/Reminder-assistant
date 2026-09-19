@@ -1,4 +1,5 @@
 import type { OccurrenceStatus } from "@/lib/db/types";
+import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-status";
 
 type Selectable = {
   status: OccurrenceStatus;
@@ -16,7 +17,9 @@ export function pickCurrentOccurrence<T extends Selectable>(
   now = new Date(),
 ): T | undefined {
   const upcoming = occurrences
-    .filter((o) => o.status === "SCHEDULED" && o.scheduledStart >= now)
+    .filter(
+      (o) => isActionableOccurrenceStatus(o.status) && o.scheduledStart >= now,
+    )
     .sort((a, b) => a.scheduledStart.getTime() - b.scheduledStart.getTime());
   if (upcoming.length > 0) {
     return upcoming[0];

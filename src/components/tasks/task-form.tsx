@@ -38,7 +38,20 @@ export type TaskFormValues = {
   flexibility: "FIXED" | "FLEXIBLE";
   repeatFrequency: RepeatFrequency;
   repeatDaysOfWeek: number[];
+  reminderOffsetMinutes: number;
 };
+
+const REMINDER_PRESETS: { value: number; label: string }[] = [
+  { value: 0, label: "At time of task" },
+  { value: 5, label: "5 minutes before" },
+  { value: 15, label: "15 minutes before" },
+  { value: 30, label: "30 minutes before" },
+  { value: 60, label: "1 hour before" },
+];
+const REMINDER_CUSTOM = "custom";
+const REMINDER_PRESET_VALUES = new Set(
+  REMINDER_PRESETS.map(({ value }) => String(value)),
+);
 
 const WEEKDAYS: { value: number; label: string }[] = [
   { value: 1, label: "Mon" },
@@ -93,6 +106,15 @@ export function TaskForm({
   const [repeatDaysOfWeek, setRepeatDaysOfWeek] = useState(
     defaultValues.repeatDaysOfWeek,
   );
+  const [reminderOffsetMinutes, setReminderOffsetMinutes] = useState(
+    String(defaultValues.reminderOffsetMinutes),
+  );
+  // A value outside the presets (e.g. loaded from an existing task, or typed
+  // in previously) opens straight into the custom field instead of silently
+  // snapping to the nearest preset.
+  const [reminderIsCustom, setReminderIsCustom] = useState(
+    !REMINDER_PRESET_VALUES.has(String(defaultValues.reminderOffsetMinutes)),
+  );
 
   function toggleRepeatDay(day: number) {
     setRepeatDaysOfWeek((days) =>
@@ -139,6 +161,7 @@ export function TaskForm({
     for (const day of repeatDaysOfWeek) {
       data.append("repeatDaysOfWeek", String(day));
     }
+    data.set("reminderOffsetMinutes", reminderOffsetMinutes);
     data.set("confirmConflicts", "true");
     setConflictDialogOpen(false);
     // Calling the useActionState dispatch directly (not via <form action>)
@@ -331,18 +354,54 @@ export function TaskForm({
             </div>
           )}
 
-          <div className="flex flex-col gap-1.5 opacity-50">
-            <Label htmlFor="reminder">Reminder</Label>
-            <Input
-              id="reminder"
-              name="reminder"
-              disabled
-              placeholder="At time of task"
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="reminderOffsetMinutes">Reminder</Label>
+            {/* The Select is a UI picker only — the value actually submitted
+                comes from the hidden input below, since in "custom" mode the
+                Select's own value ("custom") isn't a valid minute count. */}
+            <Select
+              value={reminderIsCustom ? REMINDER_CUSTOM : reminderOffsetMinutes}
+              onValueChange={(value) => {
+                if (value === REMINDER_CUSTOM) {
+                  setReminderIsCustom(true);
+                  return;
+                }
+                setReminderIsCustom(false);
+                setReminderOffsetMinutes(value ?? "0");
+              }}
+            >
+              <SelectTrigger id="reminderOffsetMinutes" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {REMINDER_PRESETS.map(({ value, label }) => (
+                  <SelectItem key={value} value={String(value)}>
+                    {label}
+                  </SelectItem>
+                ))}
+                <SelectItem value={REMINDER_CUSTOM}>Custom…</SelectItem>
+              </SelectContent>
+            </Select>
+            {reminderIsCustom && (
+              <Input
+                type="number"
+                min={0}
+                max={1440}
+                value={reminderOffsetMinutes}
+                onChange={(event) =>
+                  setReminderOffsetMinutes(event.target.value)
+                }
+                placeholder="Minutes before"
+                aria-label="Custom reminder offset in minutes"
+                autoFocus
+              />
+            )}
+            <input
+              type="hidden"
+              name="reminderOffsetMinutes"
+              value={reminderOffsetMinutes}
             />
           </div>
-          <p className="text-muted-foreground text-xs">
-            Reminders are coming in a later sprint.
-          </p>
         </div>
 
         <Button type="submit" disabled={pending} className="self-start">
