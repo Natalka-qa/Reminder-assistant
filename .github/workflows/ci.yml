@@ -31,6 +31,7 @@ jobs:
       GOOGLE_CLIENT_SECRET: ci-placeholder-secret
       RESEND_API_KEY: ci-placeholder-key
       EMAIL_FROM: onboarding@resend.dev
+      CRON_SECRET: ci-placeholder-secret
     steps:
       - uses: actions/checkout@v4
 

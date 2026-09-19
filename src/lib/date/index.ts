@@ -7,7 +7,8 @@
  * 4. Recurrence is computed in the user's timezone, not UTC.
  * 5. Never advance a recurring date with a flat "+24 hours" — DST transitions
  *    make a calendar day longer or shorter than 24 hours in wall-clock time.
- *    Use `addDaysInZone`, which adds calendar days in the given zone.
+ *    Use `addDaysInZone` (calendar days) or `addMonthsInZone` (calendar
+ *    months), both DST-safe in the given zone.
  * 6. `zonedDateTimeToUtc` is the only place a local date and time are ever
  *    combined into an instant. Never write `new Date(\`${date}T${time}\`)` —
  *    that's parsed in the server/engine's zone, not the user's, and silently
@@ -34,6 +35,20 @@ export function endOfDayInZone(date: Date, zone: string): Date {
 /** Advances by calendar days in `zone`, DST-safe. Never use `+24h` for this. */
 export function addDaysInZone(date: Date, days: number, zone: string): Date {
   return utcToZoned(date, zone).plus({ days }).toUTC().toJSDate();
+}
+
+/**
+ * Advances by calendar months in `zone`. When the target month is shorter
+ * than the anchor's day-of-month, Luxon clamps to that month's last day
+ * (e.g. Jan 31 + 1 month -> Feb 28) rather than throwing or rolling over —
+ * see `index.test.ts` for the exact behavior this locks in.
+ */
+export function addMonthsInZone(
+  date: Date,
+  months: number,
+  zone: string,
+): Date {
+  return utcToZoned(date, zone).plus({ months }).toUTC().toJSDate();
 }
 
 /**

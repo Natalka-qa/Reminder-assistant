@@ -9,6 +9,7 @@ const serverEnvSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().min(1, "GOOGLE_CLIENT_SECRET is required"),
   RESEND_API_KEY: z.string().min(1, "RESEND_API_KEY is required"),
   EMAIL_FROM: z.email(),
+  CRON_SECRET: z.string().min(1, "CRON_SECRET is required"),
 });
 
 function loadServerEnv() {

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { verifySession, getCurrentUser } from "@/lib/auth/dal";
 import { taskService } from "@/features/tasks/task.service";
 import { formatDateInZone, formatTimeInZone } from "@/lib/date";
+import { pickCurrentOccurrence } from "@/features/scheduling/occurrence-selection";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -40,7 +41,7 @@ export default async function TasksPage() {
       ) : (
         <div className="flex flex-col gap-3">
           {tasks.map((task) => {
-            const occurrence = task.occurrences[0];
+            const occurrence = pickCurrentOccurrence(task.occurrences);
             return (
               <Link key={task.id} href={`/tasks/${task.id}`}>
                 <Card className="hover:bg-muted/50 transition-colors">

@@ -11,6 +11,10 @@ import { occurrenceService } from "@/features/scheduling/occurrence.service";
 import { conflictService } from "@/features/scheduling/conflict.service";
 import { ScheduleConflictError } from "@/features/scheduling/conflict.errors";
 import { createTaskSchema, updateTaskSchema } from "@/lib/validation/task";
+import {
+  serializeRecurrenceRule,
+  type RecurrenceRule,
+} from "@/features/recurrence/recurrence-rule";
 
 function parseOrThrow<T>(schema: z.ZodType<T>, input: unknown): T {
   const result = schema.safeParse(input);
@@ -19,6 +23,24 @@ function parseOrThrow<T>(schema: z.ZodType<T>, input: unknown): T {
     throw new TaskValidationError(message);
   }
   return result.data;
+}
+
+// Undefined shape guarded by the WEEKLY-requires-days refine in
+// lib/validation/task.ts — repeatDaysOfWeek is only trusted once
+// repeatFrequency is confirmed "WEEKLY".
+function buildRecurrenceRule(data: {
+  repeatFrequency: "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
+  repeatDaysOfWeek: number[];
+}): RecurrenceRule | null {
+  switch (data.repeatFrequency) {
+    case "NONE":
+      return null;
+    case "WEEKLY":
+      return { frequency: "WEEKLY", daysOfWeek: data.repeatDaysOfWeek };
+    case "DAILY":
+    case "MONTHLY":
+      return { frequency: data.repeatFrequency };
+  }
 }
 
 export const taskService = {
@@ -32,9 +54,15 @@ export const taskService = {
 
   createTask(userId: string, timezone: string, rawInput: unknown) {
     const data = parseOrThrow(createTaskSchema, rawInput);
+    const rule = buildRecurrenceRule(data);
 
     return runInTransaction(async (tx) => {
-      if (!data.confirmConflicts) {
+      // Non-recurring keeps its original single-interval pre-check so a
+      // conflicting task is never inserted at all. A recurring task's
+      // candidates aren't known until generation, so its check happens
+      // inside createOccurrencesForTask instead (after the Task row exists,
+      // still inside this same transaction — a conflict rolls both back).
+      if (rule === null && !data.confirmConflicts) {
         const scheduledStart = zonedDateTimeToUtc(
           data.date,
           data.time,
@@ -61,18 +89,29 @@ export const taskService = {
           priority: data.priority,
           flexibility: data.flexibility,
           durationMinutes: data.durationMinutes,
+          recurrenceRule: serializeRecurrenceRule(rule),
         },
         tx,
       );
 
-      const occurrence = await occurrenceService.createForTask(
+      if (rule === null) {
+        const occurrence = await occurrenceService.createForTask(
+          task,
+          data,
+          timezone,
+          tx,
+        );
+        return { task, occurrence };
+      }
+
+      const occurrences = await occurrenceService.createOccurrencesForTask(
         task,
+        rule,
         data,
         timezone,
         tx,
       );
-
-      return { task, occurrence };
+      return { task, occurrences };
     });
   },
 
@@ -88,6 +127,38 @@ export const taskService = {
       const existing = await taskRepository.findById(taskId, userId, tx);
       if (!existing) {
         throw new TaskNotFoundError(taskId);
+      }
+
+      // Recurring tasks don't accept Date/Time/Repeat edits this sprint (the
+      // form locks those fields read-only — see task-form.tsx); enforce it
+      // here too so a hand-crafted request can't bypass the UI and silently
+      // reschedule/regenerate occurrences. durationMinutes is still editable
+      // and cascades to future occurrences below.
+      if (existing.recurrenceRule !== null) {
+        const task = await taskRepository.update(
+          taskId,
+          userId,
+          {
+            title: data.title,
+            description: data.description,
+            priority: data.priority,
+            flexibility: data.flexibility,
+            durationMinutes: data.durationMinutes,
+            ...(data.active !== undefined ? { active: data.active } : {}),
+          },
+          tx,
+        );
+
+        if (data.durationMinutes !== existing.durationMinutes) {
+          await occurrenceService.cascadeDurationChange(
+            taskId,
+            userId,
+            data.durationMinutes,
+            tx,
+          );
+        }
+
+        return task;
       }
 
       const occurrences = await occurrenceRepository.findByTaskId(
@@ -152,6 +223,19 @@ export const taskService = {
     if (!existing) {
       throw new TaskNotFoundError(taskId);
     }
-    return taskRepository.setActive(taskId, userId, false);
+    return runInTransaction(async (tx) => {
+      const task = await taskRepository.setActive(taskId, userId, false, tx);
+      // Stops the now-inactive task's future SCHEDULED occurrences from
+      // lingering on the dashboard — applies to non-recurring tasks too
+      // (a still-future single occurrence), not just recurring ones. Past
+      // occurrences (DONE/SKIPPED/etc.) are history and untouched.
+      await occurrenceService.cancelFutureOccurrences(
+        taskId,
+        userId,
+        new Date(),
+        tx,
+      );
+      return task;
+    });
   },
 };
