@@ -30,20 +30,28 @@ export function TaskActions({
 
   function handleDeactivate() {
     startTransition(async () => {
-      const result = await deactivateTaskAction(taskId);
-      if (result.status === "error" && result.message) {
-        toast.error(result.message);
-      } else {
-        toast.success("Task deactivated");
+      try {
+        const result = await deactivateTaskAction(taskId);
+        if (result.status === "error" && result.message) {
+          toast.error(result.message);
+        } else {
+          toast.success("Task deactivated");
+        }
+      } catch {
+        toast.error("Something went wrong. Please try again.");
       }
     });
   }
 
   function handleDelete() {
     startTransition(async () => {
-      const result = await deleteTaskAction(taskId);
-      if (result?.status === "error" && result.message) {
-        toast.error(result.message);
+      try {
+        const result = await deleteTaskAction(taskId);
+        if (result?.status === "error" && result.message) {
+          toast.error(result.message);
+        }
+      } catch {
+        toast.error("Something went wrong. Please try again.");
       }
     });
   }

@@ -1,7 +1,28 @@
-import type { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
+import { OccurrenceNotFoundError } from "@/features/scheduling/occurrence.errors";
 
 type Db = PrismaClient | Prisma.TransactionClient;
+
+// Symmetric to taskRepository's P2025 mapping — a record P2025 here means
+// the occurrence was deleted (e.g. cascaded from its task being deleted)
+// between the caller's own existence check and this update.
+async function rethrowP2025AsNotFound<T>(
+  id: string,
+  run: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2025"
+    ) {
+      throw new OccurrenceNotFoundError(id);
+    }
+    throw error;
+  }
+}
 
 export const occurrenceRepository = {
   create(data: Prisma.TaskOccurrenceUncheckedCreateInput, db: Db = prisma) {
@@ -67,7 +88,9 @@ export const occurrenceRepository = {
     data: Prisma.TaskOccurrenceUpdateInput,
     db: Db = prisma,
   ) {
-    return db.taskOccurrence.update({ where: { id, userId }, data });
+    return rethrowP2025AsNotFound(id, () =>
+      db.taskOccurrence.update({ where: { id, userId }, data }),
+    );
   },
 
   findForUserBetween(userId: string, start: Date, end: Date, db: Db = prisma) {

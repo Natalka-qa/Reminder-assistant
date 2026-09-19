@@ -57,25 +57,33 @@ export function OccurrenceActions({
 
   function run(action: (id: string) => Promise<OccurrenceActionState>) {
     startTransition(async () => {
-      const result = await action(occurrenceId);
-      if (result.status === "error" && result.message) {
-        toast.error(result.message);
+      try {
+        const result = await action(occurrenceId);
+        if (result.status === "error" && result.message) {
+          toast.error(result.message);
+        }
+      } catch {
+        toast.error("Something went wrong. Please try again.");
       }
     });
   }
 
   function runSnooze(option: SnoozeOption) {
     startTransition(async () => {
-      const result = await snoozeOccurrenceAction(occurrenceId, option);
-      if (result.status === "error" && result.message) {
-        toast.error(result.message);
+      try {
+        const result = await snoozeOccurrenceAction(occurrenceId, option);
+        if (result.status === "error" && result.message) {
+          toast.error(result.message);
+        }
+      } catch {
+        toast.error("Something went wrong. Please try again.");
       }
     });
   }
 
   return (
     <div className="flex shrink-0 flex-col items-end gap-1">
-      <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center justify-end gap-1">
         <Button
           size="xs"
           variant="outline"

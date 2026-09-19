@@ -64,9 +64,9 @@ export default async function TaskDetailPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="truncate text-2xl font-semibold tracking-tight">
             {task.title}
           </h1>
           {!task.active && (
@@ -142,13 +142,17 @@ export default async function TaskDetailPage({
         </CardContent>
       </Card>
 
-      {history.length > 0 && (
-        <Card>
-          <CardContent className="pt-6">
-            <details>
-              <summary className="cursor-pointer text-sm font-medium">
-                History
-              </summary>
+      <Card>
+        <CardContent className="pt-6">
+          <details>
+            <summary className="cursor-pointer text-sm font-medium">
+              History
+            </summary>
+            {history.length === 0 ? (
+              <p className="text-muted-foreground mt-3 text-sm">
+                No history yet.
+              </p>
+            ) : (
               <div className="mt-3 flex flex-col gap-2 text-sm">
                 {history.map((occurrence) => (
                   <div
@@ -172,10 +176,10 @@ export default async function TaskDetailPage({
                   </div>
                 ))}
               </div>
-            </details>
-          </CardContent>
-        </Card>
-      )}
+            )}
+          </details>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -8,6 +8,8 @@ import {
   type UpdateTimezoneState,
 } from "@/features/user/actions";
 
+const DISMISSED_KEY = "onboarding-banner-dismissed";
+
 const initialState: UpdateTimezoneState = { status: "idle" };
 
 export function OnboardingBannerClient({
@@ -19,11 +21,20 @@ export function OnboardingBannerClient({
   // Browser timezone has no subscribable "change" event, so useSyncExternalStore
   // can't pick it up after mount (nothing ever fires onStoreChange). A one-time
   // effect is the correct tool here: synchronizing with a platform API that
-  // isn't knowable during SSR.
+  // isn't knowable during SSR. Reading the dismissed flag from localStorage is
+  // deferred here too (rather than a useState initializer) so the client's
+  // first render matches the server's, avoiding a hydration mismatch.
   const [detectedZone, setDetectedZone] = useState<string | null>(null);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setDetectedZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    try {
+      if (localStorage.getItem(DISMISSED_KEY) === "1") {
+        setDismissed(true);
+      }
+    } catch {
+      // Private browsing / blocked storage — falls back to per-session dismiss.
+    }
   }, []);
   const [state, formAction, pending] = useActionState(
     updateTimezoneAction,
@@ -51,7 +62,14 @@ export function OnboardingBannerClient({
         <button
           type="button"
           aria-label="Dismiss"
-          onClick={() => setDismissed(true)}
+          onClick={() => {
+            setDismissed(true);
+            try {
+              localStorage.setItem(DISMISSED_KEY, "1");
+            } catch {
+              // Private browsing / blocked storage — dismiss still works for this session.
+            }
+          }}
           className="text-muted-foreground hover:bg-background rounded-md p-1"
         >
           <X className="size-4" />
