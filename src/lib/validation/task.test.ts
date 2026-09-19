@@ -40,4 +40,33 @@ describe("createTaskSchema", () => {
       createTaskSchema.safeParse({ ...validInput, title: "   " }).success,
     ).toBe(false);
   });
+
+  it("defaults repeatFrequency to NONE and repeatDaysOfWeek to [] when omitted", () => {
+    const result = createTaskSchema.safeParse(validInput);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.repeatFrequency).toBe("NONE");
+      expect(result.data.repeatDaysOfWeek).toEqual([]);
+    }
+  });
+
+  it("rejects WEEKLY with no selected days — not the same as 'weekly on no days'", () => {
+    expect(
+      createTaskSchema.safeParse({
+        ...validInput,
+        repeatFrequency: "WEEKLY",
+        repeatDaysOfWeek: [],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts WEEKLY once at least one day is selected", () => {
+    expect(
+      createTaskSchema.safeParse({
+        ...validInput,
+        repeatFrequency: "WEEKLY",
+        repeatDaysOfWeek: [1, 3],
+      }).success,
+    ).toBe(true);
+  });
 });

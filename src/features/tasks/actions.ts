@@ -36,6 +36,8 @@ function readTaskForm(formData: FormData) {
     durationMinutes: formData.get("durationMinutes"),
     priority: formData.get("priority"),
     flexibility: formData.get("flexibility"),
+    repeatFrequency: formData.get("repeatFrequency") || undefined,
+    repeatDaysOfWeek: formData.getAll("repeatDaysOfWeek"),
     confirmConflicts: formData.get("confirmConflicts") === "true",
   };
 }

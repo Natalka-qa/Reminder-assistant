@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { verifySession, getCurrentUser } from "@/lib/auth/dal";
 import { taskService } from "@/features/tasks/task.service";
 import { formatDateInZone, formatTimeInZone } from "@/lib/date";
+import { pickCurrentOccurrence } from "@/features/scheduling/occurrence-selection";
+import { parseRecurrenceRule } from "@/features/recurrence/recurrence-rule";
 import { TaskForm } from "@/components/tasks/task-form";
 import { updateTaskAction } from "@/features/tasks/actions";
 
@@ -22,8 +24,9 @@ export default async function EditTaskPage({
     notFound();
   }
 
-  const occurrence = task.occurrences[0];
+  const occurrence = pickCurrentOccurrence(task.occurrences);
   const scheduledStart = occurrence?.scheduledStart ?? new Date();
+  const rule = parseRecurrenceRule(task.recurrenceRule);
 
   return (
     <div className="flex flex-col gap-6">
@@ -31,6 +34,7 @@ export default async function EditTaskPage({
       <TaskForm
         action={updateTaskAction.bind(null, task.id)}
         submitLabel="Save"
+        scheduleLocked={rule !== null}
         defaultValues={{
           title: task.title,
           description: task.description ?? "",
@@ -39,6 +43,8 @@ export default async function EditTaskPage({
           durationMinutes: task.durationMinutes,
           priority: task.priority,
           flexibility: task.flexibility,
+          repeatFrequency: rule?.frequency ?? "NONE",
+          repeatDaysOfWeek: rule?.frequency === "WEEKLY" ? rule.daysOfWeek : [],
         }}
       />
     </div>

@@ -24,6 +24,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import type { TaskActionState } from "@/features/tasks/actions";
+import { describeRecurrenceRule } from "@/features/recurrence/recurrence-rule";
+
+export type RepeatFrequency = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
 
 export type TaskFormValues = {
   title: string;
@@ -33,7 +36,19 @@ export type TaskFormValues = {
   durationMinutes: number;
   priority: "LOW" | "NORMAL" | "HIGH" | "CRITICAL";
   flexibility: "FIXED" | "FLEXIBLE";
+  repeatFrequency: RepeatFrequency;
+  repeatDaysOfWeek: number[];
 };
+
+const WEEKDAYS: { value: number; label: string }[] = [
+  { value: 1, label: "Mon" },
+  { value: 2, label: "Tue" },
+  { value: 3, label: "Wed" },
+  { value: 4, label: "Thu" },
+  { value: 5, label: "Fri" },
+  { value: 6, label: "Sat" },
+  { value: 7, label: "Sun" },
+];
 
 const initialState: TaskActionState = { status: "idle" };
 
@@ -41,6 +56,11 @@ export function TaskForm({
   action,
   defaultValues,
   submitLabel,
+  // Recurring tasks don't support editing their schedule this sprint (see
+  // sprint-5-tasks.md "Расхождения" п.5) — Date/Time/Repeat render read-only
+  // with an explanation instead of controls. TaskService enforces this
+  // server-side too; this is UX, not the actual guard.
+  scheduleLocked = false,
 }: {
   action: (
     prevState: TaskActionState,
@@ -48,6 +68,7 @@ export function TaskForm({
   ) => Promise<TaskActionState>;
   defaultValues: TaskFormValues;
   submitLabel: string;
+  scheduleLocked?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
@@ -66,6 +87,20 @@ export function TaskForm({
   );
   const [priority, setPriority] = useState(defaultValues.priority);
   const [flexibility, setFlexibility] = useState(defaultValues.flexibility);
+  const [repeatFrequency, setRepeatFrequency] = useState(
+    defaultValues.repeatFrequency,
+  );
+  const [repeatDaysOfWeek, setRepeatDaysOfWeek] = useState(
+    defaultValues.repeatDaysOfWeek,
+  );
+
+  function toggleRepeatDay(day: number) {
+    setRepeatDaysOfWeek((days) =>
+      days.includes(day)
+        ? days.filter((d) => d !== day)
+        : [...days, day].sort((a, b) => a - b),
+    );
+  }
 
   // Opening the dialog reacts to a *new* action result, not just its value,
   // so this adjusts state during render (React's documented pattern for
@@ -100,6 +135,10 @@ export function TaskForm({
     data.set("durationMinutes", durationMinutes);
     data.set("priority", priority);
     data.set("flexibility", flexibility);
+    data.set("repeatFrequency", repeatFrequency);
+    for (const day of repeatDaysOfWeek) {
+      data.append("repeatDaysOfWeek", String(day));
+    }
     data.set("confirmConflicts", "true");
     setConflictDialogOpen(false);
     // Calling the useActionState dispatch directly (not via <form action>)
@@ -138,30 +177,41 @@ export function TaskForm({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        {scheduleLocked ? (
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="date">Date</Label>
-            <Input
-              id="date"
-              name="date"
-              type="date"
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
-              required
-            />
+            <Label>Date & time</Label>
+            <p className="text-sm">
+              {date} at {time}
+            </p>
+            <input type="hidden" name="date" value={date} />
+            <input type="hidden" name="time" value={time} />
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="time">Time</Label>
-            <Input
-              id="time"
-              name="time"
-              type="time"
-              value={time}
-              onChange={(event) => setTime(event.target.value)}
-              required
-            />
+        ) : (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="date">Date</Label>
+              <Input
+                id="date"
+                name="date"
+                type="date"
+                value={date}
+                onChange={(event) => setDate(event.target.value)}
+                required
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="time">Time</Label>
+              <Input
+                id="time"
+                name="time"
+                type="time"
+                value={time}
+                onChange={(event) => setTime(event.target.value)}
+                required
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="durationMinutes">Duration (minutes)</Label>
@@ -219,15 +269,68 @@ export function TaskForm({
         </div>
 
         <div className="flex flex-col gap-4 border-t pt-4">
-          <div className="flex flex-col gap-1.5 opacity-50">
-            <Label htmlFor="repeat">Repeat</Label>
-            <Input
-              id="repeat"
-              name="repeat"
-              disabled
-              placeholder="Does not repeat"
-            />
-          </div>
+          {scheduleLocked ? (
+            <div className="flex flex-col gap-1.5">
+              <Label>Repeat</Label>
+              <p className="text-sm">
+                {repeatFrequency === "NONE"
+                  ? "Does not repeat"
+                  : describeRecurrenceRule(
+                      repeatFrequency === "WEEKLY"
+                        ? { frequency: "WEEKLY", daysOfWeek: repeatDaysOfWeek }
+                        : { frequency: repeatFrequency },
+                    )}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                Recurring task — schedule can&apos;t be edited yet. Deactivate
+                and recreate to change it.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="repeatFrequency">Repeat</Label>
+                <Select
+                  name="repeatFrequency"
+                  value={repeatFrequency}
+                  onValueChange={(value) =>
+                    setRepeatFrequency(value as RepeatFrequency)
+                  }
+                >
+                  <SelectTrigger id="repeatFrequency" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="NONE">Does not repeat</SelectItem>
+                    <SelectItem value="DAILY">Daily</SelectItem>
+                    <SelectItem value="WEEKLY">Weekly</SelectItem>
+                    <SelectItem value="MONTHLY">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {repeatFrequency === "WEEKLY" && (
+                <div className="flex flex-wrap gap-3">
+                  {WEEKDAYS.map(({ value, label }) => (
+                    <label
+                      key={value}
+                      className="flex items-center gap-1.5 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        name="repeatDaysOfWeek"
+                        value={value}
+                        checked={repeatDaysOfWeek.includes(value)}
+                        onChange={() => toggleRepeatDay(value)}
+                        className="accent-primary border-input size-4 rounded"
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex flex-col gap-1.5 opacity-50">
             <Label htmlFor="reminder">Reminder</Label>
             <Input
@@ -238,7 +341,7 @@ export function TaskForm({
             />
           </div>
           <p className="text-muted-foreground text-xs">
-            Coming in a later sprint.
+            Reminders are coming in a later sprint.
           </p>
         </div>
 

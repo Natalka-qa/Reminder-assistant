@@ -23,6 +23,8 @@ export default async function NewTaskPage() {
           durationMinutes: 30,
           priority: "NORMAL",
           flexibility: "FLEXIBLE",
+          repeatFrequency: "NONE",
+          repeatDaysOfWeek: [],
         }}
       />
     </div>

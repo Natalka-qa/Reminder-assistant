@@ -25,21 +25,47 @@ const taskFormFields = {
     .max(1440, "Duration can't exceed 24 hours"),
   priority: prioritySchema,
   flexibility: flexibilitySchema,
-  // Disabled placeholders in the form this sprint (Sprint 5 / Sprint 6) —
-  // accepted so the form can submit them, not validated or acted on.
-  repeat: z.string().optional(),
+  repeatFrequency: z
+    .enum(["NONE", "DAILY", "WEEKLY", "MONTHLY"])
+    .optional()
+    .default("NONE"),
+  repeatDaysOfWeek: z
+    .array(z.coerce.number().int().min(1).max(7))
+    .optional()
+    .default([]),
+  // Disabled placeholder in the form this sprint (Sprint 6) — accepted so
+  // the form can submit it, not validated or acted on.
   reminder: z.string().optional(),
   // Set by the conflict dialog's "Create anyway" action (Sprint 4) to skip
   // the conflict check for this one submission — see TaskService.
   confirmConflicts: z.coerce.boolean().optional().default(false),
 };
 
-export const createTaskSchema = z.object(taskFormFields);
+// WEEKLY without any selected day isn't "weekly on no days" — it's an
+// incomplete form. Depends on two fields at once, so it has to be a
+// `.refine` on the object rather than on `repeatDaysOfWeek` alone.
+function requiresWeeklyDays(data: {
+  repeatFrequency: string;
+  repeatDaysOfWeek: number[];
+}) {
+  return data.repeatFrequency !== "WEEKLY" || data.repeatDaysOfWeek.length > 0;
+}
 
-export const updateTaskSchema = z.object({
-  ...taskFormFields,
-  active: z.coerce.boolean().optional(),
-});
+const weeklyDaysRefinement = {
+  message: "Select at least one day of the week",
+  path: ["repeatDaysOfWeek"],
+};
+
+export const createTaskSchema = z
+  .object(taskFormFields)
+  .refine(requiresWeeklyDays, weeklyDaysRefinement);
+
+export const updateTaskSchema = z
+  .object({
+    ...taskFormFields,
+    active: z.coerce.boolean().optional(),
+  })
+  .refine(requiresWeeklyDays, weeklyDaysRefinement);
 
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;

@@ -3,10 +3,16 @@ import { notFound } from "next/navigation";
 import { verifySession, getCurrentUser } from "@/lib/auth/dal";
 import { taskService } from "@/features/tasks/task.service";
 import { formatDateInZone, formatTimeInZone } from "@/lib/date";
+import {
+  describeRecurrenceRule,
+  parseRecurrenceRule,
+} from "@/features/recurrence/recurrence-rule";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { OccurrenceActions } from "@/components/tasks/occurrence-actions";
 import { TaskActions } from "./task-actions";
+
+const HISTORY_LIMIT = 10;
 
 export default async function TaskDetailPage({
   params,
@@ -25,7 +31,25 @@ export default async function TaskDetailPage({
     notFound();
   }
 
-  const occurrence = task.occurrences[0];
+  const rule = parseRecurrenceRule(task.recurrenceRule);
+
+  // task.occurrences is already ordered by scheduledStart ascending
+  // (taskRepository.findByIdWithOccurrences), so filtering preserves order.
+  const now = new Date();
+  const upcoming = task.occurrences.filter(
+    (occurrence) =>
+      occurrence.status === "SCHEDULED" && occurrence.scheduledStart >= now,
+  );
+  const history = task.occurrences
+    .filter(
+      (occurrence) =>
+        !(
+          occurrence.status === "SCHEDULED" && occurrence.scheduledStart >= now
+        ),
+    )
+    .slice()
+    .reverse()
+    .slice(0, HISTORY_LIMIT);
 
   return (
     <div className="flex flex-col gap-6">
@@ -71,30 +95,75 @@ export default async function TaskDetailPage({
             <span className="text-muted-foreground">Duration:</span>{" "}
             {task.durationMinutes} min
           </p>
+          <p>
+            <span className="text-muted-foreground">Repeats:</span>{" "}
+            {rule ? describeRecurrenceRule(rule) : "Does not repeat"}
+          </p>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Scheduled</CardTitle>
+          <CardTitle>Upcoming</CardTitle>
         </CardHeader>
-        <CardContent className="flex items-center justify-between gap-4 text-sm">
-          {occurrence ? (
-            <>
-              <p>
-                {formatDateInZone(occurrence.scheduledStart, user.timezone)} at{" "}
-                {formatTimeInZone(occurrence.scheduledStart, user.timezone)}
-              </p>
-              <OccurrenceActions
-                occurrenceId={occurrence.id}
-                status={occurrence.status}
-              />
-            </>
+        <CardContent className="flex flex-col gap-3 text-sm">
+          {upcoming.length === 0 ? (
+            <p className="text-muted-foreground">No upcoming occurrences.</p>
           ) : (
-            <p className="text-muted-foreground">No scheduled occurrence.</p>
+            upcoming.map((occurrence) => (
+              <div
+                key={occurrence.id}
+                className="flex items-center justify-between gap-4"
+              >
+                <p>
+                  {formatDateInZone(occurrence.scheduledStart, user.timezone)}{" "}
+                  at{" "}
+                  {formatTimeInZone(occurrence.scheduledStart, user.timezone)}
+                </p>
+                <OccurrenceActions
+                  occurrenceId={occurrence.id}
+                  status={occurrence.status}
+                />
+              </div>
+            ))
           )}
         </CardContent>
       </Card>
+
+      {history.length > 0 && (
+        <Card>
+          <CardContent className="pt-6">
+            <details>
+              <summary className="cursor-pointer text-sm font-medium">
+                History
+              </summary>
+              <div className="mt-3 flex flex-col gap-2 text-sm">
+                {history.map((occurrence) => (
+                  <div
+                    key={occurrence.id}
+                    className="flex items-center justify-between gap-4"
+                  >
+                    <p className="text-muted-foreground">
+                      {formatDateInZone(
+                        occurrence.scheduledStart,
+                        user.timezone,
+                      )}{" "}
+                      at{" "}
+                      {formatTimeInZone(
+                        occurrence.scheduledStart,
+                        user.timezone,
+                      )}
+                    </p>
+                    <span className="text-muted-foreground text-xs">
+                      {occurrence.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

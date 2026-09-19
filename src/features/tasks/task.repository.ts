@@ -27,6 +27,15 @@ export const taskRepository = {
     });
   },
 
+  // Powers the background window-extension job — needs the owner's timezone
+  // since recurrence dates are always computed in the user's zone, not UTC.
+  findActiveRecurring(db: Db = prisma) {
+    return db.task.findMany({
+      where: { active: true, recurrenceRule: { not: null } },
+      include: { user: true },
+    });
+  },
+
   update(
     id: string,
     userId: string,
