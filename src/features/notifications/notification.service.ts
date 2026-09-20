@@ -28,6 +28,16 @@ export type DueNotificationResult = {
   timeLabel: string;
 };
 
+export type NotificationHistoryEntry = {
+  id: string;
+  taskId: string;
+  title: string;
+  sentAt: Date;
+};
+
+// Inbox page shows the most recent entries only, not a full archive.
+const HISTORY_LIMIT = 20;
+
 type OccurrenceForNotification = {
   id: string;
   userId: string;
@@ -245,5 +255,33 @@ export const notificationService = {
     await notificationRepository.create({ occurrenceId, userId, sendAt }, tx);
 
     return updated;
+  },
+
+  // design_handoff_reminder_assistant/README.md § Inbox — the handoff frames
+  // this as AI-generated suggestions, but nothing in this codebase generates
+  // those (see dashboard/page.tsx's InsightCard/AI suggestion note). Real
+  // sent-reminder history is the honest content that fits the same visual
+  // slot without fabricating assistant copy.
+  async getRecentHistory(
+    userId: string,
+    db?: Db,
+  ): Promise<NotificationHistoryEntry[]> {
+    const sent = await notificationRepository.findRecentSentForUser(
+      userId,
+      HISTORY_LIMIT,
+      db,
+    );
+    return sent.flatMap((notification) =>
+      notification.sentAt
+        ? [
+            {
+              id: notification.id,
+              taskId: notification.occurrence.task.id,
+              title: notification.occurrence.task.title,
+              sentAt: notification.sentAt,
+            },
+          ]
+        : [],
+    );
   },
 };
