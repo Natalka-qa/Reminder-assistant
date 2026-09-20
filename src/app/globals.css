@@ -8,8 +8,8 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
+  --font-display: var(--font-cormorant);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -39,17 +39,59 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
   --radius-xl: calc(var(--radius) * 1.4);
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Design handoff tokens (design_handoff_reminder_assistant/README.md) —
+     mirrored here so Tailwind generates matching utilities, e.g. bg-surface,
+     text-burgundy, border-separator. Component-level one-off colors (chip
+     variants, sidebar states, etc.) stay out of this file until the
+     components that use them are built. */
+  --color-surface: var(--surface);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-border-soft: var(--border-soft);
+  --color-separator: var(--separator);
+  --color-burgundy: var(--burgundy);
+  --color-burgundy-hover: var(--burgundy-hover);
+  --color-burgundy-tint: var(--burgundy-tint);
+  --color-soft-blue: var(--soft-blue);
+  --color-blue-tint: var(--blue-tint);
+  --color-blue-tint-border: var(--blue-tint-border);
+  --color-blue-ink: var(--blue-ink);
+  --color-blue-ink-title: var(--blue-ink-title);
+  --color-blue-ink-body: var(--blue-ink-body);
+  --color-rose-gold: var(--rose-gold);
+  --color-rose-tint: var(--rose-tint);
+  --color-rose-tint-border: var(--rose-tint-border);
+  --color-rose-tint-text: var(--rose-tint-text);
+  --color-rose-tint-label: var(--rose-tint-label);
+  --color-overdue-ink: var(--overdue-ink);
+  --color-overdue-card-border: var(--overdue-card-border);
+  --color-skeleton: var(--skeleton);
+  --color-placeholder-text: var(--placeholder-text);
+  --color-priority-critical-text: var(--priority-critical-text);
+  --color-priority-critical-border: var(--priority-critical-border);
+  --color-priority-high-text: var(--priority-high-text);
+  --color-priority-high-border: var(--priority-high-border);
+  --color-priority-normal-text: var(--priority-normal-text);
+  --color-priority-normal-border: var(--priority-normal-border);
+  --color-priority-low-text: var(--priority-low-text);
+  --color-priority-low-border: var(--priority-low-border);
+  --shadow-soft: var(--shadow-soft);
+  --shadow-fab: var(--shadow-fab);
 }
 
 :root {
-  --background: oklch(1 0 0);
+  /* Warm ivory (design_handoff_reminder_assistant/README.md) — never pure
+     white for the page background. */
+  --background: #f7f6f3;
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
@@ -64,7 +106,8 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
+  /* Design handoff default border — see the token block below. */
+  --border: #e4e1dc;
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
   --chart-1: oklch(0.87 0 0);
@@ -81,6 +124,54 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* --- Design handoff tokens ---------------------------------------------
+     design_handoff_reminder_assistant/README.md § Design tokens. Light-mode
+     only — the handoff doesn't specify a dark palette (see AGENTS.md/PR
+     notes). No raw hex values outside this block; components reference
+     these (or the mirrored Tailwind utilities in @theme inline above).
+     `--muted` in the handoff is renamed `--placeholder-text` here — it means
+     "placeholder-only input text", a different concept from shadcn's
+     existing `--muted`/`--muted-foreground` (a background-fill token used
+     throughout the current UI), and reusing the name would silently repaint
+     every `bg-muted` in the app. */
+  --surface: #ffffff;
+  --text-primary: #242326;
+  --text-secondary: #77747a;
+  --border-soft: #efece7;
+  --separator: #e7e4df;
+  --burgundy: #743447;
+  --burgundy-hover: #5c2837;
+  --burgundy-tint: #f3eeef;
+  --soft-blue: #b8d4e1;
+  --blue-tint: #e7f0f3;
+  --blue-tint-border: #d7e6ec;
+  --blue-ink: #315766;
+  --blue-ink-title: #2e5260;
+  --blue-ink-body: #3e6675;
+  --rose-gold: #b98f91;
+  --rose-tint: #fbf6f5;
+  --rose-tint-border: #e9dede;
+  --rose-tint-text: #6f5758;
+  --rose-tint-label: #8e6a6b;
+  --overdue-ink: #8c4c52;
+  --overdue-card-border: #ead9dc;
+  --skeleton: #eae8e4;
+  --placeholder-text: #a9a6a2;
+
+  /* Priority chip colors — outline chips, transparent background. */
+  --priority-critical-text: var(--burgundy);
+  --priority-critical-border: #d9c3c9;
+  --priority-high-text: #8e6a6b;
+  --priority-high-border: #e4d6d6;
+  --priority-normal-text: #315766;
+  --priority-normal-border: var(--blue-tint-border);
+  --priority-low-text: var(--text-secondary);
+  --priority-low-border: var(--border);
+
+  /* The only two shadows in the system. */
+  --shadow-soft: 0 8px 30px rgba(36, 35, 38, 0.05);
+  --shadow-fab: 0 10px 24px rgba(116, 52, 71, 0.3);
 }
 
 .dark {
