@@ -4,7 +4,9 @@ function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="skeleton"
-      className={cn("animate-pulse rounded-md bg-muted", className)}
+      // design_handoff_reminder_assistant/README.md § Skeletons — shimmer,
+      // not Tailwind's default pulse; no spinners anywhere in this design.
+      className={cn("bg-skeleton animate-shimmer rounded-md", className)}
       {...props}
     />
   )

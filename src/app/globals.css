@@ -84,6 +84,7 @@
   --color-soft-blue: var(--soft-blue);
   --color-blue-tint: var(--blue-tint);
   --color-blue-tint-border: var(--blue-tint-border);
+  --color-blue-ring-border: var(--blue-ring-border);
   --color-blue-ink: var(--blue-ink);
   --color-blue-ink-title: var(--blue-ink-title);
   --color-blue-ink-body: var(--blue-ink-body);
@@ -106,6 +107,18 @@
   --color-priority-low-border: var(--priority-low-border);
   --shadow-soft: var(--shadow-soft);
   --shadow-fab: var(--shadow-fab);
+  /* Skeletons: shimmer, not a spinner — README § Skeletons. */
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 :root {
@@ -177,6 +190,9 @@
   --soft-blue: #b8d4e1;
   --blue-tint: #e7f0f3;
   --blue-tint-border: #d7e6ec;
+  /* Not in the Design tokens table — InsightCard's decorative ring, also the
+     generic Chip/pill's selected-state border (that chip isn't built yet). */
+  --blue-ring-border: #c6dce5;
   --blue-ink: #315766;
   --blue-ink-title: #2e5260;
   --blue-ink-body: #3e6675;
