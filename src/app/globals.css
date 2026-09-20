@@ -82,6 +82,7 @@
   --color-burgundy-hover: var(--burgundy-hover);
   --color-burgundy-tint: var(--burgundy-tint);
   --color-soft-blue: var(--soft-blue);
+  --color-calendar-dot-selected: var(--calendar-dot-selected);
   --color-blue-tint: var(--blue-tint);
   --color-blue-tint-border: var(--blue-tint-border);
   --color-blue-ring-border: var(--blue-ring-border);
@@ -190,6 +191,9 @@
   --burgundy-hover: #5c2837;
   --burgundy-tint: #f3eeef;
   --soft-blue: #b8d4e1;
+  /* Not in the Design tokens table — Calendar's task dot on the selected
+     (burgundy-filled) day, where --soft-blue wouldn't have enough contrast. */
+  --calendar-dot-selected: #e7d6db;
   --blue-tint: #e7f0f3;
   --blue-tint-border: #d7e6ec;
   /* Not in the Design tokens table — InsightCard's decorative ring, also the

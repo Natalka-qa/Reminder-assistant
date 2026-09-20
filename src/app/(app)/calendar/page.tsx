@@ -5,9 +5,10 @@ import { verifySession, getCurrentUser } from "@/lib/auth/dal";
 import { formatDateInZone, formatTimeInZone, zonedNow } from "@/lib/date";
 import { calendarService } from "@/features/scheduling/calendar.service";
 import { notificationService } from "@/features/notifications/notification.service";
+import { getOccurrenceStatusNote } from "@/features/scheduling/occurrence-status";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { OccurrenceList } from "@/components/tasks/occurrence-list";
+import { SectionLabel } from "@/components/ui/section-label";
+import { ReminderRow, ReminderList } from "@/components/tasks/reminder-row";
 
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTH_LABELS = [
@@ -85,6 +86,35 @@ function firstOf(param: string | string[] | undefined): string | undefined {
   return Array.isArray(param) ? param[0] : param;
 }
 
+function NavButton({
+  href,
+  label,
+  children,
+}: {
+  href: string;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Button
+      variant="secondary"
+      size="icon"
+      nativeButton={false}
+      render={<Link href={href} aria-label={label} />}
+      className="size-9"
+    >
+      {children}
+    </Button>
+  );
+}
+
+// design_handoff_reminder_assistant/README.md § Calendar, variant A (month —
+// variant B "week" is a reference layout, not built). "Today" doesn't get
+// its own distinct treatment separate from "selected" — the mockup only
+// describes a selected-day style, and today is auto-selected on first load
+// (see `selectedDay` below) — so the two only visually diverge once someone
+// taps a different day, at which point today just renders as a plain day
+// with a dot.
 export default async function CalendarPage({
   searchParams,
 }: PageProps<"/calendar">) {
@@ -146,113 +176,117 @@ export default async function CalendarPage({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          nativeButton={false}
-          render={
-            <Link
-              href={`/calendar?year=${prevYear}&month=${prevMonth}`}
-              aria-label="Previous month"
-            />
-          }
+        <NavButton
+          href={`/calendar?year=${prevYear}&month=${prevMonth}`}
+          label="Previous month"
         >
           <ChevronLeft />
-        </Button>
-        <h1 className="text-lg font-semibold tracking-tight">
+        </NavButton>
+        <p className="font-display text-[40px] leading-none font-light">
           {MONTH_LABELS[month - 1]} {year}
-        </h1>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          nativeButton={false}
-          render={
-            <Link
-              href={`/calendar?year=${nextYear}&month=${nextMonth}`}
-              aria-label="Next month"
-            />
-          }
+        </p>
+        <NavButton
+          href={`/calendar?year=${nextYear}&month=${nextMonth}`}
+          label="Next month"
         >
           <ChevronRight />
-        </Button>
+        </NavButton>
       </div>
 
-      <Card>
-        <CardContent className="flex flex-col gap-2">
-          <div className="text-muted-foreground grid grid-cols-7 gap-1 text-center text-xs">
-            {WEEKDAY_LABELS.map((label) => (
-              <div key={label}>{label}</div>
-            ))}
-          </div>
-          <div className="grid grid-cols-7 gap-1">
-            {grid.map((cell, index) => {
-              if (!cell.inMonth) {
-                return (
-                  <span
-                    key={index}
-                    className="text-muted-foreground/40 flex items-center justify-center py-2 text-sm"
-                  >
-                    {cell.day}
-                  </span>
-                );
-              }
-
-              const isToday = todayDay === cell.day;
-              const isSelected = selectedDay === cell.day;
-              const hasOccurrences = occurrencesByDay.has(cell.day);
-
+      <div className="flex flex-col gap-2">
+        <div className="text-text-tertiary text-chip grid grid-cols-7 gap-1 text-center font-semibold tracking-widest uppercase">
+          {WEEKDAY_LABELS.map((label) => (
+            <div key={label}>{label}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {grid.map((cell, index) => {
+            if (!cell.inMonth) {
               return (
-                <Link
+                <span
                   key={index}
-                  href={`/calendar?year=${year}&month=${month}&day=${cell.day}`}
-                  className={cn(
-                    "flex flex-col items-center justify-center gap-1 rounded-lg py-2 text-sm transition-colors",
-                    isToday && "bg-foreground text-background font-semibold",
-                    !isToday &&
-                      isSelected &&
-                      "bg-accent text-accent-foreground",
-                    !isToday && !isSelected && "hover:bg-muted",
-                  )}
+                  className="text-placeholder-text flex h-12 items-center justify-center text-[15px]"
                 >
-                  <span>{cell.day}</span>
-                  <span
-                    className={cn(
-                      "size-1.5 rounded-full",
-                      hasOccurrences
-                        ? isToday
-                          ? "bg-background"
-                          : "bg-primary"
-                        : "bg-transparent",
+                  {cell.day}
+                </span>
+              );
+            }
+
+            const isSelected = selectedDay === cell.day;
+            const hasOccurrences = occurrencesByDay.has(cell.day);
+
+            return (
+              <Link
+                key={index}
+                href={`/calendar?year=${year}&month=${month}&day=${cell.day}`}
+                className={cn(
+                  "flex h-12 flex-col items-center justify-center gap-1 rounded-[14px] text-[15px] transition-colors",
+                  isSelected
+                    ? "bg-burgundy font-semibold text-white"
+                    : "text-text-primary hover:bg-burgundy-tint",
+                )}
+              >
+                <span>{cell.day}</span>
+                <span
+                  className={cn(
+                    "rounded-pill size-[5px]",
+                    hasOccurrences
+                      ? isSelected
+                        ? "bg-calendar-dot-selected"
+                        : "bg-soft-blue"
+                      : "bg-transparent",
+                  )}
+                />
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="border-border border-t pt-6">
+        {selectedDay ? (
+          <div className="flex flex-col gap-2">
+            <SectionLabel>
+              {MONTH_LABELS[month - 1]} {selectedDay}, {year}
+            </SectionLabel>
+            {!selectedOccurrences || selectedOccurrences.length === 0 ? (
+              <p className="text-text-secondary text-[15px]">
+                No tasks this day.
+              </p>
+            ) : (
+              <ReminderList>
+                {selectedOccurrences.map((occurrence) => (
+                  <ReminderRow
+                    key={occurrence.id}
+                    occurrenceId={occurrence.id}
+                    status={occurrence.status}
+                    href={`/tasks/${occurrence.task.id}`}
+                    time={formatTimeInZone(occurrence.scheduledStart, timezone)}
+                    title={occurrence.task.title}
+                    durationMinutes={occurrence.task.durationMinutes}
+                    flexibility={occurrence.task.flexibility}
+                    priority={occurrence.task.priority}
+                    emphasis={
+                      occurrence.task.priority === "HIGH" ||
+                      occurrence.task.priority === "CRITICAL"
+                        ? "important"
+                        : "normal"
+                    }
+                    statusNote={getOccurrenceStatusNote(
+                      occurrence.status,
+                      nextReminderLabels.get(occurrence.id),
                     )}
                   />
-                </Link>
-              );
-            })}
+                ))}
+              </ReminderList>
+            )}
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="flex flex-col gap-3">
-          {selectedDay ? (
-            <>
-              <h2 className="text-sm font-medium">
-                {MONTH_LABELS[month - 1]} {selectedDay}, {year}
-              </h2>
-              <OccurrenceList
-                occurrences={selectedOccurrences ?? []}
-                timezone={timezone}
-                showActions
-                nextReminderLabels={nextReminderLabels}
-              />
-            </>
-          ) : (
-            <p className="text-muted-foreground text-sm">
-              Select a day to see its tasks.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+        ) : (
+          <p className="text-text-secondary text-[15px]">
+            Select a day to see its tasks.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

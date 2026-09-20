@@ -24,3 +24,24 @@ export const OCCURRENCE_STATUS_LABELS: Record<OccurrenceStatus, string> = {
   SNOOZED: "Snoozed",
   CANCELLED: "Cancelled",
 };
+
+// ReminderRow's optional status note (design_handoff_reminder_assistant's
+// "Snoozed — next reminder 14:15" example) — shared by Dashboard and
+// Calendar, both of which render occurrences as ReminderRow.
+export function getOccurrenceStatusNote(
+  status: OccurrenceStatus,
+  nextReminderLabel?: string,
+): string | undefined {
+  switch (status) {
+    case "SNOOZED":
+      return nextReminderLabel
+        ? `Snoozed — next reminder ${nextReminderLabel}`
+        : "Snoozed";
+    case "PARTIALLY_DONE":
+      return "Partially done";
+    case "SKIPPED":
+      return "Skipped";
+    default:
+      return undefined;
+  }
+}

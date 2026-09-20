@@ -2,8 +2,10 @@ import { verifySession, getCurrentUser } from "@/lib/auth/dal";
 import { formatDateInZone, formatTimeInZone, zonedNow } from "@/lib/date";
 import { dashboardService } from "@/features/scheduling/dashboard.service";
 import { notificationService } from "@/features/notifications/notification.service";
-import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-status";
-import type { OccurrenceWithTask } from "@/components/tasks/occurrence-list";
+import {
+  isActionableOccurrenceStatus,
+  getOccurrenceStatusNote,
+} from "@/features/scheduling/occurrence-status";
 import { ReminderRow, ReminderList } from "@/components/tasks/reminder-row";
 import { OverdueCard } from "@/components/tasks/overdue-card";
 import { SectionLabel } from "@/components/ui/section-label";
@@ -15,24 +17,6 @@ function getGreeting(hour: number): string {
   if (hour < 12) return "Good morning,";
   if (hour < 18) return "Good afternoon,";
   return "Good evening,";
-}
-
-function getStatusNote(
-  occurrence: OccurrenceWithTask,
-  nextReminderLabel: string | undefined,
-): string | undefined {
-  switch (occurrence.status) {
-    case "SNOOZED":
-      return nextReminderLabel
-        ? `Snoozed — next reminder ${nextReminderLabel}`
-        : "Snoozed";
-    case "PARTIALLY_DONE":
-      return "Partially done";
-    case "SKIPPED":
-      return "Skipped";
-    default:
-      return undefined;
-  }
 }
 
 // design_handoff_reminder_assistant/README.md § Home / Dashboard, variant A
@@ -177,8 +161,8 @@ export default async function DashboardPage() {
                           ? "upcoming"
                           : "normal"
                     }
-                    statusNote={getStatusNote(
-                      occurrence,
+                    statusNote={getOccurrenceStatusNote(
+                      occurrence.status,
                       nextReminderLabels.get(occurrence.id),
                     )}
                   />
