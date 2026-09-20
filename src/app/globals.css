@@ -48,6 +48,24 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 
+  /* Type sizes the Phase 2 primitives need (Button/Chip/SectionLabel).
+     Display/heading sizes (Cormorant) are added when the screens that use
+     them are built, not speculatively here. `tracking-widest` (Tailwind
+     built-in, 0.1em) already covers the chip/category-chip letter-spacing —
+     only the eyebrow's non-standard 0.14em needs a custom token. */
+  --text-body: 15px;
+  --text-body--line-height: 1.6;
+  /* Same 15px as body, but no paired line-height — buttons need the size,
+     not prose leading, which would add unwanted vertical space. */
+  --text-button: 15px;
+  --text-meta: 13px;
+  --text-meta--line-height: 1.4;
+  --text-eyebrow: 12px;
+  --text-eyebrow--line-height: 1;
+  --text-chip: 11px;
+  --text-chip--line-height: 1;
+  --tracking-eyebrow: 0.14em;
+
   /* Design handoff tokens (design_handoff_reminder_assistant/README.md) —
      mirrored here so Tailwind generates matching utilities, e.g. bg-surface,
      text-burgundy, border-separator. Component-level one-off colors (chip
@@ -57,6 +75,7 @@
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
   --color-border-soft: var(--border-soft);
+  --color-border-medium: var(--border-medium);
   --color-separator: var(--separator);
   --color-burgundy: var(--burgundy);
   --color-burgundy-hover: var(--burgundy-hover);
@@ -106,10 +125,12 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  /* Design handoff default border — see the token block below. */
+  /* Design handoff default border/input/ring — see the token block below
+     for the source values (--border-medium doubles as the focus/hover
+     border the handoff never names as its own top-level token). */
   --border: #e4e1dc;
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --input: #e4e1dc;
+  --ring: #b98f91;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -139,6 +160,11 @@
   --text-primary: #242326;
   --text-secondary: #77747a;
   --border-soft: #efece7;
+  /* Not in the README's own Design tokens table — a component-level value
+     (SecondaryButton hover border, ReminderIndicator's idle border) that
+     recurs across the Phase 2 primitives, promoted to a token here instead
+     of repeating the literal in both files. */
+  --border-medium: #c9c6c1;
   --separator: #e7e4df;
   --burgundy: #743447;
   --burgundy-hover: #5c2837;

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 import { verifySession, getCurrentUser } from "@/lib/auth/dal";
 import { formatDateInZone, formatTimeInZone, zonedNow } from "@/lib/date";
 import { calendarService } from "@/features/scheduling/calendar.service";
