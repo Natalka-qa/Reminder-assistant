@@ -11,20 +11,13 @@ import { completeOccurrenceAction } from "@/features/scheduling/actions";
 import { CategoryChip } from "@/components/ui/category-chip";
 import { PriorityChip } from "@/components/ui/priority-chip";
 import { ReminderIndicator } from "@/components/ui/reminder-indicator";
+import { formatDuration } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const FLEXIBILITY_LABELS: Record<Flexibility, string> = {
   FIXED: "Fixed",
   FLEXIBLE: "Flexible",
 };
-
-function formatDuration(minutes: number): string {
-  if (minutes <= 0) return "0 min";
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  return rest === 0 ? `${hours}h` : `${hours}h ${rest}min`;
-}
 
 export function ReminderList({ children }: { children: ReactNode }) {
   return <div className="flex flex-col">{children}</div>;

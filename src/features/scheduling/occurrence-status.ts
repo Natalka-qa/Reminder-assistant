@@ -15,3 +15,12 @@ export function isActionableOccurrenceStatus(
 ): boolean {
   return status === "SCHEDULED" || status === "SNOOZED";
 }
+
+export const OCCURRENCE_STATUS_LABELS: Record<OccurrenceStatus, string> = {
+  SCHEDULED: "Scheduled",
+  DONE: "Done",
+  PARTIALLY_DONE: "Partial",
+  SKIPPED: "Skipped",
+  SNOOZED: "Snoozed",
+  CANCELLED: "Cancelled",
+};

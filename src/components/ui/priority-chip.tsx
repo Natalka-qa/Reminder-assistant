@@ -12,7 +12,7 @@ const PRIORITY_STYLES: Record<Priority, string> = {
   LOW: "text-priority-low-text border-priority-low-border",
 };
 
-const PRIORITY_LABELS: Record<Priority, string> = {
+export const PRIORITY_LABELS: Record<Priority, string> = {
   CRITICAL: "Critical",
   HIGH: "High",
   NORMAL: "Normal",

@@ -33,15 +33,17 @@ export function GroupedRow({
         className,
       )}
     >
-      <div className="flex flex-col gap-0.5">
-        <span className="text-text-primary text-[15px]">{label}</span>
+      <div className="flex shrink-0 flex-col gap-0.5">
+        <span className="text-text-primary text-[15px] whitespace-nowrap">
+          {label}
+        </span>
         {hint && (
           <span className="text-placeholder-text text-xs">{hint}</span>
         )}
       </div>
-      <div className="text-text-secondary flex items-center gap-1 text-[15px]">
+      <div className="text-text-secondary flex min-w-0 items-center justify-end gap-1 text-right text-[15px]">
         {value}
-        {href && <ChevronRight className="size-4" strokeWidth={1.6} />}
+        {href && <ChevronRight className="size-4 shrink-0" strokeWidth={1.6} />}
       </div>
     </div>
   );

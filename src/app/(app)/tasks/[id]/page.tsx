@@ -2,20 +2,42 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { verifySession, getCurrentUser } from "@/lib/auth/dal";
 import { taskService } from "@/features/tasks/task.service";
-import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-status";
+import {
+  isActionableOccurrenceStatus,
+  OCCURRENCE_STATUS_LABELS,
+} from "@/features/scheduling/occurrence-status";
+import { pickCurrentOccurrence } from "@/features/scheduling/occurrence-selection";
 import { notificationService } from "@/features/notifications/notification.service";
 import { formatDateInZone, formatTimeInZone } from "@/lib/date";
+import { formatDuration, formatReminderOffset } from "@/lib/format";
 import {
   describeRecurrenceRule,
   parseRecurrenceRule,
 } from "@/features/recurrence/recurrence-rule";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { OccurrenceActions } from "@/components/tasks/occurrence-actions";
+import { PriorityChip, PRIORITY_LABELS } from "@/components/ui/priority-chip";
+import { GroupedRows, GroupedRow } from "@/components/ui/grouped-rows";
+import { SectionLabel } from "@/components/ui/section-label";
+import { TaskDetailActions } from "@/components/tasks/task-detail-actions";
 import { TaskActions } from "./task-actions";
 
 const HISTORY_LIMIT = 10;
 
+// design_handoff_reminder_assistant/README.md § Task detail.
+//
+// "Category chip" isn't here — the real Task model has no category field
+// ("the data model wins"). The AI suggestion card at the end of the mockup
+// isn't either — same reasoning as Dashboard's InsightCard/AI suggestion:
+// nothing in this codebase generates one yet, and static filler copy would
+// misrepresent the product.
+//
+// The mockup's single Done/Partial/Snooze/Skip action row and single
+// "{time} · {duration}" line assume one occurrence. A recurring task has
+// many — pickCurrentOccurrence's "the next upcoming one, or the most recent
+// if none is left" (already used by the edit form's prefill) is what drives
+// both here; "Next occurrences" below lists the rest as status only, not
+// individually actionable, matching the mockup's plain "status on the
+// right" (no per-row buttons there).
 export default async function TaskDetailPage({
   params,
 }: {
@@ -34,6 +56,7 @@ export default async function TaskDetailPage({
   }
 
   const rule = parseRecurrenceRule(task.recurrenceRule);
+  const heroOccurrence = pickCurrentOccurrence(task.occurrences);
 
   // task.occurrences is already ordered by scheduledStart ascending
   // (taskRepository.findByIdWithOccurrences), so filtering preserves order.
@@ -43,6 +66,9 @@ export default async function TaskDetailPage({
   // not History).
   const upcoming = task.occurrences.filter((occurrence) =>
     isActionableOccurrenceStatus(occurrence.status),
+  );
+  const nextOccurrences = upcoming.filter(
+    (occurrence) => occurrence.id !== heroOccurrence?.id,
   );
   const history = task.occurrences
     .filter((occurrence) => !isActionableOccurrenceStatus(occurrence.status))
@@ -62,124 +88,128 @@ export default async function TaskDetailPage({
     ]),
   );
 
+  const subtitle = !task.active
+    ? "Deactivated"
+    : rule
+      ? describeRecurrenceRule(rule)
+      : undefined;
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="truncate text-2xl font-semibold tracking-tight">
-            {task.title}
-          </h1>
-          {!task.active && (
-            <p className="text-muted-foreground text-sm">Deactivated</p>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            nativeButton={false}
-            render={<Link href={`/tasks/${task.id}/edit`} />}
-          >
-            Edit
-          </Button>
-          <TaskActions taskId={task.id} active={task.active} />
-        </div>
+      <div className="flex flex-col gap-2">
+        <PriorityChip priority={task.priority} />
+        {heroOccurrence && (
+          <p className="text-text-secondary text-[14px] font-semibold">
+            {formatTimeInZone(heroOccurrence.scheduledStart, user.timezone)} ·{" "}
+            {formatDuration(task.durationMinutes)}
+          </p>
+        )}
+        <h1 className="font-display text-[48px] leading-[1.04] font-light">
+          {task.title}
+        </h1>
+        {subtitle && (
+          <p className="text-text-secondary text-[15px]">{subtitle}</p>
+        )}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Details</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2 text-sm">
-          {task.description && (
-            <p className="whitespace-pre-wrap">{task.description}</p>
-          )}
-          <p>
-            <span className="text-muted-foreground">Priority:</span>{" "}
-            {task.priority}
-          </p>
-          <p>
-            <span className="text-muted-foreground">Flexibility:</span>{" "}
-            {task.flexibility}
-          </p>
-          <p>
-            <span className="text-muted-foreground">Duration:</span>{" "}
-            {task.durationMinutes} min
-          </p>
-          <p>
-            <span className="text-muted-foreground">Repeats:</span>{" "}
-            {rule ? describeRecurrenceRule(rule) : "Does not repeat"}
-          </p>
-        </CardContent>
-      </Card>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          nativeButton={false}
+          render={<Link href={`/tasks/${task.id}/edit`} />}
+        >
+          Edit
+        </Button>
+        <TaskActions taskId={task.id} active={task.active} />
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Upcoming</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3 text-sm">
-          {upcoming.length === 0 ? (
-            <p className="text-muted-foreground">No upcoming occurrences.</p>
-          ) : (
-            upcoming.map((occurrence) => (
+      {heroOccurrence && (
+        <TaskDetailActions
+          occurrenceId={heroOccurrence.id}
+          status={heroOccurrence.status}
+          nextReminderLabel={nextReminderLabels.get(heroOccurrence.id)}
+        />
+      )}
+
+      <GroupedRows>
+        {heroOccurrence && (
+          <GroupedRow
+            label="Date & time"
+            value={`${formatDateInZone(heroOccurrence.scheduledStart, user.timezone, "LLL d")}, ${formatTimeInZone(heroOccurrence.scheduledStart, user.timezone)}`}
+          />
+        )}
+        <GroupedRow label="Priority" value={PRIORITY_LABELS[task.priority]} />
+        <GroupedRow
+          label="Repeat"
+          value={rule ? describeRecurrenceRule(rule) : "Does not repeat"}
+        />
+        <GroupedRow
+          label="Reminder"
+          value={formatReminderOffset(task.reminderOffsetMinutes)}
+        />
+        {task.description && (
+          <GroupedRow label="Notes" value={task.description} />
+        )}
+      </GroupedRows>
+
+      {nextOccurrences.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <SectionLabel>Next occurrences</SectionLabel>
+          <div className="flex flex-col">
+            {nextOccurrences.map((occurrence) => (
               <div
                 key={occurrence.id}
-                className="flex items-center justify-between gap-4"
+                className="border-separator flex items-center justify-between gap-4 border-b py-3 text-[15px] last:border-b-0"
               >
-                <p>
-                  {formatDateInZone(occurrence.scheduledStart, user.timezone)}{" "}
-                  at{" "}
-                  {formatTimeInZone(occurrence.scheduledStart, user.timezone)}
-                </p>
-                <OccurrenceActions
-                  occurrenceId={occurrence.id}
-                  status={occurrence.status}
-                  nextReminderLabel={nextReminderLabels.get(occurrence.id)}
-                />
+                <span className="text-text-primary">
+                  {formatDateInZone(
+                    occurrence.scheduledStart,
+                    user.timezone,
+                    "LLL d",
+                  )}{" "}
+                  · {formatTimeInZone(occurrence.scheduledStart, user.timezone)}
+                </span>
+                <span className="text-text-secondary text-meta">
+                  {OCCURRENCE_STATUS_LABELS[occurrence.status]}
+                </span>
               </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
-      <Card>
-        <CardContent className="pt-6">
-          <details>
-            <summary className="cursor-pointer text-sm font-medium">
-              History
-            </summary>
-            {history.length === 0 ? (
-              <p className="text-muted-foreground mt-3 text-sm">
-                No history yet.
-              </p>
-            ) : (
-              <div className="mt-3 flex flex-col gap-2 text-sm">
-                {history.map((occurrence) => (
-                  <div
-                    key={occurrence.id}
-                    className="flex items-center justify-between gap-4"
-                  >
-                    <p className="text-muted-foreground">
-                      {formatDateInZone(
-                        occurrence.scheduledStart,
-                        user.timezone,
-                      )}{" "}
-                      at{" "}
-                      {formatTimeInZone(
-                        occurrence.scheduledStart,
-                        user.timezone,
-                      )}
-                    </p>
-                    <span className="text-muted-foreground text-xs">
-                      {occurrence.status}
-                    </span>
-                  </div>
-                ))}
+      <details>
+        <summary className="text-text-secondary cursor-pointer text-[15px] font-medium">
+          History
+        </summary>
+        {history.length === 0 ? (
+          <p className="text-text-secondary mt-3 text-[15px]">
+            No history yet.
+          </p>
+        ) : (
+          <div className="mt-3 flex flex-col">
+            {history.map((occurrence) => (
+              <div
+                key={occurrence.id}
+                className="border-separator flex items-center justify-between gap-4 border-b py-3 text-[15px] last:border-b-0"
+              >
+                <span className="text-text-secondary">
+                  {formatDateInZone(
+                    occurrence.scheduledStart,
+                    user.timezone,
+                    "LLL d",
+                  )}{" "}
+                  · {formatTimeInZone(occurrence.scheduledStart, user.timezone)}
+                </span>
+                <span className="text-text-secondary text-meta">
+                  {OCCURRENCE_STATUS_LABELS[occurrence.status]}
+                </span>
               </div>
-            )}
-          </details>
-        </CardContent>
-      </Card>
+            ))}
+          </div>
+        )}
+      </details>
     </div>
   );
 }
