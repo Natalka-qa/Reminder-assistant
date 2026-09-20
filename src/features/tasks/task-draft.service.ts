@@ -12,12 +12,23 @@ import {
   repeatFrequencySchema,
 } from "@/lib/validation/task";
 
-const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-
 // Fast/cheap model for a single structured-extraction call, not the "think
 // hard" tier — see sprint-8-tasks.md §5 (Risks).
 const MODEL = "claude-haiku-4-5";
 const REQUEST_TIMEOUT_MS = 15_000;
+
+export function isTaskDraftEnabled(): boolean {
+  return Boolean(env.ANTHROPIC_API_KEY);
+}
+
+// Constructed lazily (only once a key is confirmed present) rather than at
+// module load — the SDK client isn't guaranteed to tolerate a missing key at
+// construction time, and this feature is optional (see isTaskDraftEnabled).
+let client: Anthropic | null = null;
+function getClient(): Anthropic {
+  client ??= new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  return client;
+}
 
 const SUBMIT_TOOL_NAME = "submit_task_draft";
 const FAILURE_TOOL_NAME = "report_parse_failure";
@@ -170,11 +181,15 @@ export async function parseTaskDraft(
   text: string,
   options: { timezone: string; now?: DateTime },
 ): Promise<TaskDraftResult> {
+  if (!isTaskDraftEnabled()) {
+    return { ok: false, message: FALLBACK_MESSAGE };
+  }
+
   const now = options.now ?? zonedNow(options.timezone);
 
   let response: Anthropic.Message;
   try {
-    response = await client.messages.create(
+    response = await getClient().messages.create(
       {
         model: MODEL,
         max_tokens: 1024,

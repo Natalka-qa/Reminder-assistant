@@ -2,6 +2,7 @@ import { verifySession, getCurrentUser } from "@/lib/auth/dal";
 import { formatDateInZone } from "@/lib/date";
 import { TaskForm } from "@/components/tasks/task-form";
 import { createTaskAction } from "@/features/tasks/actions";
+import { isTaskDraftEnabled } from "@/features/tasks/task-draft.service";
 
 export default async function NewTaskPage() {
   await verifySession();
@@ -15,7 +16,7 @@ export default async function NewTaskPage() {
       <TaskForm
         action={createTaskAction}
         submitLabel="Create"
-        showTextDraft
+        showTextDraft={isTaskDraftEnabled()}
         defaultValues={{
           title: "",
           description: "",

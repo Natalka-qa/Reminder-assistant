@@ -32,7 +32,6 @@ jobs:
       RESEND_API_KEY: ci-placeholder-key
       EMAIL_FROM: onboarding@resend.dev
       CRON_SECRET: ci-placeholder-secret
-      ANTHROPIC_API_KEY: ci-placeholder-key
     steps:
       - uses: actions/checkout@v4
 
