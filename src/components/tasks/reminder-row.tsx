@@ -118,15 +118,20 @@ export function ReminderRow({
           >
             {title}
           </span>
-          <span className="text-text-secondary text-meta mt-1">
-            {formatDuration(durationMinutes)} ·{" "}
-            {FLEXIBILITY_LABELS[flexibility]}
-            {category ? ` · ${category}` : ""}
-          </span>
-          <span className="mt-1 flex flex-wrap items-center gap-1.5">
-            {category && <CategoryChip>{category}</CategoryChip>}
-            <PriorityChip priority={priority} />
-          </span>
+          {/* Stacked on mobile (room is tight); on the sidebar/desktop shell
+              there's space for the chips to sit on the same line as the
+              meta text instead of wrapping to their own row. */}
+          <div className="mt-1 flex flex-col gap-1.5 md:flex-row md:items-center md:gap-2.5">
+            <span className="text-text-secondary text-meta">
+              {formatDuration(durationMinutes)} ·{" "}
+              {FLEXIBILITY_LABELS[flexibility]}
+              {category ? ` · ${category}` : ""}
+            </span>
+            <span className="flex flex-wrap items-center gap-1.5">
+              {category && <CategoryChip>{category}</CategoryChip>}
+              <PriorityChip priority={priority} />
+            </span>
+          </div>
         </Link>
       </div>
       {statusNote && (
