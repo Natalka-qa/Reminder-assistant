@@ -33,15 +33,19 @@ export function GroupedRow({
         className,
       )}
     >
-      <div className="flex shrink-0 flex-col gap-0.5">
+      {/* A plain flex row lets one nowrap child (the label) and one
+          unbounded-width child (a long hint, or a long value like Notes)
+          fight over space in ways that overflow or overlap instead of
+          wrapping. Capping the label column's width is what actually forces
+          the hint to wrap within it; the value column then gets the rest
+          via flex-1 and can wrap too if it's long free text. */}
+      <div className="flex max-w-[55%] shrink-0 flex-col gap-0.5">
         <span className="text-text-primary text-[15px] whitespace-nowrap">
           {label}
         </span>
-        {hint && (
-          <span className="text-placeholder-text text-xs">{hint}</span>
-        )}
+        {hint && <span className="text-placeholder-text text-xs">{hint}</span>}
       </div>
-      <div className="text-text-secondary flex min-w-0 items-center justify-end gap-1 text-right text-[15px]">
+      <div className="text-text-secondary flex min-w-0 flex-1 items-center justify-end gap-1 text-right text-[15px]">
         {value}
         {href && <ChevronRight className="size-4 shrink-0" strokeWidth={1.6} />}
       </div>
