@@ -10,6 +10,10 @@ const serverEnvSchema = z.object({
   RESEND_API_KEY: z.string().min(1, "RESEND_API_KEY is required"),
   EMAIL_FROM: z.email(),
   CRON_SECRET: z.string().min(1, "CRON_SECRET is required"),
+  // Optional, unlike the secrets above: "Fill from text" (task-draft.service.ts)
+  // degrades gracefully (hidden button, no crash) when this is unset — see
+  // sprint-8-tasks.md "Расхождения" п.8.
+  ANTHROPIC_API_KEY: z.string().optional(),
 });
 
 function loadServerEnv() {

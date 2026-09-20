@@ -1,6 +1,12 @@
 "use client";
 
-import { startTransition, useActionState, useEffect, useState } from "react";
+import {
+  startTransition,
+  useActionState,
+  useEffect,
+  useState,
+  useTransition,
+} from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +29,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import type { TaskActionState } from "@/features/tasks/actions";
+import {
+  parseTaskDraftAction,
+  type TaskActionState,
+} from "@/features/tasks/actions";
 import { describeRecurrenceRule } from "@/features/recurrence/recurrence-rule";
 
 export type RepeatFrequency = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
@@ -74,6 +83,9 @@ export function TaskForm({
   // with an explanation instead of controls. TaskService enforces this
   // server-side too; this is UX, not the actual guard.
   scheduleLocked = false,
+  // "Fill from text" only makes sense while creating a task (see
+  // sprint-8-tasks.md) — the edit page renders the same TaskForm without it.
+  showTextDraft = false,
 }: {
   action: (
     prevState: TaskActionState,
@@ -82,9 +94,12 @@ export function TaskForm({
   defaultValues: TaskFormValues;
   submitLabel: string;
   scheduleLocked?: boolean;
+  showTextDraft?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
+  const [draftText, setDraftText] = useState("");
+  const [draftPending, startDraftTransition] = useTransition();
 
   // React resets uncontrolled <form> fields once an action wired via `<form
   // action={fn}>` completes — including a "conflict"/"error" result, not
@@ -115,6 +130,29 @@ export function TaskForm({
   const [reminderIsCustom, setReminderIsCustom] = useState(
     !REMINDER_PRESET_VALUES.has(String(defaultValues.reminderOffsetMinutes)),
   );
+
+  function handleFillFromText() {
+    startDraftTransition(async () => {
+      try {
+        const result = await parseTaskDraftAction(draftText);
+        if (result.status === "success") {
+          setTitle(result.draft.title);
+          setDescription(result.draft.description);
+          setDate(result.draft.date);
+          setTime(result.draft.time);
+          setDurationMinutes(String(result.draft.durationMinutes));
+          setPriority(result.draft.priority);
+          setFlexibility(result.draft.flexibility);
+          setRepeatFrequency(result.draft.repeatFrequency);
+          setRepeatDaysOfWeek(result.draft.repeatDaysOfWeek);
+        } else if (result.status === "error") {
+          toast.error(result.message);
+        }
+      } catch {
+        toast.error("Something went wrong. Please try again.");
+      }
+    });
+  }
 
   function toggleRepeatDay(day: number) {
     setRepeatDaysOfWeek((days) =>
@@ -175,6 +213,28 @@ export function TaskForm({
         {/* Only read on a normal submit — "Create anyway" bypasses the DOM
             form and dispatches its own FormData with this forced to "true". */}
         <input type="hidden" name="confirmConflicts" defaultValue="false" />
+
+        {showTextDraft && (
+          <div className="flex flex-col gap-2 rounded-lg border border-dashed p-4">
+            <Label htmlFor="draftText">What do you need to do?</Label>
+            <Textarea
+              id="draftText"
+              value={draftText}
+              onChange={(event) => setDraftText(event.target.value)}
+              placeholder="e.g. Tomorrow at 7pm, workout for an hour"
+              rows={2}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              className="self-start"
+              disabled={draftPending || draftText.trim().length === 0}
+              onClick={handleFillFromText}
+            >
+              {draftPending ? "Filling…" : "Fill from text"}
+            </Button>
+          </div>
+        )}
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="title">Title</Label>
