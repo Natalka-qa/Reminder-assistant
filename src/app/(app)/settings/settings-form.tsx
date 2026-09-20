@@ -16,6 +16,7 @@ import {
   updateTimezoneAction,
   type UpdateTimezoneState,
 } from "@/features/user/actions";
+import { signOutAction } from "@/app/(auth)/login/actions";
 
 const timezones = Intl.supportedValuesOf("timeZone");
 const initialState: UpdateTimezoneState = { status: "idle" };
@@ -82,6 +83,17 @@ export function SettingsForm({ currentTimezone }: { currentTimezone: string }) {
           Coming in a later sprint.
         </p>
       </div>
+
+      {/* design_handoff_reminder_assistant/README.md § Settings ends here.
+          The header (Sidebar/BottomNav) dropped its own sign-out control in
+          Phase 3 — this is Settings' only one now, same as the design. */}
+      <button
+        type="button"
+        onClick={() => signOutAction()}
+        className="text-burgundy self-start text-sm font-medium"
+      >
+        Sign out
+      </button>
     </div>
   );
 }

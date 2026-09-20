@@ -1,38 +1,19 @@
-"use client";
+import { getCurrentUser } from "@/lib/auth/dal";
+import { Sidebar } from "./sidebar";
+import { BottomNav } from "./bottom-nav";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
-
-const links = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/tasks", label: "Tasks" },
-  { href: "/calendar", label: "Calendar" },
-  { href: "/settings", label: "Settings" },
-];
-
-export function Nav() {
-  const pathname = usePathname();
+// Fetches the user once for Sidebar's identity block; BottomNav needs none.
+export async function Nav() {
+  const user = await getCurrentUser();
 
   return (
-    <nav className="flex items-center gap-1 overflow-x-auto">
-      {links.map((link) => {
-        const active = pathname.startsWith(link.href);
-        return (
-          <Link
-            key={link.href}
-            href={link.href}
-            className={cn(
-              "rounded-md px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
-              active
-                ? "bg-accent text-accent-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-            )}
-          >
-            {link.label}
-          </Link>
-        );
-      })}
-    </nav>
+    <>
+      <Sidebar
+        name={user?.name ?? null}
+        email={user?.email ?? ""}
+        timezone={user?.timezone ?? "UTC"}
+      />
+      <BottomNav />
+    </>
   );
 }

@@ -74,6 +74,7 @@
   --color-surface: var(--surface);
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
   --color-border-soft: var(--border-soft);
   --color-border-medium: var(--border-medium);
   --color-separator: var(--separator);
@@ -159,6 +160,10 @@
   --surface: #ffffff;
   --text-primary: #242326;
   --text-secondary: #77747a;
+  /* Also not in the Design tokens table (same situation as --border-medium
+     above) — the Sidebar's inactive nav-item text and the generic Chip/pill's
+     unselected text share this exact gray. */
+  --text-tertiary: #5e5b60;
   --border-soft: #efece7;
   /* Not in the README's own Design tokens table — a component-level value
      (SecondaryButton hover border, ReminderIndicator's idle border) that
