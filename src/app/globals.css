@@ -85,6 +85,8 @@
   --color-blue-tint: var(--blue-tint);
   --color-blue-tint-border: var(--blue-tint-border);
   --color-blue-ring-border: var(--blue-ring-border);
+  --color-chip-selected-bg: var(--chip-selected-bg);
+  --color-chip-selected-text: var(--chip-selected-text);
   --color-blue-ink: var(--blue-ink);
   --color-blue-ink-title: var(--blue-ink-title);
   --color-blue-ink-body: var(--blue-ink-body);
@@ -191,8 +193,12 @@
   --blue-tint: #e7f0f3;
   --blue-tint-border: #d7e6ec;
   /* Not in the Design tokens table — InsightCard's decorative ring, also the
-     generic Chip/pill's selected-state border (that chip isn't built yet). */
+     generic Chip/pill's selected-state border. */
   --blue-ring-border: #c6dce5;
+  /* The rest of that same Chip/pill selected state (§ Components, not the
+     tokens table) — building the chip now for the New task screen. */
+  --chip-selected-bg: #d8e8ef;
+  --chip-selected-text: #274c5a;
   --blue-ink: #315766;
   --blue-ink-title: #2e5260;
   --blue-ink-body: #3e6675;

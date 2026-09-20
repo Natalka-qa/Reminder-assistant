@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { verifySession, getCurrentUser } from "@/lib/auth/dal";
 import { formatDateInZone } from "@/lib/date";
 import { TaskForm } from "@/components/tasks/task-form";
@@ -12,7 +13,12 @@ export default async function NewTaskPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold tracking-tight">New task</h1>
+      <div className="flex items-center justify-between">
+        <Link href="/dashboard" className="text-text-secondary text-[15px]">
+          Cancel
+        </Link>
+        <p className="text-text-primary text-[15px] font-semibold">New task</p>
+      </div>
       <TaskForm
         action={createTaskAction}
         submitLabel="Create"

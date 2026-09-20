@@ -10,8 +10,11 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { SectionLabel } from "@/components/ui/section-label";
+import { GroupedRows, GroupedRow } from "@/components/ui/grouped-rows";
+import { Chip } from "@/components/ui/chip";
+import { WeekdayPicker } from "@/components/ui/weekday-picker";
 import {
   Select,
   SelectContent,
@@ -34,6 +37,7 @@ import {
   type TaskActionState,
 } from "@/features/tasks/actions";
 import { describeRecurrenceRule } from "@/features/recurrence/recurrence-rule";
+import { cn } from "@/lib/utils";
 
 export type RepeatFrequency = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
 
@@ -50,6 +54,20 @@ export type TaskFormValues = {
   reminderOffsetMinutes: number;
 };
 
+const PRIORITIES: { value: TaskFormValues["priority"]; label: string }[] = [
+  { value: "LOW", label: "Low" },
+  { value: "NORMAL", label: "Normal" },
+  { value: "HIGH", label: "High" },
+  { value: "CRITICAL", label: "Critical" },
+];
+
+const REPEAT_OPTIONS: { value: RepeatFrequency; label: string }[] = [
+  { value: "NONE", label: "Does not repeat" },
+  { value: "DAILY", label: "Daily" },
+  { value: "WEEKLY", label: "Weekly" },
+  { value: "MONTHLY", label: "Monthly" },
+];
+
 const REMINDER_PRESETS: { value: number; label: string }[] = [
   { value: 0, label: "At time of task" },
   { value: 5, label: "5 minutes before" },
@@ -61,19 +79,21 @@ const REMINDER_CUSTOM = "custom";
 const REMINDER_PRESET_VALUES = new Set(
   REMINDER_PRESETS.map(({ value }) => String(value)),
 );
-
-const WEEKDAYS: { value: number; label: string }[] = [
-  { value: 1, label: "Mon" },
-  { value: 2, label: "Tue" },
-  { value: 3, label: "Wed" },
-  { value: 4, label: "Thu" },
-  { value: 5, label: "Fri" },
-  { value: 6, label: "Sat" },
-  { value: 7, label: "Sun" },
-];
+const REMINDER_LABELS = new Map<string, string>([
+  ...REMINDER_PRESETS.map(
+    ({ value, label }) => [String(value), label] as const,
+  ),
+  [REMINDER_CUSTOM, "Custom…"],
+]);
 
 const initialState: TaskActionState = { status: "idle" };
 
+// design_handoff_reminder_assistant/README.md § New task, variant A (full
+// form) — variant B (natural language) is the existing "Fill from text"
+// block (sprint-8-tasks.md), restyled in place rather than duplicated.
+// "Category"/"Timezone" grouped rows from the mockup aren't here — the real
+// Task model has no category field, and timezone is a per-user setting, not
+// a per-task one ("the data model wins").
 export function TaskForm({
   action,
   defaultValues,
@@ -209,20 +229,29 @@ export function TaskForm({
 
   return (
     <>
-      <form action={formAction} className="flex max-w-lg flex-col gap-4">
+      <form action={formAction} className="flex max-w-lg flex-col gap-6">
         {/* Only read on a normal submit — "Create anyway" bypasses the DOM
             form and dispatches its own FormData with this forced to "true". */}
         <input type="hidden" name="confirmConflicts" defaultValue="false" />
 
         {showTextDraft && (
-          <div className="flex flex-col gap-2 rounded-lg border border-dashed p-4">
-            <Label htmlFor="draftText">What do you need to do?</Label>
+          <div className="bg-rose-tint border-rose-tint-border flex flex-col gap-2 rounded-[18px] border p-5">
+            <label
+              htmlFor="draftText"
+              className="text-rose-tint-label text-eyebrow tracking-eyebrow font-semibold uppercase"
+            >
+              <span aria-hidden className="text-rose-gold mr-1">
+                &#10022;
+              </span>
+              What do you need to do?
+            </label>
             <Textarea
               id="draftText"
               value={draftText}
               onChange={(event) => setDraftText(event.target.value)}
               placeholder="e.g. Tomorrow at 7pm, workout for an hour"
               rows={2}
+              className="bg-surface"
             />
             <Button
               type="button"
@@ -237,7 +266,7 @@ export function TaskForm({
         )}
 
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="title">Title</Label>
+          <SectionLabel>Title</SectionLabel>
           <Input
             id="title"
             name="title"
@@ -245,11 +274,225 @@ export function TaskForm({
             onChange={(event) => setTitle(event.target.value)}
             maxLength={200}
             required
+            className="rounded-md p-[18px] text-[19px]"
           />
         </div>
 
+        {scheduleLocked ? (
+          <div className="flex flex-col gap-1.5">
+            <SectionLabel>Date &amp; time</SectionLabel>
+            <p className="text-text-primary text-[15px]">
+              {date} at {time}
+            </p>
+            <input type="hidden" name="date" value={date} />
+            <input type="hidden" name="time" value={time} />
+          </div>
+        ) : (
+          <GroupedRows>
+            <GroupedRow
+              label="Date"
+              value={
+                <input
+                  id="date"
+                  name="date"
+                  type="date"
+                  value={date}
+                  onChange={(event) => setDate(event.target.value)}
+                  required
+                  className="text-text-secondary w-full border-0 bg-transparent p-0 text-right text-[15px] outline-none"
+                />
+              }
+            />
+            <GroupedRow
+              label="Time"
+              value={
+                <input
+                  id="time"
+                  name="time"
+                  type="time"
+                  value={time}
+                  onChange={(event) => setTime(event.target.value)}
+                  required
+                  className="text-text-secondary w-full border-0 bg-transparent p-0 text-right text-[15px] outline-none"
+                />
+              }
+            />
+            <GroupedRow
+              label="Duration"
+              value={
+                <span className="flex items-center gap-1.5">
+                  <input
+                    id="durationMinutes"
+                    name="durationMinutes"
+                    type="number"
+                    min={0}
+                    max={1440}
+                    value={durationMinutes}
+                    onChange={(event) => setDurationMinutes(event.target.value)}
+                    required
+                    className="text-text-secondary w-12 border-0 bg-transparent p-0 text-right text-[15px] outline-none"
+                  />
+                  min
+                </span>
+              }
+            />
+            <GroupedRow
+              label="Reminder"
+              value={
+                <span className="flex flex-col items-end gap-1.5">
+                  {/* The Select is a UI picker only — the value actually
+                      submitted comes from the hidden input below, since in
+                      "custom" mode the Select's own value ("custom") isn't a
+                      valid minute count. */}
+                  <Select
+                    value={
+                      reminderIsCustom ? REMINDER_CUSTOM : reminderOffsetMinutes
+                    }
+                    onValueChange={(value) => {
+                      if (value === REMINDER_CUSTOM) {
+                        setReminderIsCustom(true);
+                        return;
+                      }
+                      setReminderIsCustom(false);
+                      setReminderOffsetMinutes(value ?? "0");
+                    }}
+                  >
+                    <SelectTrigger
+                      id="reminderOffsetMinutes"
+                      className="h-auto w-fit gap-1 border-0 bg-transparent p-0 text-[15px]"
+                    >
+                      {/* Select.Value shows the raw value verbatim unless
+                          told how to format it — it doesn't read the
+                          matching SelectItem's own children. */}
+                      <SelectValue>
+                        {(value: string) => REMINDER_LABELS.get(value) ?? value}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {REMINDER_PRESETS.map(({ value, label }) => (
+                        <SelectItem key={value} value={String(value)}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value={REMINDER_CUSTOM}>Custom…</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {reminderIsCustom && (
+                    <Input
+                      type="number"
+                      min={0}
+                      max={1440}
+                      value={reminderOffsetMinutes}
+                      onChange={(event) =>
+                        setReminderOffsetMinutes(event.target.value)
+                      }
+                      placeholder="Minutes before"
+                      aria-label="Custom reminder offset in minutes"
+                      autoFocus
+                      className="w-32 text-right"
+                    />
+                  )}
+                  <input
+                    type="hidden"
+                    name="reminderOffsetMinutes"
+                    value={reminderOffsetMinutes}
+                  />
+                </span>
+              }
+            />
+          </GroupedRows>
+        )}
+
+        <div className="flex flex-col gap-2">
+          <SectionLabel>Priority</SectionLabel>
+          <div className="flex flex-wrap gap-2">
+            {PRIORITIES.map(({ value, label }) => (
+              <Chip
+                key={value}
+                selected={priority === value}
+                onClick={() => setPriority(value)}
+              >
+                {label}
+              </Chip>
+            ))}
+          </div>
+          <input type="hidden" name="priority" value={priority} />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <SectionLabel>Flexibility</SectionLabel>
+          <div className="flex gap-3">
+            <FlexibilityCard
+              selected={flexibility === "FIXED"}
+              onClick={() => setFlexibility("FIXED")}
+              label="Fixed"
+              hint="Can't be moved"
+            />
+            <FlexibilityCard
+              selected={flexibility === "FLEXIBLE"}
+              onClick={() => setFlexibility("FLEXIBLE")}
+              label="Flexible"
+              hint="Assistant may reschedule"
+            />
+          </div>
+          <input type="hidden" name="flexibility" value={flexibility} />
+        </div>
+
+        {scheduleLocked ? (
+          <div className="flex flex-col gap-1.5">
+            <SectionLabel>Repeat</SectionLabel>
+            <p className="text-text-primary text-[15px]">
+              {repeatFrequency === "NONE"
+                ? "Does not repeat"
+                : describeRecurrenceRule(
+                    repeatFrequency === "WEEKLY"
+                      ? { frequency: "WEEKLY", daysOfWeek: repeatDaysOfWeek }
+                      : { frequency: repeatFrequency },
+                  )}
+            </p>
+            <p className="text-text-secondary text-xs">
+              Recurring task — schedule can&apos;t be edited yet. Deactivate and
+              recreate to change it.
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <SectionLabel>Repeat</SectionLabel>
+            <div className="flex flex-wrap gap-2">
+              {REPEAT_OPTIONS.map(({ value, label }) => (
+                <Chip
+                  key={value}
+                  selected={repeatFrequency === value}
+                  onClick={() => setRepeatFrequency(value)}
+                >
+                  {label}
+                </Chip>
+              ))}
+            </div>
+            {repeatFrequency === "WEEKLY" && (
+              <WeekdayPicker
+                selected={repeatDaysOfWeek}
+                onToggle={toggleRepeatDay}
+              />
+            )}
+            <input
+              type="hidden"
+              name="repeatFrequency"
+              value={repeatFrequency}
+            />
+            {repeatDaysOfWeek.map((day) => (
+              <input
+                key={day}
+                type="hidden"
+                name="repeatDaysOfWeek"
+                value={day}
+              />
+            ))}
+          </div>
+        )}
+
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="description">Description</Label>
+          <SectionLabel>Description</SectionLabel>
           <Textarea
             id="description"
             name="description"
@@ -260,211 +503,11 @@ export function TaskForm({
           />
         </div>
 
-        {scheduleLocked ? (
-          <div className="flex flex-col gap-1.5">
-            <Label>Date & time</Label>
-            <p className="text-sm">
-              {date} at {time}
-            </p>
-            <input type="hidden" name="date" value={date} />
-            <input type="hidden" name="time" value={time} />
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="date">Date</Label>
-              <Input
-                id="date"
-                name="date"
-                type="date"
-                value={date}
-                onChange={(event) => setDate(event.target.value)}
-                required
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="time">Time</Label>
-              <Input
-                id="time"
-                name="time"
-                type="time"
-                value={time}
-                onChange={(event) => setTime(event.target.value)}
-                required
-              />
-            </div>
-          </div>
-        )}
-
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="durationMinutes">Duration (minutes)</Label>
-          <Input
-            id="durationMinutes"
-            name="durationMinutes"
-            type="number"
-            min={0}
-            max={1440}
-            value={durationMinutes}
-            onChange={(event) => setDurationMinutes(event.target.value)}
-            required
-          />
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="priority">Priority</Label>
-            <Select
-              name="priority"
-              value={priority}
-              onValueChange={(value) =>
-                setPriority(value as TaskFormValues["priority"])
-              }
-            >
-              <SelectTrigger id="priority" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="LOW">Low</SelectItem>
-                <SelectItem value="NORMAL">Normal</SelectItem>
-                <SelectItem value="HIGH">High</SelectItem>
-                <SelectItem value="CRITICAL">Critical</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="flexibility">Flexibility</Label>
-            <Select
-              name="flexibility"
-              value={flexibility}
-              onValueChange={(value) =>
-                setFlexibility(value as TaskFormValues["flexibility"])
-              }
-            >
-              <SelectTrigger id="flexibility" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="FIXED">Fixed</SelectItem>
-                <SelectItem value="FLEXIBLE">Flexible</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-4 border-t pt-4">
-          {scheduleLocked ? (
-            <div className="flex flex-col gap-1.5">
-              <Label>Repeat</Label>
-              <p className="text-sm">
-                {repeatFrequency === "NONE"
-                  ? "Does not repeat"
-                  : describeRecurrenceRule(
-                      repeatFrequency === "WEEKLY"
-                        ? { frequency: "WEEKLY", daysOfWeek: repeatDaysOfWeek }
-                        : { frequency: repeatFrequency },
-                    )}
-              </p>
-              <p className="text-muted-foreground text-xs">
-                Recurring task — schedule can&apos;t be edited yet. Deactivate
-                and recreate to change it.
-              </p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="repeatFrequency">Repeat</Label>
-                <Select
-                  name="repeatFrequency"
-                  value={repeatFrequency}
-                  onValueChange={(value) =>
-                    setRepeatFrequency(value as RepeatFrequency)
-                  }
-                >
-                  <SelectTrigger id="repeatFrequency" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="NONE">Does not repeat</SelectItem>
-                    <SelectItem value="DAILY">Daily</SelectItem>
-                    <SelectItem value="WEEKLY">Weekly</SelectItem>
-                    <SelectItem value="MONTHLY">Monthly</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {repeatFrequency === "WEEKLY" && (
-                <div className="flex flex-wrap gap-3">
-                  {WEEKDAYS.map(({ value, label }) => (
-                    <label
-                      key={value}
-                      className="flex items-center gap-1.5 text-sm"
-                    >
-                      <input
-                        type="checkbox"
-                        name="repeatDaysOfWeek"
-                        value={value}
-                        checked={repeatDaysOfWeek.includes(value)}
-                        onChange={() => toggleRepeatDay(value)}
-                        className="accent-primary border-input size-4 rounded"
-                      />
-                      {label}
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="reminderOffsetMinutes">Reminder</Label>
-            {/* The Select is a UI picker only — the value actually submitted
-                comes from the hidden input below, since in "custom" mode the
-                Select's own value ("custom") isn't a valid minute count. */}
-            <Select
-              value={reminderIsCustom ? REMINDER_CUSTOM : reminderOffsetMinutes}
-              onValueChange={(value) => {
-                if (value === REMINDER_CUSTOM) {
-                  setReminderIsCustom(true);
-                  return;
-                }
-                setReminderIsCustom(false);
-                setReminderOffsetMinutes(value ?? "0");
-              }}
-            >
-              <SelectTrigger id="reminderOffsetMinutes" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {REMINDER_PRESETS.map(({ value, label }) => (
-                  <SelectItem key={value} value={String(value)}>
-                    {label}
-                  </SelectItem>
-                ))}
-                <SelectItem value={REMINDER_CUSTOM}>Custom…</SelectItem>
-              </SelectContent>
-            </Select>
-            {reminderIsCustom && (
-              <Input
-                type="number"
-                min={0}
-                max={1440}
-                value={reminderOffsetMinutes}
-                onChange={(event) =>
-                  setReminderOffsetMinutes(event.target.value)
-                }
-                placeholder="Minutes before"
-                aria-label="Custom reminder offset in minutes"
-                autoFocus
-              />
-            )}
-            <input
-              type="hidden"
-              name="reminderOffsetMinutes"
-              value={reminderOffsetMinutes}
-            />
-          </div>
-        </div>
-
-        <Button type="submit" disabled={pending} className="self-start">
+        <Button
+          type="submit"
+          disabled={pending}
+          className="h-[52px] self-start"
+        >
           {pending ? "Saving…" : submitLabel}
         </Button>
       </form>
@@ -508,5 +551,36 @@ export function TaskForm({
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+function FlexibilityCard({
+  selected,
+  onClick,
+  label,
+  hint,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  label: string;
+  hint: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onClick}
+      className={cn(
+        "flex flex-1 flex-col gap-1 rounded-[14px] border p-4 text-left",
+        selected
+          ? "bg-blue-tint border-blue-tint-border"
+          : "bg-surface border-border",
+      )}
+    >
+      <span className="text-text-primary text-[15px] font-semibold">
+        {label}
+      </span>
+      <span className="text-text-secondary text-xs">{hint}</span>
+    </button>
   );
 }
