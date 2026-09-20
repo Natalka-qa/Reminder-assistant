@@ -27,7 +27,6 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
@@ -512,38 +511,72 @@ export function TaskForm({
         </Button>
       </form>
 
+      {/* design_handoff_reminder_assistant/README.md § Schedule conflict —
+          adapted into the existing modal rather than a separate routed
+          screen ("Schedule conflict" isn't in the handoff's own "Suggested
+          implementation order" list, unlike the other screens rebuilt in
+          this branch). Its "AI suggestion proposing free slots" block is
+          dropped for the same reason as the Dashboard's InsightCard/AI
+          suggestion and the Task detail page's suggestion card: nothing
+          here generates one. Its three stacked actions collapse to two —
+          "Change the time" and "Cancel" both just close this dialog back
+          to the already-editable form, so a separate third action would be
+          a no-op duplicate of the first. */}
       <AlertDialog
         open={conflictDialogOpen}
         onOpenChange={setConflictDialogOpen}
       >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Scheduling conflict</AlertDialogTitle>
-            <AlertDialogDescription>
-              This overlaps with {state.conflicts?.length ?? 0} existing task
-              {state.conflicts?.length === 1 ? "" : "s"}:
-            </AlertDialogDescription>
+        <AlertDialogContent className="border-border bg-surface w-full max-w-sm rounded-[20px] border p-6 ring-0">
+          <AlertDialogHeader className="flex flex-col items-start gap-2 text-left">
+            <SectionLabel tone="overdue">Schedule conflict</SectionLabel>
+            <AlertDialogTitle className="font-display text-text-primary text-[28px] leading-[1.15] font-light">
+              {title || "This task"} overlaps with{" "}
+              {state.conflicts?.length ?? 0} existing task
+              {state.conflicts?.length === 1 ? "" : "s"}
+            </AlertDialogTitle>
           </AlertDialogHeader>
-          <ul className="flex flex-col gap-2 text-sm">
+
+          <div className="border-border divide-border-soft flex flex-col divide-y rounded-[14px] border">
+            <div className="flex flex-col gap-1 p-4">
+              <SectionLabel>New</SectionLabel>
+              <span className="text-text-primary text-[15px] font-medium">
+                {title}
+              </span>
+              <span className="text-text-secondary text-meta">
+                {time} · {durationMinutes} min · {priority} · {flexibility}
+              </span>
+            </div>
             {state.conflicts?.map((conflict) => (
-              <li
+              <div
                 key={conflict.occurrenceId}
-                className="bg-muted/50 flex flex-col rounded-lg p-2"
+                className="flex flex-col gap-1 p-4"
               >
-                <span className="font-medium">{conflict.title}</span>
-                <span className="text-muted-foreground text-xs">
+                <SectionLabel tone="overdue">Existing</SectionLabel>
+                <span className="text-text-primary text-[15px] font-medium">
+                  {conflict.title}
+                </span>
+                <span className="text-text-secondary text-meta">
                   {conflict.timeLabel} · {conflict.priority} ·{" "}
                   {conflict.flexibility}
                 </span>
-              </li>
+              </div>
             ))}
-          </ul>
-          <AlertDialogFooter>
-            <AlertDialogCancel type="button">Edit time</AlertDialogCancel>
+          </div>
+
+          <AlertDialogFooter className="mx-0 mb-0 flex flex-col gap-2 rounded-none border-t-0 bg-transparent p-0">
+            <AlertDialogCancel
+              type="button"
+              variant="default"
+              className="w-full"
+            >
+              Change the time
+            </AlertDialogCancel>
             <AlertDialogAction
               type="button"
+              variant="secondary"
               disabled={pending}
               onClick={handleCreateAnyway}
+              className="w-full"
             >
               Create anyway
             </AlertDialogAction>
