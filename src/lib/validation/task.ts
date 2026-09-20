@@ -3,15 +3,21 @@ import { z } from "zod";
 // Matches the wall-clock strings <input type="date">/<input type="time">
 // produce. Combining these into an instant happens in the service layer via
 // `zonedDateTimeToUtc` (src/lib/date), never here.
-const dateStringSchema = z
+export const dateStringSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
-const timeStringSchema = z
+export const timeStringSchema = z
   .string()
   .regex(/^\d{2}:\d{2}$/, "Time must be in HH:mm format");
 
 export const prioritySchema = z.enum(["LOW", "NORMAL", "HIGH", "CRITICAL"]);
 export const flexibilitySchema = z.enum(["FIXED", "FLEXIBLE"]);
+export const repeatFrequencySchema = z.enum([
+  "NONE",
+  "DAILY",
+  "WEEKLY",
+  "MONTHLY",
+]);
 
 const taskFormFields = {
   title: z.string().trim().min(1, "Title is required").max(200),
@@ -25,10 +31,7 @@ const taskFormFields = {
     .max(1440, "Duration can't exceed 24 hours"),
   priority: prioritySchema,
   flexibility: flexibilitySchema,
-  repeatFrequency: z
-    .enum(["NONE", "DAILY", "WEEKLY", "MONTHLY"])
-    .optional()
-    .default("NONE"),
+  repeatFrequency: repeatFrequencySchema.optional().default("NONE"),
   repeatDaysOfWeek: z
     .array(z.coerce.number().int().min(1).max(7))
     .optional()

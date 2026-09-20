@@ -15,6 +15,7 @@ export default async function NewTaskPage() {
       <TaskForm
         action={createTaskAction}
         submitLabel="Create"
+        showTextDraft
         defaultValues={{
           title: "",
           description: "",

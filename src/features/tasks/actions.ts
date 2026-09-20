@@ -7,6 +7,10 @@ import { getCurrentUser } from "@/lib/auth/dal";
 import { formatDateInZone, formatTimeInZone } from "@/lib/date";
 import { taskService } from "@/features/tasks/task.service";
 import {
+  taskDraftService,
+  type TaskDraft,
+} from "@/features/tasks/task-draft.service";
+import {
   TaskNotFoundError,
   TaskValidationError,
 } from "@/features/tasks/task.errors";
@@ -156,6 +160,29 @@ export async function deactivateTaskAction(
 
   revalidateTaskPaths(taskId);
   return { status: "success" };
+}
+
+export type TaskDraftActionState =
+  | { status: "idle" }
+  | { status: "success"; draft: TaskDraft }
+  | { status: "error"; message: string };
+
+export async function parseTaskDraftAction(
+  text: string,
+): Promise<TaskDraftActionState> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { status: "error", message: "Not signed in." };
+  }
+
+  const result = await taskDraftService.parseTaskDraft(text, {
+    timezone: user.timezone,
+  });
+  if (!result.ok) {
+    return { status: "error", message: result.message };
+  }
+
+  return { status: "success", draft: result.draft };
 }
 
 export async function deleteTaskAction(

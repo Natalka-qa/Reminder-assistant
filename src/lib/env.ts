@@ -10,6 +10,7 @@ const serverEnvSchema = z.object({
   RESEND_API_KEY: z.string().min(1, "RESEND_API_KEY is required"),
   EMAIL_FROM: z.email(),
   CRON_SECRET: z.string().min(1, "CRON_SECRET is required"),
+  ANTHROPIC_API_KEY: z.string().min(1, "ANTHROPIC_API_KEY is required"),
 });
 
 function loadServerEnv() {
