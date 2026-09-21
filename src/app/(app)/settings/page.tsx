@@ -1,7 +1,10 @@
 import { verifySession, getCurrentUser } from "@/lib/auth/dal";
 import { dashboardService } from "@/features/scheduling/dashboard.service";
+import { userService } from "@/features/user/user.service";
+import { isTelegramEnabled } from "@/lib/telegram/telegram.config";
 import { SectionLabel } from "@/components/ui/section-label";
 import { SettingsForm } from "./settings-form";
+import { TelegramConnect } from "./telegram-connect";
 import { SignOutButton } from "./sign-out-button";
 
 // design_handoff_reminder_assistant/README.md § Settings.
@@ -11,6 +14,7 @@ export default async function SettingsPage() {
   const stats = user
     ? await dashboardService.getRecentActivityCounts(user.id, user.timezone)
     : { completed: 0, partial: 0, skipped: 0 };
+  const profile = user ? await userService.getProfile(user.id) : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -38,6 +42,10 @@ export default async function SettingsPage() {
       </div>
 
       <SettingsForm currentTimezone={user?.timezone ?? "UTC"} />
+
+      {isTelegramEnabled() && (
+        <TelegramConnect connected={Boolean(profile?.telegramChatId)} />
+      )}
 
       <div className="flex flex-col gap-3">
         <SectionLabel>Last 7 days</SectionLabel>

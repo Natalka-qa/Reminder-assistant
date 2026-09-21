@@ -22,6 +22,14 @@ model User {
   timezone            String    @default("UTC")
   timezoneConfirmedAt DateTime?
 
+  // Sprint 10: Telegram as a second notification channel. telegramChatId is
+  // set once the one-time link code below is redeemed by the webhook; the
+  // code/expiry pair is cleared on redemption (or overwritten by generating
+  // a new one) — at most one pending code per user, not a separate table.
+  telegramChatId            String?   @unique
+  telegramLinkCode          String?   @unique
+  telegramLinkCodeExpiresAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
