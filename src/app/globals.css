@@ -113,6 +113,38 @@
   /* Skeletons: shimmer, not a spinner — README § Skeletons. */
   --animate-shimmer: shimmer 1.6s ease-in-out infinite;
 
+  /* Home v2 "Atmosphere" (HOME_V2_UPDATE.md § 5 Motion). Durations vary per
+     call site (e.g. orbitSpin runs 180s/200s/240s depending on which sky/
+     insight-card ring uses it) so these are the bare keyframe names, not
+     full animate-* shorthands — components set their own duration inline. */
+  --animate-orbit-spin: orbitSpin linear infinite;
+  --animate-soft-pulse: softPulse 4.6s ease-in-out infinite;
+  --animate-drift-y: driftY ease-in-out infinite;
+
+  --color-home-insight-border: var(--home-insight-border);
+  --color-home-insight-eyebrow: var(--home-insight-eyebrow);
+  --color-home-muted-rose: var(--home-muted-rose);
+  --color-home-overdue-dot-bg: var(--home-overdue-dot-bg);
+  --color-home-overdue-dot-border: var(--home-overdue-dot-border);
+  --color-home-dot-idle-border: var(--home-dot-idle-border);
+  --color-home-divider-soft: var(--home-divider-soft);
+  --color-home-overdue-underline: var(--home-overdue-underline);
+  --color-home-timeline-hover: var(--home-timeline-hover);
+  --color-home-timeline-rail: var(--home-timeline-rail);
+  --color-home-timeline-end-dot-border: var(--home-timeline-end-dot-border);
+  --color-home-badge-bg: var(--home-badge-bg);
+  --color-home-blush: var(--home-blush);
+  --color-home-blush-border: var(--home-blush-border);
+  --color-home-sage: var(--home-sage);
+  --color-home-sage-border: var(--home-sage-border);
+  --color-home-mark-personal-ring: var(--home-mark-personal-ring);
+  --color-home-mark-insight-ring: var(--home-mark-insight-ring);
+  --color-home-mark-insight-core: var(--home-mark-insight-core);
+  --color-home-mark-suggestion-ring: var(--home-mark-suggestion-ring);
+  --color-home-mark-suggestion-core: var(--home-mark-suggestion-core);
+  --color-home-quiet-title: var(--home-quiet-title);
+  --color-home-quiet-meta: var(--home-quiet-meta);
+
   /* Login's entrance sequence — README § Login "Entrance animation", the one
      choreographed moment in the app. Named by role/delay so the component
      reads without cross-referencing this file. */
@@ -176,6 +208,38 @@
   50% {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+/* Home v2 "Atmosphere" (HOME_V2_UPDATE.md § 5 Motion). */
+@keyframes orbitSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes softPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 1;
+  }
+}
+
+@keyframes driftY {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
   }
 }
 
@@ -291,6 +355,43 @@
   /* The only two shadows in the system. */
   --shadow-soft: 0 8px 30px rgba(36, 35, 38, 0.05);
   --shadow-fab: 0 10px 24px rgba(116, 52, 71, 0.3);
+
+  /* --- Home v2 "Atmosphere" tokens ----------------------------------------
+     HOME_V2_UPDATE.md §§ 6-7. Home-only — semantic/reused values live here;
+     the Sky/InsightCard/Suggestion decorative SVGs keep their one-off
+     illustration hex inline (same treatment CloudClearing.tsx's line art
+     gets — decorative detail, not design tokens). */
+  --home-insight-border: #dce5e6;
+  --home-insight-eyebrow: #6b8994;
+  /* alsoNowLine text, overdue card's "Overdue since ..." sub-line. */
+  --home-muted-rose: #8c6a6c;
+  --home-overdue-dot-bg: #b9757c;
+  --home-overdue-dot-border: #a8666d;
+  /* Idle (not done/important/upcoming) indicator dot border throughout
+     Home's Up next/timeline — a slightly warmer grey than --border-medium. */
+  --home-dot-idle-border: #cfc9c2;
+  --home-divider-soft: #ede7e2;
+  --home-overdue-underline: #e4ccd0;
+  --home-timeline-hover: #f1efea;
+  --home-timeline-rail: #e4ded6;
+  --home-timeline-end-dot-border: #dfd9d1;
+  --home-badge-bg: #f7edee;
+  --home-blush: #fbf2f0;
+  --home-blush-border: #efdfd9;
+  --home-sage: #f2f4ef;
+  --home-sage-border: #e3e7df;
+  /* AssistantMark colourways (HOME_V2_UPDATE.md § 6) — personal's core is
+     --burgundy and its satellite dot is --rose-gold, both already tokens. */
+  --home-mark-personal-ring: #c39a9c;
+  --home-mark-insight-ring: #8fafb8;
+  --home-mark-insight-core: #2e5260;
+  --home-mark-suggestion-ring: #a3ae96;
+  --home-mark-suggestion-core: #5c6b4f;
+  /* Corrected text greys for contrast on #F7F6F3 (HOME_V2_UPDATE.md § 7) —
+     --text-primary/--text-tertiary/--text-secondary already cover
+     #242326/#5E5B60/#77747A under other names; only these two are new. */
+  --home-quiet-title: #3b3a3e;
+  --home-quiet-meta: #6b686d;
 }
 
 .dark {
