@@ -4,6 +4,9 @@ import { addDaysInZone, addMinutes, formatTimeInZone } from "@/lib/date";
 import { env } from "@/lib/env";
 import { sendEmail } from "@/lib/email/send-email";
 import { buildReminderEmail } from "@/lib/email/reminder-email";
+import { isTelegramEnabled } from "@/lib/telegram/telegram.config";
+import { sendTelegramMessage } from "@/lib/telegram/send-telegram-message";
+import { buildReminderTelegramMessage } from "@/lib/telegram/reminder-telegram-message";
 import { notificationRepository } from "@/features/notifications/notification.repository";
 import { occurrenceRepository } from "@/features/scheduling/occurrence.repository";
 import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-status";
@@ -193,12 +196,32 @@ export const notificationService = {
         });
       }
 
+      const taskUrl = `${env.AUTH_URL}/tasks/${task.id}`;
+
+      // Best-effort second channel, independent of the email path below —
+      // its own try/catch so a failure here never touches this
+      // notification's status/retry count, which describes email delivery
+      // only (sprint-10-tasks.md "Расхождения" п.4).
+      if (isTelegramEnabled() && user.telegramChatId) {
+        try {
+          const text = buildReminderTelegramMessage({
+            title: task.title,
+            timeLabel,
+            durationMinutes: task.durationMinutes,
+            taskUrl,
+          });
+          await sendTelegramMessage(user.telegramChatId, text);
+        } catch (error) {
+          console.error("telegram reminder send failed:", error);
+        }
+      }
+
       try {
         const email = buildReminderEmail({
           title: task.title,
           timeLabel,
           durationMinutes: task.durationMinutes,
-          taskUrl: `${env.AUTH_URL}/tasks/${task.id}`,
+          taskUrl,
         });
         await sendEmail(user.email, email.subject, email.text, email.html);
         await notificationRepository.markSent(notification.id, db);
