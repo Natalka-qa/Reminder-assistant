@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth/config";
+import CloudClearing from "@/components/CloudClearing";
 import { LoginForm } from "./login-form";
 
 // design_handoff_reminder_assistant/README.md § Login. The one screen with a
@@ -17,14 +18,14 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-6">
-      <div className="flex w-full max-w-[380px] flex-col gap-[26px] pt-[18px]">
-        {/* Hero asset not supplied yet (README § Assets: "Login hero — not
-            yet supplied... Placeholder slot in the prototype") — a plain
-            bordered block, not a fabricated illustration. */}
-        <div
-          aria-hidden
-          className="bg-border-soft border-border animate-veil-in h-[230px] rounded-[20px] border"
-        />
+      <div className="flex w-full max-w-[380px] flex-col gap-[22px]">
+        {/* README § Login, item 1 + § "Login hero animation": the 800×560
+            box has empty margin above/below the drawing, so this wrapper's
+            negative margin pulls the column up instead of the column having
+            its own top padding (removed above, was pt-[18px]). */}
+        <div className="animate-veil-in -mt-[46px] -mb-[44px]">
+          <CloudClearing accentColor="var(--burgundy)" />
+        </div>
 
         <div className="flex flex-col gap-3">
           <span
