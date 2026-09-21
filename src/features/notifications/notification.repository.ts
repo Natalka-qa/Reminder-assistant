@@ -67,6 +67,15 @@ export const notificationRepository = {
     });
   },
 
+  findRecentSentForUser(userId: string, limit: number, db: Db = prisma) {
+    return db.notification.findMany({
+      where: { userId, status: "SENT" },
+      orderBy: { sentAt: "desc" },
+      take: limit,
+      include: { occurrence: { include: { task: true } } },
+    });
+  },
+
   cancelForOccurrence(occurrenceId: string, db: Db = prisma) {
     return db.notification.updateMany({
       where: { occurrenceId, status: { in: ["PENDING", "PROCESSING"] } },

@@ -1,7 +1,11 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth/config";
+import CloudClearing from "@/components/CloudClearing";
 import { LoginForm } from "./login-form";
 
+// design_handoff_reminder_assistant/README.md § Login. The one screen with a
+// choreographed entrance (see globals.css's --animate-veil-in/wipe-in/
+// rise-*/sparkle-breathe and the reduced-motion override next to them).
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const session = await auth();
   const { callbackUrl } = await searchParams;
@@ -13,14 +17,37 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-8 px-6">
-      <div className="text-center">
-        <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          to your Reminder account
+    <div className="flex flex-1 flex-col items-center justify-center px-6">
+      <div className="flex w-full max-w-[380px] flex-col gap-[22px]">
+        {/* README § Login, item 1 + § "Login hero animation": the 800×560
+            box has empty margin above/below the drawing, so this wrapper's
+            negative margin pulls the column up instead of the column having
+            its own top padding (removed above, was pt-[18px]). */}
+        <div className="animate-veil-in -mt-[46px] -mb-[44px]">
+          <CloudClearing accentColor="var(--burgundy)" />
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <span
+            aria-hidden
+            className="text-rose-gold animate-sparkle-breathe text-[14px]"
+          >
+            &#10022;
+          </span>
+          <h1 className="font-display animate-wipe-in text-[54px] leading-[1.05] font-light">
+            A calmer way to remember.
+          </h1>
+          <p className="text-text-secondary animate-rise-420 text-[15px] leading-[1.65]">
+            Sign in with a link — no password to keep.
+          </p>
+        </div>
+
+        <LoginForm callbackUrl={destination} />
+
+        <p className="text-text-secondary animate-rise-820 text-xs leading-[1.6]">
+          We&apos;ll only use your email to send you a sign-in link.
         </p>
       </div>
-      <LoginForm callbackUrl={destination} />
     </div>
   );
 }

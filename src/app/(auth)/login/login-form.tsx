@@ -12,6 +12,9 @@ import {
 
 const initialState: EmailSignInState = { status: "idle" };
 
+// design_handoff_reminder_assistant/README.md § Login — email is the
+// primary path (PrimaryButton "Email me a link"), Google secondary; no "or"
+// divider in the mockup, so this drops the one the previous layout had.
 export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
   const [state, formAction, pending] = useActionState(
     signInWithEmail.bind(null, callbackUrl),
@@ -20,28 +23,16 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
 
   if (state.status === "sent") {
     return (
-      <p className="text-muted-foreground text-sm">
+      <p className="text-text-secondary text-[15px]">
         Check your email for a sign-in link.
       </p>
     );
   }
 
   return (
-    <div className="flex w-full max-w-sm flex-col gap-4">
-      <form action={signInWithGoogle.bind(null, callbackUrl)}>
-        <Button type="submit" variant="outline" className="w-full">
-          Continue with Google
-        </Button>
-      </form>
-
-      <div className="text-muted-foreground flex items-center gap-3 text-xs">
-        <div className="bg-border h-px flex-1" />
-        or
-        <div className="bg-border h-px flex-1" />
-      </div>
-
-      <form action={formAction} className="flex flex-col gap-3">
-        <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-4">
+      <form action={formAction} className="flex flex-col gap-4">
+        <div className="animate-rise-540 flex flex-col gap-1.5">
           <Label htmlFor="email">Email</Label>
           <Input
             id="email"
@@ -49,13 +40,28 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
             type="email"
             placeholder="you@example.com"
             required
+            className="px-[18px] py-[17px]"
           />
         </div>
         {state.status === "error" && (
           <p className="text-destructive text-sm">{state.message}</p>
         )}
-        <Button type="submit" disabled={pending} className="w-full">
-          {pending ? "Sending…" : "Continue with email"}
+        <Button
+          type="submit"
+          disabled={pending}
+          className="animate-rise-640 h-[52px] w-full"
+        >
+          {pending ? "Sending…" : "Email me a link"}
+        </Button>
+      </form>
+
+      <form action={signInWithGoogle.bind(null, callbackUrl)}>
+        <Button
+          type="submit"
+          variant="secondary"
+          className="animate-rise-720 h-[50px] w-full"
+        >
+          Continue with Google
         </Button>
       </form>
     </div>

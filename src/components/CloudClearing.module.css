@@ -1,0 +1,442 @@
+.root {
+  width: 100%;
+  aspect-ratio: 800 / 560;
+  margin: 0 auto;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+  --cc-loop: 18s;
+  --cc-accent: var(--burgundy);
+}
+
+.framed {
+  max-width: 800px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+}
+
+.svg {
+  display: block;
+}
+
+.scene {
+  animation: ccScene var(--cc-loop) linear infinite;
+}
+.drift {
+  animation: ccDrift 11s ease-in-out infinite;
+}
+.list {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ccList var(--cc-loop) cubic-bezier(0.32, 0.72, 0, 1) infinite;
+}
+
+.task {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation-duration: var(--cc-loop);
+  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+  animation-iteration-count: infinite;
+}
+.wc1 {
+  animation-name: ccWc1;
+}
+.wc2 {
+  animation-name: ccWc2;
+}
+.wc3 {
+  animation-name: ccWc3;
+}
+.wc4 {
+  animation-name: ccWc4;
+}
+.wc5 {
+  animation-name: ccWc5;
+}
+
+.check {
+  animation-duration: var(--cc-loop);
+  animation-timing-function: ease-out;
+  animation-iteration-count: infinite;
+}
+.cm1 {
+  animation-name: ccCm1;
+}
+.cm2 {
+  animation-name: ccCm2;
+}
+.cm3 {
+  animation-name: ccCm3;
+}
+.cm4 {
+  animation-name: ccCm4;
+}
+.cm5 {
+  animation-name: ccCm5;
+}
+
+.row {
+  animation-duration: var(--cc-loop);
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+.ring1 {
+  animation-name: ccRing1;
+}
+.ring2 {
+  animation-name: ccRing2;
+}
+.ring3 {
+  animation-name: ccRing3;
+}
+.ring4 {
+  animation-name: ccRing4;
+}
+.ring5 {
+  animation-name: ccRing5;
+}
+
+.face {
+  animation: ccFace var(--cc-loop) ease-out infinite;
+}
+
+@keyframes ccScene {
+  0% {
+    opacity: 0;
+  }
+  2.2% {
+    opacity: 1;
+  }
+  92% {
+    opacity: 1;
+  }
+  96.7%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes ccDrift {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes ccList {
+  0%,
+  18.9% {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  22.2%,
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes ccWc1 {
+  0%,
+  3.3% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.5);
+  }
+  5.8% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  24.4% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  25.2% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1.06);
+  }
+  28.3% {
+    opacity: 1;
+    transform: translate(389px, 17px) scale(0.5);
+  }
+  29.2% {
+    opacity: 0;
+    transform: translate(442px, 19px) scale(0.28);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(442px, 19px) scale(0.28);
+  }
+}
+
+@keyframes ccWc2 {
+  0%,
+  6.4% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.5);
+  }
+  8.9% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  32.8% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  33.6% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1.06);
+  }
+  36.7% {
+    opacity: 1;
+    transform: translate(288px, 79px) scale(0.5);
+  }
+  37.5% {
+    opacity: 0;
+    transform: translate(327px, 90px) scale(0.28);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(327px, 90px) scale(0.28);
+  }
+}
+
+@keyframes ccWc3 {
+  0%,
+  9.4% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.5);
+  }
+  11.9% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  41.1% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  41.9% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1.06);
+  }
+  45% {
+    opacity: 1;
+    transform: translate(429px, 33px) scale(0.5);
+  }
+  45.8% {
+    opacity: 0;
+    transform: translate(487px, 37px) scale(0.28);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(487px, 37px) scale(0.28);
+  }
+}
+
+@keyframes ccWc4 {
+  0%,
+  12.5% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.5);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  49.4% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  50.2% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1.06);
+  }
+  53.3% {
+    opacity: 1;
+    transform: translate(340px, 66px) scale(0.5);
+  }
+  54.2% {
+    opacity: 0;
+    transform: translate(386px, 75px) scale(0.28);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(386px, 75px) scale(0.28);
+  }
+}
+
+@keyframes ccWc5 {
+  0%,
+  15.6% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.5);
+  }
+  18.1% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  57.8% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  58.6% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1.06);
+  }
+  61.7% {
+    opacity: 1;
+    transform: translate(248px, 138px) scale(0.5);
+  }
+  62.5% {
+    opacity: 0;
+    transform: translate(282px, 157px) scale(0.28);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(282px, 157px) scale(0.28);
+  }
+}
+
+@keyframes ccCm1 {
+  0%,
+  29.2% {
+    stroke-dashoffset: 30;
+  }
+  31.7%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes ccCm2 {
+  0%,
+  37.5% {
+    stroke-dashoffset: 30;
+  }
+  40%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes ccCm3 {
+  0%,
+  45.8% {
+    stroke-dashoffset: 30;
+  }
+  48.3%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes ccCm4 {
+  0%,
+  54.2% {
+    stroke-dashoffset: 30;
+  }
+  56.7%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes ccCm5 {
+  0%,
+  62.5% {
+    stroke-dashoffset: 30;
+  }
+  65%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes ccRing1 {
+  0%,
+  29.2% {
+    opacity: 1;
+  }
+  31.7%,
+  100% {
+    opacity: 0.4;
+  }
+}
+@keyframes ccRing2 {
+  0%,
+  37.5% {
+    opacity: 1;
+  }
+  40%,
+  100% {
+    opacity: 0.4;
+  }
+}
+@keyframes ccRing3 {
+  0%,
+  45.8% {
+    opacity: 1;
+  }
+  48.3%,
+  100% {
+    opacity: 0.4;
+  }
+}
+@keyframes ccRing4 {
+  0%,
+  54.2% {
+    opacity: 1;
+  }
+  56.7%,
+  100% {
+    opacity: 0.4;
+  }
+}
+@keyframes ccRing5 {
+  0%,
+  62.5% {
+    opacity: 1;
+  }
+  65%,
+  100% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes ccFace {
+  0%,
+  67% {
+    stroke-dashoffset: 56;
+    opacity: 0;
+  }
+  68.3% {
+    opacity: 1;
+  }
+  74%,
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene,
+  .drift,
+  .list,
+  .task,
+  .check,
+  .row,
+  .face {
+    animation: none !important;
+  }
+  .task {
+    opacity: 0 !important;
+  }
+  .check,
+  .face {
+    stroke-dashoffset: 0 !important;
+    opacity: 1 !important;
+  }
+  .row {
+    opacity: 0.4 !important;
+  }
+}

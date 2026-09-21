@@ -8,8 +8,8 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
+  --font-display: var(--font-cormorant);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -39,17 +39,157 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
   --radius-xl: calc(var(--radius) * 1.4);
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Type sizes the Phase 2 primitives need (Button/Chip/SectionLabel).
+     Display/heading sizes (Cormorant) are added when the screens that use
+     them are built, not speculatively here. `tracking-widest` (Tailwind
+     built-in, 0.1em) already covers the chip/category-chip letter-spacing —
+     only the eyebrow's non-standard 0.14em needs a custom token. */
+  --text-body: 15px;
+  --text-body--line-height: 1.6;
+  /* Same 15px as body, but no paired line-height — buttons need the size,
+     not prose leading, which would add unwanted vertical space. */
+  --text-button: 15px;
+  --text-meta: 13px;
+  --text-meta--line-height: 1.4;
+  --text-eyebrow: 12px;
+  --text-eyebrow--line-height: 1;
+  --text-chip: 11px;
+  --text-chip--line-height: 1;
+  --tracking-eyebrow: 0.14em;
+
+  /* Design handoff tokens (design_handoff_reminder_assistant/README.md) —
+     mirrored here so Tailwind generates matching utilities, e.g. bg-surface,
+     text-burgundy, border-separator. Component-level one-off colors (chip
+     variants, sidebar states, etc.) stay out of this file until the
+     components that use them are built. */
+  --color-surface: var(--surface);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-border-soft: var(--border-soft);
+  --color-border-medium: var(--border-medium);
+  --color-separator: var(--separator);
+  --color-burgundy: var(--burgundy);
+  --color-burgundy-hover: var(--burgundy-hover);
+  --color-burgundy-tint: var(--burgundy-tint);
+  --color-soft-blue: var(--soft-blue);
+  --color-calendar-dot-selected: var(--calendar-dot-selected);
+  --color-blue-tint: var(--blue-tint);
+  --color-blue-tint-border: var(--blue-tint-border);
+  --color-blue-ring-border: var(--blue-ring-border);
+  --color-chip-selected-bg: var(--chip-selected-bg);
+  --color-chip-selected-text: var(--chip-selected-text);
+  --color-blue-ink: var(--blue-ink);
+  --color-blue-ink-title: var(--blue-ink-title);
+  --color-blue-ink-body: var(--blue-ink-body);
+  --color-rose-gold: var(--rose-gold);
+  --color-rose-tint: var(--rose-tint);
+  --color-rose-tint-border: var(--rose-tint-border);
+  --color-rose-tint-text: var(--rose-tint-text);
+  --color-rose-tint-label: var(--rose-tint-label);
+  --color-overdue-ink: var(--overdue-ink);
+  --color-overdue-card-border: var(--overdue-card-border);
+  --color-skeleton: var(--skeleton);
+  --color-placeholder-text: var(--placeholder-text);
+  --color-priority-critical-text: var(--priority-critical-text);
+  --color-priority-critical-border: var(--priority-critical-border);
+  --color-priority-high-text: var(--priority-high-text);
+  --color-priority-high-border: var(--priority-high-border);
+  --color-priority-normal-text: var(--priority-normal-text);
+  --color-priority-normal-border: var(--priority-normal-border);
+  --color-priority-low-text: var(--priority-low-text);
+  --color-priority-low-border: var(--priority-low-border);
+  --shadow-soft: var(--shadow-soft);
+  --shadow-fab: var(--shadow-fab);
+  /* Skeletons: shimmer, not a spinner — README § Skeletons. */
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+
+  /* Login's entrance sequence — README § Login "Entrance animation", the one
+     choreographed moment in the app. Named by role/delay so the component
+     reads without cross-referencing this file. */
+  --animate-veil-in: veilIn 900ms cubic-bezier(0.16, 0.84, 0.44, 1) both;
+  --animate-wipe-in: wipeIn 800ms cubic-bezier(0.22, 0.78, 0.3, 1) 160ms both;
+  --animate-rise-420: riseIn 600ms ease-out 420ms both;
+  --animate-rise-540: riseIn 600ms ease-out 540ms both;
+  --animate-rise-640: riseIn 600ms ease-out 640ms both;
+  --animate-rise-720: riseIn 600ms ease-out 720ms both;
+  --animate-rise-820: riseIn 600ms ease-out 820ms both;
+  --animate-sparkle-breathe: sparkleBreathe 4.5s ease-in-out 900ms infinite;
+}
+
+@keyframes shimmer {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes veilIn {
+  from {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes wipeIn {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes sparkleBreathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Global, not just Login — README's own snippet applies it universally. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+  }
 }
 
 :root {
-  --background: oklch(1 0 0);
+  /* Warm ivory (design_handoff_reminder_assistant/README.md) — never pure
+     white for the page background. */
+  --background: #f7f6f3;
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
@@ -64,9 +204,12 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  /* Design handoff default border/input/ring — see the token block below
+     for the source values (--border-medium doubles as the focus/hover
+     border the handoff never names as its own top-level token). */
+  --border: #e4e1dc;
+  --input: #e4e1dc;
+  --ring: #b98f91;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -81,6 +224,73 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* --- Design handoff tokens ---------------------------------------------
+     design_handoff_reminder_assistant/README.md § Design tokens. Light-mode
+     only — the handoff doesn't specify a dark palette (see AGENTS.md/PR
+     notes). No raw hex values outside this block; components reference
+     these (or the mirrored Tailwind utilities in @theme inline above).
+     `--muted` in the handoff is renamed `--placeholder-text` here — it means
+     "placeholder-only input text", a different concept from shadcn's
+     existing `--muted`/`--muted-foreground` (a background-fill token used
+     throughout the current UI), and reusing the name would silently repaint
+     every `bg-muted` in the app. */
+  --surface: #ffffff;
+  --text-primary: #242326;
+  --text-secondary: #77747a;
+  /* Also not in the Design tokens table (same situation as --border-medium
+     above) — the Sidebar's inactive nav-item text and the generic Chip/pill's
+     unselected text share this exact gray. */
+  --text-tertiary: #5e5b60;
+  --border-soft: #efece7;
+  /* Not in the README's own Design tokens table — a component-level value
+     (SecondaryButton hover border, ReminderIndicator's idle border) that
+     recurs across the Phase 2 primitives, promoted to a token here instead
+     of repeating the literal in both files. */
+  --border-medium: #c9c6c1;
+  --separator: #e7e4df;
+  --burgundy: #743447;
+  --burgundy-hover: #5c2837;
+  --burgundy-tint: #f3eeef;
+  --soft-blue: #b8d4e1;
+  /* Not in the Design tokens table — Calendar's task dot on the selected
+     (burgundy-filled) day, where --soft-blue wouldn't have enough contrast. */
+  --calendar-dot-selected: #e7d6db;
+  --blue-tint: #e7f0f3;
+  --blue-tint-border: #d7e6ec;
+  /* Not in the Design tokens table — InsightCard's decorative ring, also the
+     generic Chip/pill's selected-state border. */
+  --blue-ring-border: #c6dce5;
+  /* The rest of that same Chip/pill selected state (§ Components, not the
+     tokens table) — building the chip now for the New task screen. */
+  --chip-selected-bg: #d8e8ef;
+  --chip-selected-text: #274c5a;
+  --blue-ink: #315766;
+  --blue-ink-title: #2e5260;
+  --blue-ink-body: #3e6675;
+  --rose-gold: #b98f91;
+  --rose-tint: #fbf6f5;
+  --rose-tint-border: #e9dede;
+  --rose-tint-text: #6f5758;
+  --rose-tint-label: #8e6a6b;
+  --overdue-ink: #8c4c52;
+  --overdue-card-border: #ead9dc;
+  --skeleton: #eae8e4;
+  --placeholder-text: #a9a6a2;
+
+  /* Priority chip colors — outline chips, transparent background. */
+  --priority-critical-text: var(--burgundy);
+  --priority-critical-border: #d9c3c9;
+  --priority-high-text: #8e6a6b;
+  --priority-high-border: #e4d6d6;
+  --priority-normal-text: #315766;
+  --priority-normal-border: var(--blue-tint-border);
+  --priority-low-text: var(--text-secondary);
+  --priority-low-border: var(--border);
+
+  /* The only two shadows in the system. */
+  --shadow-soft: 0 8px 30px rgba(36, 35, 38, 0.05);
+  --shadow-fab: 0 10px 24px rgba(116, 52, 71, 0.3);
 }
 
 .dark {

@@ -10,7 +10,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { OccurrenceStatus } from "@/lib/db/types";
-import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-status";
+import {
+  isActionableOccurrenceStatus,
+  OCCURRENCE_STATUS_LABELS,
+} from "@/features/scheduling/occurrence-status";
 import {
   completeOccurrenceAction,
   partialOccurrenceAction,
@@ -19,15 +22,6 @@ import {
   type OccurrenceActionState,
 } from "@/features/scheduling/actions";
 import type { SnoozeOption } from "@/features/notifications/notification.service";
-
-const STATUS_LABELS: Record<OccurrenceStatus, string> = {
-  SCHEDULED: "Scheduled",
-  DONE: "Done",
-  PARTIALLY_DONE: "Partial",
-  SKIPPED: "Skipped",
-  SNOOZED: "Snoozed",
-  CANCELLED: "Cancelled",
-};
 
 const SNOOZE_OPTIONS: { value: SnoozeOption; label: string }[] = [
   { value: "15m", label: "+15 minutes" },
@@ -50,7 +44,7 @@ export function OccurrenceActions({
   if (!isActionableOccurrenceStatus(status)) {
     return (
       <span className="text-muted-foreground shrink-0 text-xs">
-        {STATUS_LABELS[status]}
+        {OCCURRENCE_STATUS_LABELS[status]}
       </span>
     );
   }
@@ -125,7 +119,7 @@ export function OccurrenceActions({
       </div>
       {status === "SNOOZED" && (
         <span className="text-muted-foreground text-xs">
-          {STATUS_LABELS.SNOOZED}
+          {OCCURRENCE_STATUS_LABELS.SNOOZED}
           {nextReminderLabel ? ` — next at ${nextReminderLabel}` : null}
         </span>
       )}

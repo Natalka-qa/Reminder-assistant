@@ -15,6 +15,7 @@ export type CurrentUser = {
   id: string;
   name: string | null;
   email: string;
+  image: string | null;
   timezone: string;
 };
 
@@ -27,6 +28,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     id: session.user.id,
     name: session.user.name ?? null,
     email: session.user.email ?? "",
+    image: session.user.image ?? null,
     timezone: session.user.timezone,
   };
 });
