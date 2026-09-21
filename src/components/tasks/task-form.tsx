@@ -7,6 +7,7 @@ import {
   useState,
   useTransition,
 } from "react";
+import { Mic } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +37,7 @@ import {
   type TaskActionState,
 } from "@/features/tasks/actions";
 import { describeRecurrenceRule } from "@/features/recurrence/recurrence-rule";
+import { useSpeechDictation } from "@/lib/speech/use-speech-dictation";
 import { cn } from "@/lib/utils";
 
 export type RepeatFrequency = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
@@ -150,10 +152,15 @@ export function TaskForm({
     !REMINDER_PRESET_VALUES.has(String(defaultValues.reminderOffsetMinutes)),
   );
 
-  function handleFillFromText() {
+  // Takes the text explicitly rather than reading `draftText` from the
+  // closure — voice dictation (below) needs to call this with the just-
+  // finalized transcript in the same tick it calls setDraftText, and
+  // React's state update isn't guaranteed to have landed yet (sprint-9-
+  // tasks.md "Расхождения" п.4).
+  function handleFillFromText(text: string) {
     startDraftTransition(async () => {
       try {
-        const result = await parseTaskDraftAction(draftText);
+        const result = await parseTaskDraftAction(text);
         if (result.status === "success") {
           setTitle(result.draft.title);
           setDescription(result.draft.description);
@@ -172,6 +179,29 @@ export function TaskForm({
       }
     });
   }
+
+  // Sprint 9 — voice input for the same field. Recognition's own interim
+  // results keep `draftText` live so the user sees what's being heard; only
+  // the final result triggers the actual parse call.
+  const {
+    supported: voiceSupported,
+    listening: voiceListening,
+    toggle: toggleVoice,
+  } = useSpeechDictation({
+    onTranscriptChange: (text, isFinal) => {
+      setDraftText(text);
+      if (isFinal && text.trim().length > 0) {
+        handleFillFromText(text);
+      }
+    },
+    onError: (code) => {
+      const message =
+        code === "not-allowed" || code === "service-not-allowed"
+          ? "Microphone access was denied."
+          : "Voice input failed. Please try again or type instead.";
+      toast.error(message);
+    },
+  });
 
   function toggleRepeatDay(day: number) {
     setRepeatDaysOfWeek((days) =>
@@ -252,15 +282,36 @@ export function TaskForm({
               rows={2}
               className="bg-surface"
             />
-            <Button
-              type="button"
-              variant="secondary"
-              className="self-start"
-              disabled={draftPending || draftText.trim().length === 0}
-              onClick={handleFillFromText}
-            >
-              {draftPending ? "Filling…" : "Fill from text"}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                className="self-start"
+                disabled={draftPending || draftText.trim().length === 0}
+                onClick={() => handleFillFromText(draftText)}
+              >
+                {draftPending ? "Filling…" : "Fill from text"}
+              </Button>
+              {voiceSupported && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon"
+                  className={cn(
+                    "rounded-pill self-start",
+                    voiceListening && "border-burgundy text-burgundy",
+                  )}
+                  disabled={draftPending}
+                  aria-label={
+                    voiceListening ? "Stop listening" : "Start voice input"
+                  }
+                  aria-pressed={voiceListening}
+                  onClick={toggleVoice}
+                >
+                  <Mic className={cn(voiceListening && "animate-pulse")} />
+                </Button>
+              )}
+            </div>
           </div>
         )}
 
