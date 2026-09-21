@@ -14,6 +14,13 @@ const serverEnvSchema = z.object({
   // degrades gracefully (hidden button, no crash) when this is unset — see
   // sprint-8-tasks.md "Расхождения" п.8.
   ANTHROPIC_API_KEY: z.string().optional(),
+  // Optional, same reasoning — Telegram notifications (sprint-10-tasks.md)
+  // are invisible/disabled without all three. isTelegramEnabled()
+  // (lib/telegram/telegram.config.ts) requires all three together, not any
+  // one alone.
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
+  TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
+  TELEGRAM_BOT_USERNAME: z.string().optional(),
 });
 
 function loadServerEnv() {
