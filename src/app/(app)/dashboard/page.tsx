@@ -1,47 +1,85 @@
+import type { Flexibility } from "@prisma/client";
 import { verifySession, getCurrentUser } from "@/lib/auth/dal";
 import { formatDateInZone, formatTimeInZone, zonedNow } from "@/lib/date";
+import { formatDuration } from "@/lib/format";
 import { dashboardService } from "@/features/scheduling/dashboard.service";
 import { notificationService } from "@/features/notifications/notification.service";
 import {
   isActionableOccurrenceStatus,
   getOccurrenceStatusNote,
 } from "@/features/scheduling/occurrence-status";
-import { ReminderRow, ReminderList } from "@/components/tasks/reminder-row";
-import { OverdueCard } from "@/components/tasks/overdue-card";
-import { SectionLabel } from "@/components/ui/section-label";
+import {
+  buildCollisionSuggestion,
+  buildInsightBody,
+  countOverlappingToday,
+  formatRelativeTimeLabel,
+  groupRemainingByTime,
+  latestOccurrenceEnd,
+  selectUpNext,
+  type HomeOccurrence,
+} from "@/features/scheduling/home-view";
+import { AtmosphereBackground } from "@/components/dashboard/atmosphere-background";
+import { SkyScene } from "@/components/dashboard/sky-scene";
+import { AssistantMark } from "@/components/dashboard/assistant-mark";
+import { AssistantInsight } from "@/components/dashboard/assistant-insight";
+import { UpNext, type AlsoNowItem } from "@/components/dashboard/up-next";
+import {
+  DayTimeline,
+  type TimelineGroupData,
+  type TimelineItem,
+} from "@/components/dashboard/day-timeline";
+import { OverdueRow } from "@/components/dashboard/overdue-row";
+import { SuggestionCard } from "@/components/dashboard/suggestion-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DueNotificationsToast } from "@/components/notifications/due-notifications-toast";
 
-function getGreeting(hour: number): string {
-  if (hour < 5) return "Good evening,";
-  if (hour < 12) return "Good morning,";
-  if (hour < 18) return "Good afternoon,";
-  return "Good evening,";
+const FLEXIBILITY_LABELS: Record<Flexibility, string> = {
+  FIXED: "Fixed",
+  FLEXIBLE: "Flexible",
+};
+
+type TimeOfDay = "morning" | "afternoon" | "evening" | "night";
+
+function getTimeOfDay(hour: number): TimeOfDay {
+  if (hour >= 5 && hour < 12) return "morning";
+  if (hour >= 12 && hour < 18) return "afternoon";
+  if (hour >= 18 && hour < 22) return "evening";
+  return "night";
 }
 
-// design_handoff_reminder_assistant/README.md § Home / Dashboard, variant A
-// (Timeline — variant B "Focus" is a future "next up" treatment, not built).
-//
-// Deliberately not built here, both genuinely "conditional" in the design
-// and dropped for the same reason: nothing in this codebase generates an
-// insight or an AI suggestion yet (no analytics, no assistant feature — the
-// 13-screen handoff's "Assistant" screen isn't in the "Suggested
-// implementation order" this rebuild follows). Faking either with static
-// copy would misrepresent the product; both slot in later once that backing
-// feature exists.
-//
-// Also dropped: the current "Upcoming" section (tasks after today). Variant
-// A's own structure — greeting, insight, overdue, today, AI suggestion —
-// has no third list; Home is deliberately today-only in the new IA, with
-// Calendar/Tasks covering the rest. dashboardService.getUpcomingTasks stays
-// in place (service layer is out of scope for a presentation-layer pass)
-// but is unused until something else needs it.
+const GREETINGS: Record<TimeOfDay, string> = {
+  morning: "Good morning,",
+  afternoon: "Good afternoon,",
+  evening: "Good evening,",
+  night: "Still up,",
+};
+
+function metaLabel(occurrence: HomeOccurrence): string {
+  return `${formatDuration(occurrence.task.durationMinutes)} · ${FLEXIBILITY_LABELS[occurrence.task.flexibility]}`;
+}
+
+function emphasisFor(occurrence: HomeOccurrence): "normal" | "important" {
+  return occurrence.task.priority === "HIGH" ||
+    occurrence.task.priority === "CRITICAL"
+    ? "important"
+    : "normal";
+}
+
+// HOME_V2_UPDATE.md / CLAUDE_CODE_PROMPT.md — "Home v2 (Atmosphere)". Only
+// this screen changed; Calendar, Tasks, Task detail, Settings etc. keep
+// their v1 (Phase 5/6) treatment. See the sibling dashboard components
+// (up-next.tsx, day-timeline.tsx, overdue-row.tsx, suggestion-card.tsx,
+// assistant-insight.tsx, sky-scene.tsx, assistant-mark.tsx) for the
+// per-piece notes on where this substitutes a real destination for a
+// screen the spec references that was never built (Assistant, a
+// standalone Conflict route).
 export default async function DashboardPage() {
   await verifySession();
   const user = await getCurrentUser();
   const timezone = user?.timezone ?? "UTC";
   const now = zonedNow(timezone);
-  const today = formatDateInZone(now.toJSDate(), timezone, "cccc, LLLL d");
+  const dateLine = formatDateInZone(now.toJSDate(), timezone, "cccc, LLLL d");
+  const timeOfDay = getTimeOfDay(now.hour);
 
   // Lazy delivery trigger — the primary channel for timely reminders, since
   // Vercel Cron can't be relied on for sub-daily frequency on the Hobby plan
@@ -71,40 +109,107 @@ export default async function DashboardPage() {
     ]),
   );
 
-  // The first still-pending item at or after now gets the "upcoming" (soft
-  // blue) indicator — everything else active falls back to "normal" unless
-  // its own priority already makes it "important".
-  const nextUpcomingId = todayTasks.find(
-    (occurrence) =>
-      isActionableOccurrenceStatus(occurrence.status) &&
-      occurrence.scheduledStart >= now.toJSDate(),
-  )?.id;
-
+  const openCount = todayTasks.filter((o) =>
+    isActionableOccurrenceStatus(o.status),
+  ).length;
   const isEmpty = todayTasks.length === 0 && overdueTasks.length === 0;
+
+  // HOME_V2_UPDATE.md § 2 — "first open task at or after 09:00". `now` is
+  // already zoned, so `.startOf('day').set({hour:9})` lands on 09:00 in
+  // the user's own timezone before converting to the UTC instant every
+  // occurrence's scheduledStart is stored in.
+  const nineAmUtc = now.startOf("day").set({ hour: 9 }).toJSDate();
+  const upNext = selectUpNext(todayTasks, nineAmUtc);
+  const excludeIds = new Set(
+    upNext ? [upNext.primary.id, ...upNext.alsoNow.map((o) => o.id)] : [],
+  );
+  const laterGroups = groupRemainingByTime(todayTasks, excludeIds);
+  const overlapCount = countOverlappingToday(upNext, laterGroups);
+  const dayEnd = latestOccurrenceEnd(todayTasks);
+  const eveningFreeLabel = dayEnd ? formatTimeInZone(dayEnd, timezone) : null;
+  const insightBody = buildInsightBody(
+    todayTasks,
+    overlapCount,
+    eveningFreeLabel,
+  );
+  const collisionSuggestion = buildCollisionSuggestion(upNext, laterGroups);
+
+  const alsoNowItems: AlsoNowItem[] =
+    upNext?.alsoNow.map((o) => ({
+      occurrenceId: o.id,
+      taskId: o.task.id,
+      title: o.task.title,
+      status: o.status,
+      metaLabel: metaLabel(o),
+      emphasis: emphasisFor(o),
+    })) ?? [];
+  const alsoNowLabel = upNext
+    ? `Also at ${formatTimeInZone(upNext.primary.scheduledStart, timezone)} — I put ${
+        upNext.primary.task.flexibility === "FIXED"
+          ? "the fixed one"
+          : "this one"
+      } first.`
+    : undefined;
+
+  const timelineGroups: TimelineGroupData[] = laterGroups.map((group) => {
+    const items: TimelineItem[] = group.items.map((o) => ({
+      occurrenceId: o.id,
+      taskId: o.task.id,
+      title: o.task.title,
+      status: o.status,
+      metaLabel: metaLabel(o),
+      statusNote: getOccurrenceStatusNote(
+        o.status,
+        nextReminderLabels.get(o.id),
+      ),
+      emphasis: emphasisFor(o),
+    }));
+    return {
+      timeLabel: formatTimeInZone(group.when, timezone),
+      items,
+      overlapLabel: group.hasActiveOverlap
+        ? `${group.items.filter((o) => isActionableOccurrenceStatus(o.status)).length} at the same time`
+        : undefined,
+      conflictHref: group.hasActiveOverlap
+        ? `/tasks/${group.items[0].task.id}`
+        : undefined,
+    };
+  });
 
   return (
     <div className="flex flex-col gap-[30px]">
       <DueNotificationsToast notifications={dueNotifications} />
 
-      <div className="relative flex flex-col gap-1">
-        <div
-          aria-hidden
-          className="rounded-pill pointer-events-none absolute -top-[10px] -right-[6px] size-[84px] border border-[#e6dedd]"
-        />
-        <div className="relative flex flex-col gap-1">
-          <p className="text-text-secondary flex items-center gap-1.5 text-[15px]">
-            <span aria-hidden className="text-rose-gold">
-              &#10022;
-            </span>
-            {getGreeting(now.hour)}
-          </p>
-          <p className="font-display text-[56px] leading-[1.02] font-light">
-            {user?.name ?? "there"}
-          </p>
-          <p className="text-text-secondary max-w-[280px] text-[15px] leading-[1.6]">
-            {todayTasks.length} thing{todayTasks.length === 1 ? "" : "s"} today
-            {overdueTasks.length > 0 && ` · ${overdueTasks.length} overdue`}
-          </p>
+      <div className="relative flex min-h-[150px] flex-col gap-[5px]">
+        <AtmosphereBackground />
+        <SkyScene timeOfDay={timeOfDay} />
+
+        <div className="relative flex items-center gap-[9px]">
+          <AssistantMark tone="personal" animated />
+          <span className="text-text-secondary text-[15px]">
+            {GREETINGS[timeOfDay]}
+          </span>
+        </div>
+        <p className="font-display relative text-[56px] leading-[1.02] font-light tracking-[-0.015em]">
+          {user?.name ?? "there"}
+        </p>
+        <div className="relative mt-2.5 flex flex-wrap items-center gap-2.5">
+          <span className="text-text-secondary text-sm">{dateLine}</span>
+          <span className="bg-border-medium rounded-pill size-[3px]" />
+          <span className="text-text-secondary text-sm">
+            {openCount} thing{openCount === 1 ? "" : "s"} today
+          </span>
+          {overdueTasks.length > 0 && (
+            <>
+              <span className="bg-border-medium rounded-pill size-[3px]" />
+              <a
+                href="#overdue"
+                className="text-overdue-ink border-home-overdue-underline border-b text-sm"
+              >
+                {overdueTasks.length} overdue
+              </a>
+            </>
+          )}
         </div>
       </div>
 
@@ -117,58 +222,66 @@ export default async function DashboardPage() {
         />
       ) : (
         <>
+          {todayTasks.length > 0 && <AssistantInsight body={insightBody} />}
+
+          {upNext && (
+            <UpNext
+              occurrenceId={upNext.primary.id}
+              status={upNext.primary.status}
+              taskId={upNext.primary.task.id}
+              title={upNext.primary.task.title}
+              timeLabel={formatTimeInZone(
+                upNext.primary.scheduledStart,
+                timezone,
+              )}
+              relativeLabel={formatRelativeTimeLabel(
+                upNext.primary.scheduledStart,
+                now.toJSDate(),
+              )}
+              metaLabel={metaLabel(upNext.primary)}
+              alsoNowLabel={alsoNowLabel}
+              alsoNow={alsoNowItems}
+            />
+          )}
+
           {overdueTasks.length > 0 && (
-            <div className="flex flex-col gap-3">
-              <SectionLabel tone="overdue">
-                Overdue · {overdueTasks.length}
-              </SectionLabel>
-              <div className="flex flex-col gap-3">
-                {overdueTasks.map((occurrence) => (
-                  <OverdueCard
-                    key={occurrence.id}
-                    occurrenceId={occurrence.id}
-                    href={`/tasks/${occurrence.task.id}`}
-                    time={formatTimeInZone(occurrence.scheduledStart, timezone)}
-                    title={occurrence.task.title}
-                  />
-                ))}
-              </div>
+            <div id="overdue" className="flex flex-col gap-3">
+              {overdueTasks.map((occurrence) => (
+                <OverdueRow
+                  key={occurrence.id}
+                  occurrenceId={occurrence.id}
+                  status={occurrence.status}
+                  taskId={occurrence.task.id}
+                  title={occurrence.task.title}
+                  sinceLabel={`Overdue since ${formatDateInZone(
+                    occurrence.scheduledStart,
+                    timezone,
+                    "LLL d",
+                  )}, ${formatTimeInZone(occurrence.scheduledStart, timezone)}`}
+                />
+              ))}
             </div>
           )}
 
-          {todayTasks.length > 0 && (
-            <div className="flex flex-col gap-3">
-              <SectionLabel>
-                Today, {today} · {todayTasks.length}
-              </SectionLabel>
-              <ReminderList>
-                {todayTasks.map((occurrence) => (
-                  <ReminderRow
-                    key={occurrence.id}
-                    occurrenceId={occurrence.id}
-                    status={occurrence.status}
-                    href={`/tasks/${occurrence.task.id}`}
-                    time={formatTimeInZone(occurrence.scheduledStart, timezone)}
-                    title={occurrence.task.title}
-                    durationMinutes={occurrence.task.durationMinutes}
-                    flexibility={occurrence.task.flexibility}
-                    priority={occurrence.task.priority}
-                    emphasis={
-                      occurrence.task.priority === "HIGH" ||
-                      occurrence.task.priority === "CRITICAL"
-                        ? "important"
-                        : occurrence.id === nextUpcomingId
-                          ? "upcoming"
-                          : "normal"
-                    }
-                    statusNote={getOccurrenceStatusNote(
-                      occurrence.status,
-                      nextReminderLabels.get(occurrence.id),
-                    )}
-                  />
-                ))}
-              </ReminderList>
-            </div>
+          {timelineGroups.length > 0 && eveningFreeLabel && (
+            <DayTimeline
+              groups={timelineGroups}
+              freeLine={`Free after ${eveningFreeLabel}`}
+              endOfDayLabel={eveningFreeLabel}
+            />
+          )}
+
+          {collisionSuggestion && (
+            <SuggestionCard
+              body={`${collisionSuggestion.movable.task.title} and ${collisionSuggestion.anchor.task.title} both sit at ${formatTimeInZone(collisionSuggestion.anchor.scheduledStart, timezone)}. ${collisionSuggestion.movable.task.title} is flexible — moving it to ${formatTimeInZone(
+                new Date(
+                  collisionSuggestion.anchor.scheduledStart.getTime() +
+                    collisionSuggestion.anchor.task.durationMinutes * 60_000,
+                ),
+                timezone,
+              )} keeps both.`}
+              editHref={`/tasks/${collisionSuggestion.movable.task.id}/edit`}
+            />
           )}
         </>
       )}
