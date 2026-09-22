@@ -1,7 +1,8 @@
 import { notificationService } from "@/features/notifications/notification.service";
 import { env } from "@/lib/env";
 
-// Vercel Cron (vercel.json) hits this on a schedule; a manual/local call
+// An external scheduler (cron-job.org) hits this every 5 minutes, since the
+// Vercel Hobby plan only allows daily crons; a manual/local call
 // needs the same bearer token. Not a user-facing endpoint — no session,
 // just the shared secret. Backstop for the dashboard-load lazy trigger
 // (S6-11), which is the primary delivery channel — see "Расхождения" п.5 in

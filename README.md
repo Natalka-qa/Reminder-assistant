@@ -64,7 +64,16 @@ The app is designed to deploy to [Vercel](https://vercel.com):
 3. Set `AUTH_URL` to the app's real production domain (not `http://localhost:3000`), and add that domain's `/api/auth/callback/google` as an authorized redirect URI in the Google Cloud Console.
 4. Deploy. `npm run build` (Vercel's default build command) runs `prisma migrate deploy` before `next build`, so pending migrations are applied automatically on every deploy — no separate migration step needed.
 
-`vercel.json` also registers the two cron endpoints (`/api/cron/extend-occurrences`, `/api/cron/send-notifications`); Vercel schedules them automatically once the project is deployed, no extra setup required. `GET /api/health` (no auth) does a lightweight database ping — point an external uptime monitor at it.
+`vercel.json` registers the daily `/api/cron/extend-occurrences` job; Vercel schedules it automatically once the project is deployed. `/api/cron/send-notifications` needs to run every 5 minutes, which the Vercel Hobby plan doesn't allow (daily crons only), so it's triggered by an external scheduler instead:
+
+1. Sign up at [cron-job.org](https://cron-job.org) (free) → Create cronjob.
+2. URL: `https://<your-domain>/api/cron/send-notifications`, schedule: every 5 minutes, method: `GET`.
+3. Advanced → Headers → add `Authorization` with value `Bearer <your CRON_SECRET>`.
+4. Save, then use "Test run" — a working setup returns `200` with `{"sent": N}`; `401` means the header doesn't match `CRON_SECRET` in Vercel.
+
+On the Vercel Pro plan you can instead add `{ "path": "/api/cron/send-notifications", "schedule": "*/5 * * * *" }` back to `vercel.json` and skip the external scheduler.
+
+`GET /api/health` (no auth) does a lightweight database ping — point an external uptime monitor at it.
 
 ### Telegram setup
 
