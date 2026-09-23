@@ -11,3 +11,10 @@ export class InvalidOccurrenceTransitionError extends Error {
     this.name = "InvalidOccurrenceTransitionError";
   }
 }
+
+export class OccurrenceNotMovableError extends Error {
+  constructor(occurrenceId: string) {
+    super(`Occurrence "${occurrenceId}" can't be moved to today`);
+    this.name = "OccurrenceNotMovableError";
+  }
+}

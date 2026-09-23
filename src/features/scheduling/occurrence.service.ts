@@ -13,7 +13,9 @@ import { notificationService } from "@/features/notifications/notification.servi
 import {
   InvalidOccurrenceTransitionError,
   OccurrenceNotFoundError,
+  OccurrenceNotMovableError,
 } from "@/features/scheduling/occurrence.errors";
+import { planMoveToToday } from "@/features/scheduling/move-to-today";
 import { conflictService } from "@/features/scheduling/conflict.service";
 import { ScheduleConflictError } from "@/features/scheduling/conflict.errors";
 import { taskRepository } from "@/features/tasks/task.repository";
@@ -364,5 +366,58 @@ export const occurrenceService = {
       status: "SKIPPED",
       completedAt: null,
     });
+  },
+
+  // TASKS_V2_UPDATE.md § 5 "Move to today" (see planMoveToToday for what
+  // can move and where to). No conflict check: the user picked this exact
+  // slot, and the Tasks list's "Same time as …" line already shows any
+  // collision. The move supersedes a snooze, so the status goes back to
+  // SCHEDULED and whatever reminder is still pending is replaced by one
+  // for the new time — cancel first, like snoozeOccurrence, so the old
+  // one never fires alongside it.
+  async moveOccurrenceToToday(
+    userId: string,
+    occurrenceId: string,
+    timezone: string,
+    tx: Tx,
+    now = new Date(),
+  ) {
+    const occurrence = await occurrenceRepository.findById(
+      occurrenceId,
+      userId,
+      tx,
+    );
+    if (!occurrence) {
+      throw new OccurrenceNotFoundError(occurrenceId);
+    }
+    if (!isActionableOccurrenceStatus(occurrence.status)) {
+      throw new InvalidOccurrenceTransitionError(occurrenceId);
+    }
+    const plan = planMoveToToday(occurrence, now, timezone);
+    if (!plan) {
+      throw new OccurrenceNotMovableError(occurrenceId);
+    }
+
+    const updated = await occurrenceRepository.update(
+      occurrenceId,
+      userId,
+      {
+        scheduledStart: plan.scheduledStart,
+        scheduledEnd: plan.scheduledEnd,
+        status: "SCHEDULED",
+      },
+      tx,
+    );
+
+    await notificationService.cancelForOccurrence(occurrenceId, tx);
+    if (plan.reminderAt) {
+      await notificationService.createForOccurrence(
+        updated,
+        occurrence.task.reminderOffsetMinutes,
+        tx,
+      );
+    }
+
+    return updated;
   },
 };
