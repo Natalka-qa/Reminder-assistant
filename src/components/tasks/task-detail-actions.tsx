@@ -36,7 +36,7 @@ const STATUS_NOTES: Partial<Record<OccurrenceStatus, string>> = {
 // design_handoff_reminder_assistant/README.md § Task detail — PrimaryButton
 // "Mark as done" (label becomes "✓ Done" when complete) + Partial/Snooze/Skip
 // secondary row + centered status note. Self-contained like the other
-// occurrence controls in this app (occurrence-actions.tsx, reminder-row.tsx,
+// occurrence controls in this app (reminder-row.tsx, task-row.tsx,
 // dashboard/overdue-row.tsx) — a Server Component page can't pass a handler
 // function into this Client Component's props. There's no way to un-complete an
 // occurrence in the current service layer, so "Mark as done" simply disables

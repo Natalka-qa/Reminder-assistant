@@ -29,7 +29,7 @@ export function ReminderList({ children }: { children: ReactNode }) {
 // disagree, the data model wins") — the meta line and chip row simply omit
 // it until one exists.
 //
-// Self-contained like occurrence-actions.tsx (calls completeOccurrenceAction
+// Self-contained like task-detail-actions.tsx (calls completeOccurrenceAction
 // directly) rather than taking an onToggleDone callback — a callback
 // defined in the Server Component page that renders this list can't cross
 // into a Client Component prop (React error: "Event handlers cannot be
