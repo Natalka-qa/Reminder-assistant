@@ -1,42 +1,66 @@
-import Link from "next/link";
 import { verifySession, getCurrentUser } from "@/lib/auth/dal";
 import { taskService } from "@/features/tasks/task.service";
-import { formatDateInZone, formatTimeInZone } from "@/lib/date";
-import { pickCurrentOccurrence } from "@/features/scheduling/occurrence-selection";
+import { notificationService } from "@/features/notifications/notification.service";
 import {
-  parseRecurrenceRule,
-  describeRecurrenceRule,
-} from "@/features/recurrence/recurrence-rule";
-import { Button } from "@/components/ui/button";
-import { PriorityChip } from "@/components/ui/priority-chip";
+  buildTaskListItems,
+  dayOffsetInZone,
+  formatTaskSummary,
+  taskSummary,
+} from "@/features/tasks/task-list-view";
+import {
+  parseTaskQuery,
+  parseTaskSort,
+  parseTaskTab,
+} from "@/features/tasks/task-list-params";
+import { formatDateInZone, formatTimeInZone } from "@/lib/date";
 import { EmptyState } from "@/components/ui/empty-state";
+import { TasksHeader } from "@/components/tasks/tasks-header";
+import { TasksToolbar } from "@/components/tasks/tasks-toolbar";
+import { TaskList } from "@/components/tasks/task-list";
 
-// design_handoff_reminder_assistant/README.md § Tasks. "Recurrence meta" from
-// the spec is the recurrence description when the task repeats, falling back
-// to its next scheduled occurrence otherwise — the plain list has no other
-// use for a non-repeating task's schedule.
-export default async function TasksPage() {
+// TASKS_V2_UPDATE.md — "What do I have?": an editorial grouped list, no
+// cards and no atmosphere layer. Every count, group and meta line comes
+// from task-list-view.ts; this page fetches, reads the view from the URL
+// (`?tab=&sort=&q=`) and renders. `data-layout="wide"` lets the app layout
+// widen this one screen to 760px on desktop.
+export default async function TasksPage({ searchParams }: PageProps<"/tasks">) {
   await verifySession();
   const user = await getCurrentUser();
   const timezone = user?.timezone ?? "UTC";
+  const now = new Date();
+
+  const params = await searchParams;
+  const tab = parseTaskTab(params.tab);
+  const sort = parseTaskSort(params.sort);
+  const query = parseTaskQuery(params.q);
+
   const tasks = user ? await taskService.getActiveTasks(user.id) : [];
+  const items = buildTaskListItems(tasks, now, timezone);
+
+  const snoozedIds = items
+    .filter((item) => item.status === "SNOOZED")
+    .map((item) => item.occurrenceId);
+  const nextReminderTimes =
+    await notificationService.findNextReminderTimes(snoozedIds);
+  // "Snoozed — next reminder 14:15" today, with the date on any other day.
+  const nextReminderLabels = new Map(
+    [...nextReminderTimes].map(([occurrenceId, sendAt]) => [
+      occurrenceId,
+      dayOffsetInZone(sendAt, now, timezone) === 0
+        ? formatTimeInZone(sendAt, timezone)
+        : `${formatDateInZone(sendAt, timezone, "LLL d")} ${formatTimeInZone(sendAt, timezone)}`,
+    ]),
+  );
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="font-display text-[45px] leading-[1] font-light">
-          Tasks
-        </h1>
-        <Button
-          className="h-11 px-6"
-          nativeButton={false}
-          render={<Link href="/tasks/new" />}
-        >
-          New task
-        </Button>
-      </div>
+    <div data-layout="wide" className="flex flex-col">
+      <TasksHeader
+        summary={
+          items.length > 0 ? formatTaskSummary(taskSummary(items)) : undefined
+        }
+      />
 
-      {tasks.length === 0 ? (
+      {items.length === 0 ? (
         <EmptyState
           title="Nothing here yet."
           body="Create your first task to see it in this list."
@@ -44,33 +68,18 @@ export default async function TasksPage() {
           ctaHref="/tasks/new"
         />
       ) : (
-        <div className="flex flex-col gap-3">
-          {tasks.map((task) => {
-            const occurrence = pickCurrentOccurrence(task.occurrences);
-            const rule = parseRecurrenceRule(task.recurrenceRule);
-            const meta = rule
-              ? describeRecurrenceRule(rule)
-              : occurrence
-                ? `${formatDateInZone(occurrence.scheduledStart, timezone, "LLL d")} · ${formatTimeInZone(occurrence.scheduledStart, timezone)}`
-                : "No scheduled occurrence";
-
-            return (
-              <Link
-                key={task.id}
-                href={`/tasks/${task.id}`}
-                className="bg-surface border-border hover:border-border-medium flex items-center justify-between gap-4 rounded-[18px] border px-5 py-[18px] transition-colors"
-              >
-                <div className="flex min-w-0 flex-col gap-1">
-                  <span className="text-text-primary truncate text-[17px] leading-[1.35]">
-                    {task.title}
-                  </span>
-                  <span className="text-text-secondary text-meta">{meta}</span>
-                </div>
-                <PriorityChip priority={task.priority} className="shrink-0" />
-              </Link>
-            );
-          })}
-        </div>
+        <>
+          <TasksToolbar tab={tab} sort={sort} query={query} />
+          <TaskList
+            items={items}
+            tab={tab}
+            sort={sort}
+            query={query}
+            now={now}
+            timezone={timezone}
+            nextReminderLabels={nextReminderLabels}
+          />
+        </>
       )}
     </div>
   );

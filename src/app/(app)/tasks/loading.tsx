@@ -1,24 +1,20 @@
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
+// Mirrors the Tasks v2 layout (header, summary, controls row, one group of
+// rows) so the list doesn't jump when it arrives. Wide like the page.
 export default function TasksLoading() {
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <Skeleton className="h-8 w-24" />
-        <Skeleton className="h-7 w-24" />
+    <div data-layout="wide" className="flex flex-col">
+      <div className="flex items-end justify-between gap-4">
+        <Skeleton className="h-[45px] w-32" />
+        <Skeleton className="h-5 w-20" />
       </div>
-      <div className="flex flex-col gap-3">
+      <Skeleton className="mt-3 h-4 w-48" />
+      <Skeleton className="mt-7 h-8 w-full" />
+      <div className="mt-[38px] flex flex-col gap-3">
+        <Skeleton className="h-3 w-20" />
         {Array.from({ length: 5 }).map((_, index) => (
-          <Card key={index}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-4 w-12" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-4 w-32" />
-            </CardContent>
-          </Card>
+          <Skeleton key={index} className="h-12 w-full" />
         ))}
       </div>
     </div>

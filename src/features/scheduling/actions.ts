@@ -7,6 +7,7 @@ import { occurrenceService } from "@/features/scheduling/occurrence.service";
 import {
   InvalidOccurrenceTransitionError,
   OccurrenceNotFoundError,
+  OccurrenceNotMovableError,
 } from "@/features/scheduling/occurrence.errors";
 import {
   notificationService,
@@ -17,6 +18,13 @@ export type OccurrenceActionState = {
   status: "idle" | "success" | "error";
   message?: string;
 };
+
+function revalidateOccurrencePaths(taskId: string) {
+  revalidatePath("/dashboard");
+  revalidatePath("/tasks");
+  revalidatePath(`/tasks/${taskId}`);
+  revalidatePath("/calendar");
+}
 
 function runOccurrenceAction(
   transition: (
@@ -43,10 +51,7 @@ function runOccurrenceAction(
       throw error;
     }
 
-    revalidatePath("/dashboard");
-    revalidatePath("/tasks");
-    revalidatePath(`/tasks/${taskId}`);
-    revalidatePath("/calendar");
+    revalidateOccurrencePaths(taskId);
     return { status: "success" };
   };
 }
@@ -94,9 +99,43 @@ export async function snoozeOccurrenceAction(
     throw error;
   }
 
-  revalidatePath("/dashboard");
-  revalidatePath("/tasks");
-  revalidatePath(`/tasks/${taskId}`);
-  revalidatePath("/calendar");
+  revalidateOccurrencePaths(taskId);
+  return { status: "success" };
+}
+
+// TASKS_V2_UPDATE.md § 5 — the Tasks list's "Move to today" on an overdue
+// row. Not a runOccurrenceAction transition: it needs the user's timezone
+// (today's date is theirs) and its own transaction, like snooze.
+export async function moveOccurrenceToTodayAction(
+  occurrenceId: string,
+): Promise<OccurrenceActionState> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { status: "error", message: "Not signed in." };
+  }
+
+  let taskId: string;
+  try {
+    const occurrence = await runInTransaction((tx) =>
+      occurrenceService.moveOccurrenceToToday(
+        user.id,
+        occurrenceId,
+        user.timezone,
+        tx,
+      ),
+    );
+    taskId = occurrence.taskId;
+  } catch (error) {
+    if (
+      error instanceof OccurrenceNotFoundError ||
+      error instanceof InvalidOccurrenceTransitionError ||
+      error instanceof OccurrenceNotMovableError
+    ) {
+      return { status: "error", message: error.message };
+    }
+    throw error;
+  }
+
+  revalidateOccurrencePaths(taskId);
   return { status: "success" };
 }

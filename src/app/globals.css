@@ -144,6 +144,17 @@
   --color-home-mark-suggestion-core: var(--home-mark-suggestion-core);
   --color-home-quiet-title: var(--home-quiet-title);
   --color-home-quiet-meta: var(--home-quiet-meta);
+  --color-tasks-meta: var(--tasks-meta);
+  --color-tasks-conflict-text: var(--tasks-conflict-text);
+  --color-tasks-muted: var(--tasks-muted);
+  --color-tasks-dot: var(--tasks-dot);
+  --color-tasks-marker-normal: var(--tasks-marker-normal);
+  --color-tasks-row-divider: var(--tasks-row-divider);
+  --color-tasks-critical-row: var(--tasks-critical-row);
+  --color-tasks-hover: var(--tasks-hover);
+  --color-tasks-menu-hover: var(--tasks-menu-hover);
+  --color-tasks-conflict-dot: var(--tasks-conflict-dot);
+  --color-tasks-done-strike: var(--tasks-done-strike);
 
   /* Login's entrance sequence — README § Login "Entrance animation", the one
      choreographed moment in the app. Named by role/delay so the component
@@ -392,6 +403,29 @@
      #242326/#5E5B60/#77747A under other names; only these two are new. */
   --home-quiet-title: #3b3a3e;
   --home-quiet-meta: #6b686d;
+
+  /* --- Tasks v2 tokens ----------------------------------------------------
+     TASKS_V2_UPDATE.md § 7. #242326/#5E5B60/#743447/#C9C6C1/#E4E1DC/#F3EEEF
+     already exist above (--text-primary, --text-tertiary, --burgundy,
+     --border-medium, --border, --burgundy-tint), and #6B686D is
+     --home-quiet-meta, re-exposed under a screen-neutral name. Apart from
+     --tasks-conflict-text, everything new below is decorative only, never
+     body text. */
+  --tasks-meta: var(--home-quiet-meta);
+  /* "Same time as …". The spec's #8E6A6B is 4.39:1 on --background, just
+     under AA; this is the nearest shade of it that passes (4.6:1). */
+  --tasks-conflict-text: #8a6768;
+  /* The "···" button, and a Today-column time repeating the row above. */
+  --tasks-muted: #a8a4a9;
+  /* The "·" between meta segments. */
+  --tasks-dot: #b5b1ac;
+  --tasks-marker-normal: #d6d1cb;
+  --tasks-row-divider: #ece9e4;
+  --tasks-critical-row: #fbf6f7;
+  --tasks-hover: #f1ede8;
+  --tasks-menu-hover: #f6f3ef;
+  --tasks-conflict-dot: #c79aa6;
+  --tasks-done-strike: #9a969b;
 }
 
 .dark {
