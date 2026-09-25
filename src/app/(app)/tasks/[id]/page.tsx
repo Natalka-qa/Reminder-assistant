@@ -20,6 +20,7 @@ import { GroupedRows, GroupedRow } from "@/components/ui/grouped-rows";
 import { SectionLabel } from "@/components/ui/section-label";
 import { TaskDetailActions } from "@/components/tasks/task-detail-actions";
 import { TaskActions } from "./task-actions";
+import { CalendarCheckToast } from "./calendar-check-toast";
 
 const HISTORY_LIMIT = 10;
 
@@ -40,9 +41,8 @@ const HISTORY_LIMIT = 10;
 // right" (no per-row buttons there).
 export default async function TaskDetailPage({
   params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+  searchParams,
+}: PageProps<"/tasks/[id]">) {
   await verifySession();
   const user = await getCurrentUser();
   if (!user) {
@@ -50,6 +50,7 @@ export default async function TaskDetailPage({
   }
 
   const { id } = await params;
+  const { calendarCheck } = await searchParams;
   const task = await taskService.getTask(user.id, id);
   if (!task) {
     notFound();
@@ -96,6 +97,7 @@ export default async function TaskDetailPage({
 
   return (
     <div className="flex flex-col gap-6">
+      <CalendarCheckToast unavailable={calendarCheck === "unavailable"} />
       <div className="flex flex-col gap-2">
         <PriorityChip priority={task.priority} />
         {heroOccurrence && (

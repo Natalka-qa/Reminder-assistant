@@ -582,21 +582,28 @@ export function TaskForm({
             <SectionLabel tone="overdue">Schedule conflict</SectionLabel>
             <AlertDialogTitle className="font-display text-text-primary text-[28px] leading-[1.15] font-light">
               {title || "This task"} overlaps with{" "}
-              {state.conflicts?.length ?? 0} existing task
-              {state.conflicts?.length === 1 ? "" : "s"}
+              {conflictDialogSubject(
+                state.conflicts?.length ?? 0,
+                state.busy?.length ?? 0,
+              )}
             </AlertDialogTitle>
           </AlertDialogHeader>
 
+          {/* The task being saved gets its own tinted card, apart from what
+              it collides with, so the two read as "this vs. those" rather
+              than one list. Blue-ink text as on InsightCard's same tint —
+              text-secondary there is only 3.98:1, under AA. */}
+          <div className="bg-blue-tint border-blue-tint-border flex flex-col gap-1 rounded-[14px] border p-4">
+            <SectionLabel className="text-blue-ink">New</SectionLabel>
+            <span className="text-blue-ink-title text-[15px] font-medium">
+              {title}
+            </span>
+            <span className="text-blue-ink-body text-meta">
+              {time} · {durationMinutes} min · {priority} · {flexibility}
+            </span>
+          </div>
+
           <div className="border-border divide-border-soft flex flex-col divide-y rounded-[14px] border">
-            <div className="flex flex-col gap-1 p-4">
-              <SectionLabel>New</SectionLabel>
-              <span className="text-text-primary text-[15px] font-medium">
-                {title}
-              </span>
-              <span className="text-text-secondary text-meta">
-                {time} · {durationMinutes} min · {priority} · {flexibility}
-              </span>
-            </div>
             {state.conflicts?.map((conflict) => (
               <div
                 key={conflict.occurrenceId}
@@ -612,9 +619,25 @@ export function TaskForm({
                 </span>
               </div>
             ))}
+            {/* sprint-11-tasks.md S11-07: only a time — free/busy is all
+                that's ever read from Google, so there's no title to show. */}
+            {state.busy?.map((busy, index) => (
+              <div
+                key={`${busy.timeLabel}-${index}`}
+                className="flex flex-col gap-1 p-4"
+              >
+                <SectionLabel tone="overdue">Google Calendar</SectionLabel>
+                <span className="text-text-primary text-[15px] font-medium">
+                  Busy
+                </span>
+                <span className="text-text-secondary text-meta">
+                  {busy.timeLabel}
+                </span>
+              </div>
+            ))}
           </div>
 
-          <AlertDialogFooter className="mx-0 mb-0 flex flex-col gap-2 rounded-none border-t-0 bg-transparent p-0">
+          <AlertDialogFooter className="mx-0 mb-0 flex flex-col gap-2 rounded-none border-t-0 bg-transparent p-0 sm:flex-col">
             <AlertDialogCancel
               type="button"
               variant="default"
@@ -636,6 +659,18 @@ export function TaskForm({
       </AlertDialog>
     </>
   );
+}
+
+// "{title} overlaps with …" for whichever sources the conflict came from —
+// other tasks, the user's Google Calendar, or both (S11-07).
+function conflictDialogSubject(taskCount: number, busyCount: number): string {
+  const tasks = `${taskCount} existing task${taskCount === 1 ? "" : "s"}`;
+  if (busyCount === 0) {
+    return tasks;
+  }
+  return taskCount === 0
+    ? "your Google Calendar"
+    : `${tasks} and your Google Calendar`;
 }
 
 function FlexibilityCard({

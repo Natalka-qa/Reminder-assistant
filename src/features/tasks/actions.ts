@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import type { Priority, Flexibility } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { formatDateInZone, formatTimeInZone } from "@/lib/date";
+import { formatIntervalLabel } from "@/lib/format";
 import { taskService } from "@/features/tasks/task.service";
 import {
   taskDraftService,
@@ -16,6 +17,7 @@ import {
 } from "@/features/tasks/task.errors";
 import { ScheduleConflictError } from "@/features/scheduling/conflict.errors";
 import type { ScheduleConflict } from "@/features/scheduling/conflict.service";
+import type { Interval } from "@/features/scheduling/external-busy";
 
 export type ConflictSummary = {
   occurrenceId: string;
@@ -25,11 +27,22 @@ export type ConflictSummary = {
   flexibility: Flexibility;
 };
 
+// A busy interval from the user's Google Calendar — only a time, since only
+// free/busy is ever read (sprint-11-tasks.md "Расхождения" п.1).
+export type BusySummary = {
+  timeLabel: string;
+};
+
 export type TaskActionState = {
   status: "idle" | "success" | "error" | "conflict";
   message?: string;
   conflicts?: ConflictSummary[];
+  busy?: BusySummary[];
 };
+
+// Set on the redirect to /tasks/[id] when Google Calendar couldn't be
+// checked and the task was saved without that check ("Расхождения" п.6).
+const CALENDAR_UNAVAILABLE_QUERY = "?calendarCheck=unavailable";
 
 function readTaskForm(formData: FormData) {
   return {
@@ -60,6 +73,24 @@ function summarizeConflicts(
   }));
 }
 
+function summarizeBusy(busy: Interval[], timezone: string): BusySummary[] {
+  return busy.map(({ start, end }) => ({
+    timeLabel: formatIntervalLabel(start, end, timezone),
+  }));
+}
+
+function conflictState(
+  error: ScheduleConflictError,
+  timezone: string,
+): TaskActionState {
+  return {
+    status: "conflict",
+    message: error.message,
+    conflicts: summarizeConflicts(error.conflicts, timezone),
+    busy: summarizeBusy(error.externalBusy, timezone),
+  };
+}
+
 function revalidateTaskPaths(taskId?: string) {
   revalidatePath("/dashboard");
   revalidatePath("/tasks");
@@ -78,20 +109,18 @@ export async function createTaskAction(
   }
 
   let taskId: string;
+  let calendarUnavailable: boolean;
   try {
-    const { task } = await taskService.createTask(
+    const { task, ...result } = await taskService.createTask(
       user.id,
       user.timezone,
       readTaskForm(formData),
     );
     taskId = task.id;
+    calendarUnavailable = result.calendarUnavailable;
   } catch (error) {
     if (error instanceof ScheduleConflictError) {
-      return {
-        status: "conflict",
-        message: error.message,
-        conflicts: summarizeConflicts(error.conflicts, user.timezone),
-      };
+      return conflictState(error, user.timezone);
     }
     if (error instanceof TaskValidationError) {
       return { status: "error", message: error.message };
@@ -100,7 +129,9 @@ export async function createTaskAction(
   }
 
   revalidateTaskPaths(taskId);
-  redirect(`/tasks/${taskId}`);
+  redirect(
+    `/tasks/${taskId}${calendarUnavailable ? CALENDAR_UNAVAILABLE_QUERY : ""}`,
+  );
 }
 
 export async function updateTaskAction(
@@ -113,20 +144,17 @@ export async function updateTaskAction(
     return { status: "error", message: "Not signed in." };
   }
 
+  let calendarUnavailable: boolean;
   try {
-    await taskService.updateTask(
+    ({ calendarUnavailable } = await taskService.updateTask(
       user.id,
       taskId,
       user.timezone,
       readTaskForm(formData),
-    );
+    ));
   } catch (error) {
     if (error instanceof ScheduleConflictError) {
-      return {
-        status: "conflict",
-        message: error.message,
-        conflicts: summarizeConflicts(error.conflicts, user.timezone),
-      };
+      return conflictState(error, user.timezone);
     }
     if (
       error instanceof TaskValidationError ||
@@ -138,7 +166,9 @@ export async function updateTaskAction(
   }
 
   revalidateTaskPaths(taskId);
-  redirect(`/tasks/${taskId}`);
+  redirect(
+    `/tasks/${taskId}${calendarUnavailable ? CALENDAR_UNAVAILABLE_QUERY : ""}`,
+  );
 }
 
 export async function deactivateTaskAction(

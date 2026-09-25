@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth/config";
 import CloudClearing from "@/components/CloudClearing";
 import { LoginForm } from "./login-form";
+import { LegalLinks } from "@/components/legal-links";
 
 // design_handoff_reminder_assistant/README.md § Login. The one screen with a
 // choreographed entrance (see globals.css's --animate-veil-in/wipe-in/
@@ -47,6 +48,8 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         <p className="text-text-secondary animate-rise-820 text-xs leading-[1.6]">
           We&apos;ll only use your email to send you a sign-in link.
         </p>
+
+        <LegalLinks className="animate-rise-820" />
       </div>
     </div>
   );
