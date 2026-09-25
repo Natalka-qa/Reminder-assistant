@@ -18,7 +18,7 @@ See `docs/adr/` for the architectural decisions behind the project structure and
 
 ## Local setup
 
-1. Copy `.env.example` to `.env.local` and fill in the values (see comments in the file for where to get each one — Neon connection string, Google OAuth credentials, Resend API key). `ANTHROPIC_API_KEY` is optional — leave it blank to skip "Fill from text" on `/tasks/new`; everything else works without it. `TELEGRAM_BOT_TOKEN`/`TELEGRAM_WEBHOOK_SECRET`/`TELEGRAM_BOT_USERNAME` are optional too — leave all three blank to skip the Telegram section on `/settings`; see "Telegram setup" below if you want it.
+1. Copy `.env.example` to `.env.local` and fill in the values (see comments in the file for where to get each one — Neon connection string, Google OAuth credentials, Resend API key). `ANTHROPIC_API_KEY` is optional — leave it blank to skip "Fill from text" on `/tasks/new`; everything else works without it. `TELEGRAM_BOT_TOKEN`/`TELEGRAM_WEBHOOK_SECRET`/`TELEGRAM_BOT_USERNAME` are optional too — leave all three blank to skip the Telegram section on `/settings`; see "Telegram setup" below if you want it. `GOOGLE_CALENDAR_ENABLED` is optional as well — anything but `true` leaves Google Calendar off; see "Google Calendar setup" below.
 2. Install dependencies:
 
    ```bash
@@ -60,7 +60,7 @@ See `docs/adr/` for the architectural decisions behind the project structure and
 The app is designed to deploy to [Vercel](https://vercel.com):
 
 1. Import the repository as a new Vercel project (Vercel dashboard → Add New → Project).
-2. Set every variable from `.env.example` in the project's Vercel dashboard (Settings → Environment Variables) — `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `CRON_SECRET`. `ANTHROPIC_API_KEY` and the three `TELEGRAM_*` variables are optional — add them to enable "Fill from text" / Telegram notifications in production, or leave them out.
+2. Set every variable from `.env.example` in the project's Vercel dashboard (Settings → Environment Variables) — `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `CRON_SECRET`. `ANTHROPIC_API_KEY`, the three `TELEGRAM_*` variables and `GOOGLE_CALENDAR_ENABLED` are optional — add them to enable "Fill from text" / Telegram notifications / the Google Calendar busy check in production, or leave them out.
 3. Set `AUTH_URL` to the app's real production domain (not `http://localhost:3000`), and add that domain's `/api/auth/callback/google` as an authorized redirect URI in the Google Cloud Console.
 4. Deploy. `npm run build` (Vercel's default build command) runs `prisma migrate deploy` before `next build`, so pending migrations are applied automatically on every deploy — no separate migration step needed.
 
@@ -93,6 +93,22 @@ Skip this entirely if you don't want the Telegram notification channel — the t
    Only needs to be re-run if the token, secret, or deployment URL changes.
 
 5. On `/settings`, click "Connect" and open the resulting `t.me/...` link — Telegram sends the bot `/start <code>`, which the webhook uses to link your account.
+
+### Google Calendar setup
+
+Skip this if you don't need it — without `GOOGLE_CALENDAR_ENABLED=true` there's no "Google Calendar" section on `/settings`, no request ever goes to Google, and conflict checks only look at your own tasks.
+
+With it, a connected user's **primary** calendar is checked for busy times whenever they create or edit a task, and an overlap shows up in the same conflict dialog as an overlapping task ("Create anyway" still saves). Only free/busy is read — scope `calendar.freebusy`, never event titles or details — and the busy times aren't stored. The connection is a second Auth.js provider, `google-calendar`, on the same OAuth client as "Sign in with Google"; its tokens live in the `Account` row with `provider = "google-calendar"`. Connecting writes real OAuth tokens, so test it locally against a Neon dev branch, not production.
+
+In the Google Cloud project that owns `GOOGLE_CLIENT_ID`:
+
+1. **APIs & Services → Library → Google Calendar API → Enable.**
+2. **Google Auth Platform → Data access → Add or remove scopes:** add `https://www.googleapis.com/auth/calendar.freebusy` (non-sensitive), save.
+3. **Clients →** the web client **→ Authorized redirect URIs:** add `http://localhost:3000/api/auth/callback/google-calendar` and `https://<your-domain>/api/auth/callback/google-calendar`.
+4. **Branding:** Homepage `https://<your-domain>`, Privacy policy `https://<your-domain>/privacy`, Terms of service `https://<your-domain>/terms`, and `<your-domain>` under Authorized domains. Use the contact address from `src/app/(legal)/legal.tsx` (`LEGAL_CONTACT_EMAIL`) as the User support email. Google requires these links before an external app can be published.
+5. **Audience → Publish app → Confirm** ("In production"). Until then the app is in **Testing**: only accounts under **Audience → Test users** can connect — everyone else gets "Access blocked … Error 403: access_denied" — and refresh tokens expire after 7 days, so the connection drops to "Not connected" every week. Testing plus your own account as a test user is fine for local development; production needs "In production" before the flag is turned on.
+6. Set `GOOGLE_CALENDAR_ENABLED=true` in `.env.local` (or Vercel's environment variables) and restart/redeploy.
+7. On `/settings`, click "Connect" under Google Calendar and keep the calendar box ticked on Google's consent screen — if it's unticked, `/settings` says so and offers "Connect" again. "Disconnect" revokes the access at Google and deletes the tokens.
 
 ## Architecture
 

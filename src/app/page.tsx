@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { LegalLinks } from "@/components/legal-links";
 
 export default function Home() {
   return (
@@ -11,6 +12,7 @@ export default function Home() {
       <Button size="lg" nativeButton={false} render={<Link href="/login" />}>
         Sign in
       </Button>
+      <LegalLinks className="mt-6" />
     </div>
   );
 }

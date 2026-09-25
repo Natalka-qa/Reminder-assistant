@@ -21,6 +21,12 @@ const serverEnvSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
   TELEGRAM_BOT_USERNAME: z.string().optional(),
+  // Optional, but an explicit flag rather than "keys present = on" — the
+  // Google keys above are already required for sign-in, while the calendar
+  // needs its own Google Cloud setup (sprint-11-tasks.md "Расхождения" п.4).
+  // Only the exact string "true" turns it on (isGoogleCalendarEnabled(),
+  // lib/google-calendar/google-calendar.config.ts).
+  GOOGLE_CALENDAR_ENABLED: z.string().optional(),
 });
 
 function loadServerEnv() {

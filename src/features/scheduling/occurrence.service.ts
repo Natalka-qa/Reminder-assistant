@@ -21,6 +21,11 @@ import { ScheduleConflictError } from "@/features/scheduling/conflict.errors";
 import { taskRepository } from "@/features/tasks/task.repository";
 import { generateOccurrenceDates } from "@/features/recurrence/occurrence-dates";
 import {
+  buildCandidateIntervals,
+  initialRecurringIntervals,
+} from "@/features/scheduling/occurrence-candidates";
+import type { Interval } from "@/features/scheduling/external-busy";
+import {
   RECURRENCE_WINDOW_DAYS,
   parseRecurrenceRule,
   type RecurrenceRule,
@@ -37,6 +42,10 @@ export type OccurrenceScheduleInput = {
 
 export type RecurringOccurrenceInput = OccurrenceScheduleInput & {
   confirmConflicts: boolean;
+  // Google Calendar busy intervals overlapping this task's candidates,
+  // found by task.service before its transaction opened (S11-06) — so this
+  // loop never waits on Google.
+  externalBusy: Interval[];
 };
 
 type OccurrenceCandidate = {
@@ -65,24 +74,17 @@ function matchCreatedOccurrences<
   );
 }
 
-function buildCandidates(
+function toCandidates(
   taskId: string,
   userId: string,
-  dates: string[],
-  time: string,
-  durationMinutes: number,
-  timezone: string,
+  intervals: { scheduledStart: Date; scheduledEnd: Date }[],
 ): OccurrenceCandidate[] {
-  return dates.map((dateStr) => {
-    const scheduledStart = zonedDateTimeToUtc(dateStr, time, timezone);
-    return {
-      taskId,
-      userId,
-      scheduledStart,
-      scheduledEnd: addMinutes(scheduledStart, durationMinutes),
-      status: "SCHEDULED" as const,
-    };
-  });
+  return intervals.map((interval) => ({
+    taskId,
+    userId,
+    ...interval,
+    status: "SCHEDULED" as const,
+  }));
 }
 
 async function transitionOccurrence(
@@ -148,8 +150,9 @@ export const occurrenceService = {
   // Same transaction-only contract as createForTask. Generates the next
   // RECURRENCE_WINDOW_DAYS of candidate dates from `date` (the task's anchor
   // day), checks every candidate for conflicts (Sprint 4's per-interval
-  // check run in a loop — see "Расхождения" п.8 in sprint-5-tasks.md), and
-  // either creates all of them or none.
+  // check run in a loop — see "Расхождения" п.8 in sprint-5-tasks.md) —
+  // reported together with `externalBusy` — and either creates all of them
+  // or none.
   async createOccurrencesForTask(
     task: { id: string; userId: string },
     rule: RecurrenceRule,
@@ -159,22 +162,15 @@ export const occurrenceService = {
       durationMinutes,
       reminderOffsetMinutes,
       confirmConflicts,
+      externalBusy,
     }: RecurringOccurrenceInput,
     timezone: string,
     tx: Tx,
   ) {
-    const dayStart = zonedDateTimeToUtc(date, "00:00", timezone);
-    const windowEnd = addDaysInZone(dayStart, RECURRENCE_WINDOW_DAYS, timezone);
-    const toDate = formatDateInZone(windowEnd, timezone, "yyyy-LL-dd");
-
-    const dates = generateOccurrenceDates(rule, date, date, toDate, timezone);
-    const candidates = buildCandidates(
+    const candidates = toCandidates(
       task.id,
       task.userId,
-      dates,
-      time,
-      durationMinutes,
-      timezone,
+      initialRecurringIntervals(rule, date, time, durationMinutes, timezone),
     );
 
     const conflicts = [];
@@ -190,8 +186,11 @@ export const occurrenceService = {
       );
     }
 
-    if (conflicts.length > 0 && !confirmConflicts) {
-      throw new ScheduleConflictError(conflicts);
+    if (
+      (conflicts.length > 0 || externalBusy.length > 0) &&
+      !confirmConflicts
+    ) {
+      throw new ScheduleConflictError(conflicts, externalBusy);
     }
 
     await occurrenceRepository.createMany(candidates, tx);
@@ -320,13 +319,10 @@ export const occurrenceService = {
       );
       if (dates.length === 0) continue;
 
-      const candidates = buildCandidates(
+      const candidates = toCandidates(
         task.id,
         task.userId,
-        dates,
-        time,
-        task.durationMinutes,
-        zone,
+        buildCandidateIntervals(dates, time, task.durationMinutes, zone),
       );
       await occurrenceRepository.createMany(candidates, db);
 

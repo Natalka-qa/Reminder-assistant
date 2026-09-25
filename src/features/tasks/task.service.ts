@@ -8,7 +8,11 @@ import {
 } from "@/features/tasks/task.errors";
 import { occurrenceRepository } from "@/features/scheduling/occurrence.repository";
 import { occurrenceService } from "@/features/scheduling/occurrence.service";
-import { conflictService } from "@/features/scheduling/conflict.service";
+import {
+  conflictService,
+  EXTERNAL_BUSY_NOT_CHECKED,
+} from "@/features/scheduling/conflict.service";
+import { initialRecurringIntervals } from "@/features/scheduling/occurrence-candidates";
 import { notificationService } from "@/features/notifications/notification.service";
 import { ScheduleConflictError } from "@/features/scheduling/conflict.errors";
 import { createTaskSchema, updateTaskSchema } from "@/lib/validation/task";
@@ -53,23 +57,41 @@ export const taskService = {
     return taskRepository.findActiveByUserId(userId);
   },
 
-  createTask(userId: string, timezone: string, rawInput: unknown) {
+  async createTask(userId: string, timezone: string, rawInput: unknown) {
     const data = parseOrThrow(createTaskSchema, rawInput);
     const rule = buildRecurrenceRule(data);
+    const scheduledStart = zonedDateTimeToUtc(data.date, data.time, timezone);
+    const scheduledEnd = addMinutes(scheduledStart, data.durationMinutes);
 
-    return runInTransaction(async (tx) => {
+    // Google Calendar is asked before the transaction opens, never inside
+    // it (sprint-11-tasks.md "Расхождения" п.6) — for a recurring task, one
+    // request covering its whole first window ("Расхождения" п.7). "Create
+    // anyway" (confirmConflicts) skips it like it skips the DB check.
+    const calendar = data.confirmConflicts
+      ? EXTERNAL_BUSY_NOT_CHECKED
+      : await conflictService.findExternalBusy(userId, () =>
+          rule === null
+            ? [{ start: scheduledStart, end: scheduledEnd }]
+            : initialRecurringIntervals(
+                rule,
+                data.date,
+                data.time,
+                data.durationMinutes,
+                timezone,
+              ).map((interval) => ({
+                start: interval.scheduledStart,
+                end: interval.scheduledEnd,
+              })),
+        );
+    const externalBusy = calendar.status === "checked" ? calendar.overlaps : [];
+
+    const created = await runInTransaction(async (tx) => {
       // Non-recurring keeps its original single-interval pre-check so a
       // conflicting task is never inserted at all. A recurring task's
       // candidates aren't known until generation, so its check happens
       // inside createOccurrencesForTask instead (after the Task row exists,
       // still inside this same transaction — a conflict rolls both back).
       if (rule === null && !data.confirmConflicts) {
-        const scheduledStart = zonedDateTimeToUtc(
-          data.date,
-          data.time,
-          timezone,
-        );
-        const scheduledEnd = addMinutes(scheduledStart, data.durationMinutes);
         const conflicts = await conflictService.findConflicts(
           userId,
           scheduledStart,
@@ -77,8 +99,8 @@ export const taskService = {
           undefined,
           tx,
         );
-        if (conflicts.length > 0) {
-          throw new ScheduleConflictError(conflicts);
+        if (conflicts.length > 0 || externalBusy.length > 0) {
+          throw new ScheduleConflictError(conflicts, externalBusy);
         }
       }
 
@@ -109,12 +131,17 @@ export const taskService = {
       const occurrences = await occurrenceService.createOccurrencesForTask(
         task,
         rule,
-        data,
+        { ...data, externalBusy },
         timezone,
         tx,
       );
       return { task, occurrences };
     });
+
+    return {
+      ...created,
+      calendarUnavailable: calendar.status === "unavailable",
+    };
   },
 
   async updateTask(
@@ -124,8 +151,23 @@ export const taskService = {
     rawInput: unknown,
   ) {
     const data = parseOrThrow(updateTaskSchema, rawInput);
+    const scheduledStart = zonedDateTimeToUtc(data.date, data.time, timezone);
+    const scheduledEnd = addMinutes(scheduledStart, data.durationMinutes);
 
-    return runInTransaction(async (tx) => {
+    // Before the transaction, like createTask. Only a non-recurring task's
+    // time can change on edit (a recurring one's is locked, see below), so
+    // that's the only case worth asking Google about.
+    const calendar = data.confirmConflicts
+      ? EXTERNAL_BUSY_NOT_CHECKED
+      : await conflictService.findExternalBusy(userId, async () => {
+          const task = await taskRepository.findById(taskId, userId);
+          return task?.recurrenceRule === null
+            ? [{ start: scheduledStart, end: scheduledEnd }]
+            : [];
+        });
+    const externalBusy = calendar.status === "checked" ? calendar.overlaps : [];
+
+    const task = await runInTransaction(async (tx) => {
       const existing = await taskRepository.findById(taskId, userId, tx);
       if (!existing) {
         throw new TaskNotFoundError(taskId);
@@ -179,8 +221,6 @@ export const taskService = {
         tx,
       );
       const occurrence = occurrences[0];
-      const scheduledStart = zonedDateTimeToUtc(data.date, data.time, timezone);
-      const scheduledEnd = addMinutes(scheduledStart, data.durationMinutes);
 
       if (!data.confirmConflicts) {
         const conflicts = await conflictService.findConflicts(
@@ -190,8 +230,8 @@ export const taskService = {
           occurrence?.id,
           tx,
         );
-        if (conflicts.length > 0) {
-          throw new ScheduleConflictError(conflicts);
+        if (conflicts.length > 0 || externalBusy.length > 0) {
+          throw new ScheduleConflictError(conflicts, externalBusy);
         }
       }
 
@@ -232,6 +272,8 @@ export const taskService = {
 
       return task;
     });
+
+    return { task, calendarUnavailable: calendar.status === "unavailable" };
   },
 
   async deleteTask(userId: string, taskId: string) {
