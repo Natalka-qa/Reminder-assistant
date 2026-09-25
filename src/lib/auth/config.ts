@@ -4,6 +4,7 @@ import Resend from "next-auth/providers/resend";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/db/prisma";
 import { env } from "@/lib/env";
+import { toSessionPayload } from "@/lib/auth/session-payload";
 import {
   GOOGLE_CALENDAR_FREEBUSY_SCOPE,
   GOOGLE_CALENDAR_PROVIDER_ID,
@@ -60,10 +61,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       return true;
     },
+    // Never return `session` itself — see toSessionPayload.
     session({ session, user }) {
-      session.user.id = user.id;
-      session.user.timezone = user.timezone;
-      return session;
+      return toSessionPayload(session.expires, user);
     },
   },
 });
