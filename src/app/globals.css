@@ -155,6 +155,24 @@
   --color-tasks-menu-hover: var(--tasks-menu-hover);
   --color-tasks-conflict-dot: var(--tasks-conflict-dot);
   --color-tasks-done-strike: var(--tasks-done-strike);
+  --color-calendar-quiet-text: var(--calendar-quiet-text);
+  --color-calendar-hour-label: var(--calendar-hour-label);
+  --color-calendar-column-rule: var(--calendar-column-rule);
+  --color-calendar-selected-column: var(--calendar-selected-column);
+  --color-calendar-busy-line: var(--calendar-busy-line);
+  --color-calendar-flexible-bg: var(--calendar-flexible-bg);
+  --color-calendar-accent-fixed: var(--calendar-accent-fixed);
+  --color-calendar-accent-closed: var(--calendar-accent-closed);
+  --color-calendar-critical-bg: var(--calendar-critical-bg);
+  --shadow-calendar-block: var(--calendar-block-shadow);
+  --color-newtask-quiet-text: var(--newtask-quiet-text);
+  --color-newtask-hairline: var(--newtask-hairline);
+  --color-newtask-input-rule: var(--newtask-input-rule);
+  --color-newtask-control-hover: var(--newtask-control-hover);
+  --color-newtask-choice-selected: var(--newtask-choice-selected);
+  --color-newtask-muted-burgundy: var(--newtask-muted-burgundy);
+  --color-newtask-example-underline: var(--newtask-example-underline);
+  --color-newtask-chevron: var(--newtask-chevron);
 
   /* Login's entrance sequence — README § Login "Entrance animation", the one
      choreographed moment in the app. Named by role/delay so the component
@@ -426,6 +444,45 @@
   --tasks-menu-hover: #f6f3ef;
   --tasks-conflict-dot: #c79aa6;
   --tasks-done-strike: #9a969b;
+
+  /* --- Calendar v2 tokens -------------------------------------------------
+     CALENDAR_V2_UPDATE.md. #EFECE7/#F3EEEF/#C9C6C1/#E4E1DC/#743447 already
+     exist above (--border-soft, --burgundy-tint, --border-medium, --border,
+     --burgundy). The spec's #8A868B text (past dates) is 3.3:1 on
+     --background and its prototype's #77747A weekday labels 4.26:1, both
+     under AA — those use --calendar-quiet-text (5.1:1) instead; #8A868B
+     stays only as the Fixed block's left edge, which isn't text. */
+  --calendar-quiet-text: var(--home-quiet-meta);
+  /* Hour labels — decorative, repeated in every block's aria-label (§ 6). */
+  --calendar-hour-label: var(--tasks-muted);
+  --calendar-column-rule: #f2efeb;
+  --calendar-selected-column: #fbf9f7;
+  /* Busy line (light/busy levels) and the Flexible block's dashed border. */
+  --calendar-busy-line: #cfc9c3;
+  --calendar-flexible-bg: #faf8f5;
+  --calendar-accent-fixed: #8a868b;
+  --calendar-accent-closed: var(--tasks-marker-normal);
+  --calendar-critical-bg: var(--tasks-critical-row);
+  --calendar-block-shadow: 0 2px 10px rgba(36, 35, 38, 0.07);
+
+  /* --- New task v2 tokens -------------------------------------------------
+     NEW_TASK_V2_UPDATE.md. #743447/#5C2837/#E4E1DC/#F3EEEF/#315766/#6F5758
+     already exist above (--burgundy, --burgundy-hover, --border,
+     --burgundy-tint, --blue-ink for "Picked up", --rose-tint-text for the
+     notices). The spec's #77747A ("No duration", "Describe the task
+     first.") is 4.26:1 on --background — --newtask-quiet-text (5.1:1)
+     instead. */
+  --newtask-quiet-text: var(--home-quiet-meta);
+  --newtask-hairline: #ece8e3;
+  --newtask-input-rule: #d9d4ce;
+  --newtask-control-hover: #f3f0ec;
+  --newtask-choice-selected: #fbf7f8;
+  /* Unselected Scheduling card's hover border, and the disabled Create
+     button's fill (disabled controls are exempt from contrast). */
+  --newtask-muted-burgundy: #c9b4ba;
+  --newtask-example-underline: var(--priority-critical-border);
+  /* Select chevrons — decorative. */
+  --newtask-chevron: var(--calendar-accent-fixed);
 }
 
 .dark {

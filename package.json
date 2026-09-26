@@ -18,7 +18,6 @@
     "db:reset": "prisma migrate reset"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.127.0",
     "@auth/prisma-adapter": "^2.11.3",
     "@base-ui/react": "^1.8.0",
     "@neon/config": "^1.3.2",

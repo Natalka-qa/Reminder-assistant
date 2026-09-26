@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  startTransition,
-  useActionState,
-  useEffect,
-  useState,
-  useTransition,
-} from "react";
-import { Mic } from "lucide-react";
+import { startTransition, useActionState, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,12 +25,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  parseTaskDraftAction,
-  type TaskActionState,
-} from "@/features/tasks/actions";
+import type { TaskActionState } from "@/features/tasks/actions";
 import { describeRecurrenceRule } from "@/features/recurrence/recurrence-rule";
-import { useSpeechDictation } from "@/lib/speech/use-speech-dictation";
 import { cn } from "@/lib/utils";
 
 export type RepeatFrequency = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
@@ -90,8 +79,8 @@ const REMINDER_LABELS = new Map<string, string>([
 const initialState: TaskActionState = { status: "idle" };
 
 // design_handoff_reminder_assistant/README.md § New task, variant A (full
-// form) — variant B (natural language) is the existing "Fill from text"
-// block (sprint-8-tasks.md), restyled in place rather than duplicated.
+// form) — now the edit form only: creating a task moved to NewTaskForm
+// (NEW_TASK_V2_UPDATE.md), whose redesign leaves editing out of scope.
 // "Category"/"Timezone" grouped rows from the mockup aren't here — the real
 // Task model has no category field, and timezone is a per-user setting, not
 // a per-task one ("the data model wins").
@@ -104,9 +93,6 @@ export function TaskForm({
   // with an explanation instead of controls. TaskService enforces this
   // server-side too; this is UX, not the actual guard.
   scheduleLocked = false,
-  // "Fill from text" only makes sense while creating a task (see
-  // sprint-8-tasks.md) — the edit page renders the same TaskForm without it.
-  showTextDraft = false,
 }: {
   action: (
     prevState: TaskActionState,
@@ -115,12 +101,9 @@ export function TaskForm({
   defaultValues: TaskFormValues;
   submitLabel: string;
   scheduleLocked?: boolean;
-  showTextDraft?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
-  const [draftText, setDraftText] = useState("");
-  const [draftPending, startDraftTransition] = useTransition();
 
   // React resets uncontrolled <form> fields once an action wired via `<form
   // action={fn}>` completes — including a "conflict"/"error" result, not
@@ -151,57 +134,6 @@ export function TaskForm({
   const [reminderIsCustom, setReminderIsCustom] = useState(
     !REMINDER_PRESET_VALUES.has(String(defaultValues.reminderOffsetMinutes)),
   );
-
-  // Takes the text explicitly rather than reading `draftText` from the
-  // closure — voice dictation (below) needs to call this with the just-
-  // finalized transcript in the same tick it calls setDraftText, and
-  // React's state update isn't guaranteed to have landed yet (sprint-9-
-  // tasks.md "Расхождения" п.4).
-  function handleFillFromText(text: string) {
-    startDraftTransition(async () => {
-      try {
-        const result = await parseTaskDraftAction(text);
-        if (result.status === "success") {
-          setTitle(result.draft.title);
-          setDescription(result.draft.description);
-          setDate(result.draft.date);
-          setTime(result.draft.time);
-          setDurationMinutes(String(result.draft.durationMinutes));
-          setPriority(result.draft.priority);
-          setFlexibility(result.draft.flexibility);
-          setRepeatFrequency(result.draft.repeatFrequency);
-          setRepeatDaysOfWeek(result.draft.repeatDaysOfWeek);
-        } else if (result.status === "error") {
-          toast.error(result.message);
-        }
-      } catch {
-        toast.error("Something went wrong. Please try again.");
-      }
-    });
-  }
-
-  // Sprint 9 — voice input for the same field. Recognition's own interim
-  // results keep `draftText` live so the user sees what's being heard; only
-  // the final result triggers the actual parse call.
-  const {
-    supported: voiceSupported,
-    listening: voiceListening,
-    toggle: toggleVoice,
-  } = useSpeechDictation({
-    onTranscriptChange: (text, isFinal) => {
-      setDraftText(text);
-      if (isFinal && text.trim().length > 0) {
-        handleFillFromText(text);
-      }
-    },
-    onError: (code) => {
-      const message =
-        code === "not-allowed" || code === "service-not-allowed"
-          ? "Microphone access was denied."
-          : "Voice input failed. Please try again or type instead.";
-      toast.error(message);
-    },
-  });
 
   function toggleRepeatDay(day: number) {
     setRepeatDaysOfWeek((days) =>
@@ -262,58 +194,6 @@ export function TaskForm({
         {/* Only read on a normal submit — "Create anyway" bypasses the DOM
             form and dispatches its own FormData with this forced to "true". */}
         <input type="hidden" name="confirmConflicts" defaultValue="false" />
-
-        {showTextDraft && (
-          <div className="bg-rose-tint border-rose-tint-border flex flex-col gap-2 rounded-[18px] border p-5">
-            <label
-              htmlFor="draftText"
-              className="text-rose-tint-label text-eyebrow tracking-eyebrow font-semibold uppercase"
-            >
-              <span aria-hidden className="text-rose-gold mr-1">
-                &#10022;
-              </span>
-              What do you need to do?
-            </label>
-            <Textarea
-              id="draftText"
-              value={draftText}
-              onChange={(event) => setDraftText(event.target.value)}
-              placeholder="e.g. Tomorrow at 7pm, workout for an hour"
-              rows={2}
-              className="bg-surface"
-            />
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                className="self-start"
-                disabled={draftPending || draftText.trim().length === 0}
-                onClick={() => handleFillFromText(draftText)}
-              >
-                {draftPending ? "Filling…" : "Fill from text"}
-              </Button>
-              {voiceSupported && (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="icon"
-                  className={cn(
-                    "rounded-pill self-start",
-                    voiceListening && "border-burgundy text-burgundy",
-                  )}
-                  disabled={draftPending}
-                  aria-label={
-                    voiceListening ? "Stop listening" : "Start voice input"
-                  }
-                  aria-pressed={voiceListening}
-                  onClick={toggleVoice}
-                >
-                  <Mic className={cn(voiceListening && "animate-pulse")} />
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
 
         <div className="flex flex-col gap-1.5">
           <SectionLabel>Title</SectionLabel>
