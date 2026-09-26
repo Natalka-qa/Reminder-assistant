@@ -32,9 +32,7 @@ export const userService = {
   },
 
   // Explicit boolean, not an exception — an invalid/expired/already-used
-  // code from a Telegram webhook call is an expected outcome, not a bug
-  // (same "explicit failure over exception" principle as task-draft.service
-  // .ts's TaskDraftResult, Sprint 8).
+  // code from a Telegram webhook call is an expected outcome, not a bug.
   async linkTelegramFromCode(code: string, chatId: string): Promise<boolean> {
     const user = await userRepository.findByTelegramLinkCode(code);
     if (!user || !isTelegramLinkCodeActive(user.telegramLinkCodeExpiresAt)) {

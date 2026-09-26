@@ -121,12 +121,6 @@ export default function PrivacyPage() {
             <strong>Google</strong> — sign-in with Google, and Google Calendar
             if you connected it.
           </li>
-          <li>
-            <strong>Anthropic</strong> — only if you use &quot;Fill from
-            text&quot; when creating a task: the text you type there is sent to
-            Anthropic&apos;s API to turn it into a draft task. Nothing from your
-            Google account is ever sent to Anthropic.
-          </li>
         </ul>
       </LegalSection>
 

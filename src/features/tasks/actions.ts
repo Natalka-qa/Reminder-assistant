@@ -3,20 +3,26 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { Priority, Flexibility } from "@prisma/client";
+import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth/dal";
-import { formatDateInZone, formatTimeInZone } from "@/lib/date";
-import { formatIntervalLabel } from "@/lib/format";
-import { taskService } from "@/features/tasks/task.service";
 import {
-  taskDraftService,
-  type TaskDraft,
-} from "@/features/tasks/task-draft.service";
+  addMinutes,
+  formatDateInZone,
+  formatTimeInZone,
+  zonedDateTimeToUtc,
+} from "@/lib/date";
+import { formatIntervalLabel } from "@/lib/format";
+import { dateStringSchema, timeStringSchema } from "@/lib/validation/task";
+import { taskService } from "@/features/tasks/task.service";
 import {
   TaskNotFoundError,
   TaskValidationError,
 } from "@/features/tasks/task.errors";
 import { ScheduleConflictError } from "@/features/scheduling/conflict.errors";
-import type { ScheduleConflict } from "@/features/scheduling/conflict.service";
+import {
+  conflictService,
+  type ScheduleConflict,
+} from "@/features/scheduling/conflict.service";
 import type { Interval } from "@/features/scheduling/external-busy";
 
 export type ConflictSummary = {
@@ -192,27 +198,57 @@ export async function deactivateTaskAction(
   return { status: "success" };
 }
 
-export type TaskDraftActionState =
-  | { status: "idle" }
-  | { status: "success"; draft: TaskDraft }
-  | { status: "error"; message: string };
+export type OverlapPreview = {
+  tasks: { title: string; time: string }[];
+  /** Busy intervals from the user's Google Calendar (no titles). */
+  busyCount: number;
+};
 
-export async function parseTaskDraftAction(
-  text: string,
-): Promise<TaskDraftActionState> {
+const overlapPreviewInput = z.object({
+  date: dateStringSchema,
+  time: timeStringSchema,
+  durationMinutes: z.number().int().min(0).max(1440),
+});
+
+// NEW_TASK_V2_UPDATE.md § 4 — the New task form's live "Overlaps with …"
+// notice. Read-only (decision D, review of 2026-09-25): the same checks
+// createTask runs — other tasks through conflictService.findConflicts,
+// Google Calendar through findExternalBusy — so the notice and the old
+// conflict dialog can't disagree. Null when there's nothing to say (not
+// signed in, a value the form shouldn't have sent, a time that doesn't
+// exist in the user's zone).
+export async function previewOverlapsAction(
+  input: z.input<typeof overlapPreviewInput>,
+): Promise<OverlapPreview | null> {
   const user = await getCurrentUser();
-  if (!user) {
-    return { status: "error", message: "Not signed in." };
+  const parsed = overlapPreviewInput.safeParse(input);
+  if (!user || !parsed.success) {
+    return null;
   }
 
-  const result = await taskDraftService.parseTaskDraft(text, {
-    timezone: user.timezone,
-  });
-  if (!result.ok) {
-    return { status: "error", message: result.message };
+  let start: Date;
+  try {
+    start = zonedDateTimeToUtc(
+      parsed.data.date,
+      parsed.data.time,
+      user.timezone,
+    );
+  } catch {
+    return null;
   }
+  const end = addMinutes(start, parsed.data.durationMinutes);
 
-  return { status: "success", draft: result.draft };
+  const [conflicts, busy] = await Promise.all([
+    conflictService.findConflicts(user.id, start, end),
+    conflictService.findExternalBusy(user.id, () => [{ start, end }]),
+  ]);
+  return {
+    tasks: conflicts.map((conflict) => ({
+      title: conflict.title,
+      time: formatTimeInZone(conflict.start, user.timezone),
+    })),
+    busyCount: busy.status === "checked" ? busy.overlaps.length : 0,
+  };
 }
 
 export async function deleteTaskAction(
