@@ -34,7 +34,7 @@ export default async function EditTaskPage({
       <TaskForm
         action={updateTaskAction.bind(null, task.id)}
         submitLabel="Save"
-        scheduleLocked={rule !== null}
+        recurring={rule !== null}
         defaultValues={{
           title: task.title,
           description: task.description ?? "",

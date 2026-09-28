@@ -26,7 +26,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import type { TaskActionState } from "@/features/tasks/actions";
-import { describeRecurrenceRule } from "@/features/recurrence/recurrence-rule";
 import { cn } from "@/lib/utils";
 
 export type RepeatFrequency = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
@@ -88,11 +87,11 @@ export function TaskForm({
   action,
   defaultValues,
   submitLabel,
-  // Recurring tasks don't support editing their schedule this sprint (see
-  // sprint-5-tasks.md "Расхождения" п.5) — Date/Time/Repeat render read-only
-  // with an explanation instead of controls. TaskService enforces this
-  // server-side too; this is UX, not the actual guard.
-  scheduleLocked = false,
+  // A recurring task's time of day and repeat are editable (the changes
+  // replace its occurrences still ahead, schedule-change.ts); its start
+  // date isn't, so Date renders read-only and "Does not repeat" isn't
+  // offered — TaskService enforces both server-side too.
+  recurring = false,
 }: {
   action: (
     prevState: TaskActionState,
@@ -100,7 +99,7 @@ export function TaskForm({
   ) => Promise<TaskActionState>;
   defaultValues: TaskFormValues;
   submitLabel: string;
-  scheduleLocked?: boolean;
+  recurring?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
@@ -208,17 +207,24 @@ export function TaskForm({
           />
         </div>
 
-        {scheduleLocked ? (
-          <div className="flex flex-col gap-1.5">
-            <SectionLabel>Date &amp; time</SectionLabel>
-            <p className="text-text-primary text-[15px]">
-              {date} at {time}
-            </p>
-            <input type="hidden" name="date" value={date} />
-            <input type="hidden" name="time" value={time} />
-          </div>
-        ) : (
-          <GroupedRows>
+        {/* Duration and Reminder render for every task: a recurring one's
+            edit used to leave them out of the form, so saving it reset its
+            duration to 0 and its reminder to "at time of task". */}
+        <GroupedRows>
+          {recurring ? (
+            <GroupedRow
+              label="Date"
+              hint="Next occurrence — the start date can't change"
+              value={
+                <>
+                  <span className="text-text-secondary text-[15px]">
+                    {date}
+                  </span>
+                  <input type="hidden" name="date" value={date} />
+                </>
+              }
+            />
+          ) : (
             <GroupedRow
               label="Date"
               value={
@@ -233,105 +239,105 @@ export function TaskForm({
                 />
               }
             />
-            <GroupedRow
-              label="Time"
-              value={
+          )}
+          <GroupedRow
+            label="Time"
+            value={
+              <input
+                id="time"
+                name="time"
+                type="time"
+                value={time}
+                onChange={(event) => setTime(event.target.value)}
+                required
+                className="text-text-secondary w-full border-0 bg-transparent p-0 text-right text-[15px] outline-none"
+              />
+            }
+          />
+          <GroupedRow
+            label="Duration"
+            value={
+              <span className="flex items-center gap-1.5">
                 <input
-                  id="time"
-                  name="time"
-                  type="time"
-                  value={time}
-                  onChange={(event) => setTime(event.target.value)}
+                  id="durationMinutes"
+                  name="durationMinutes"
+                  type="number"
+                  min={0}
+                  max={1440}
+                  value={durationMinutes}
+                  onChange={(event) => setDurationMinutes(event.target.value)}
                   required
-                  className="text-text-secondary w-full border-0 bg-transparent p-0 text-right text-[15px] outline-none"
+                  className="text-text-secondary w-12 border-0 bg-transparent p-0 text-right text-[15px] outline-none"
                 />
-              }
-            />
-            <GroupedRow
-              label="Duration"
-              value={
-                <span className="flex items-center gap-1.5">
-                  <input
-                    id="durationMinutes"
-                    name="durationMinutes"
-                    type="number"
-                    min={0}
-                    max={1440}
-                    value={durationMinutes}
-                    onChange={(event) => setDurationMinutes(event.target.value)}
-                    required
-                    className="text-text-secondary w-12 border-0 bg-transparent p-0 text-right text-[15px] outline-none"
-                  />
-                  min
-                </span>
-              }
-            />
-            <GroupedRow
-              label="Reminder"
-              value={
-                <span className="flex flex-col items-end gap-1.5">
-                  {/* The Select is a UI picker only — the value actually
+                min
+              </span>
+            }
+          />
+          <GroupedRow
+            label="Reminder"
+            value={
+              <span className="flex flex-col items-end gap-1.5">
+                {/* The Select is a UI picker only — the value actually
                       submitted comes from the hidden input below, since in
                       "custom" mode the Select's own value ("custom") isn't a
                       valid minute count. */}
-                  <Select
-                    value={
-                      reminderIsCustom ? REMINDER_CUSTOM : reminderOffsetMinutes
+                <Select
+                  value={
+                    reminderIsCustom ? REMINDER_CUSTOM : reminderOffsetMinutes
+                  }
+                  onValueChange={(value) => {
+                    if (value === REMINDER_CUSTOM) {
+                      setReminderIsCustom(true);
+                      return;
                     }
-                    onValueChange={(value) => {
-                      if (value === REMINDER_CUSTOM) {
-                        setReminderIsCustom(true);
-                        return;
-                      }
-                      setReminderIsCustom(false);
-                      setReminderOffsetMinutes(value ?? "0");
-                    }}
+                    setReminderIsCustom(false);
+                    setReminderOffsetMinutes(value ?? "0");
+                  }}
+                >
+                  <SelectTrigger
+                    id="reminderOffsetMinutes"
+                    className="h-auto w-fit gap-1 border-0 bg-transparent p-0 text-[15px]"
                   >
-                    <SelectTrigger
-                      id="reminderOffsetMinutes"
-                      className="h-auto w-fit gap-1 border-0 bg-transparent p-0 text-[15px]"
-                    >
-                      {/* Select.Value shows the raw value verbatim unless
+                    {/* Select.Value shows the raw value verbatim unless
                           told how to format it — it doesn't read the
                           matching SelectItem's own children. */}
-                      <SelectValue>
-                        {(value: string) => REMINDER_LABELS.get(value) ?? value}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {REMINDER_PRESETS.map(({ value, label }) => (
-                        <SelectItem key={value} value={String(value)}>
-                          {label}
-                        </SelectItem>
-                      ))}
-                      <SelectItem value={REMINDER_CUSTOM}>Custom…</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {reminderIsCustom && (
-                    <Input
-                      type="number"
-                      min={0}
-                      max={1440}
-                      value={reminderOffsetMinutes}
-                      onChange={(event) =>
-                        setReminderOffsetMinutes(event.target.value)
-                      }
-                      placeholder="Minutes before"
-                      aria-label="Custom reminder offset in minutes"
-                      autoFocus
-                      className="w-32 text-right"
-                    />
-                  )}
-                  <input
-                    type="hidden"
-                    name="reminderOffsetMinutes"
+                    <SelectValue>
+                      {(value: string) => REMINDER_LABELS.get(value) ?? value}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REMINDER_PRESETS.map(({ value, label }) => (
+                      <SelectItem key={value} value={String(value)}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={REMINDER_CUSTOM}>Custom…</SelectItem>
+                  </SelectContent>
+                </Select>
+                {reminderIsCustom && (
+                  <Input
+                    type="number"
+                    min={0}
+                    max={1440}
                     value={reminderOffsetMinutes}
+                    onChange={(event) =>
+                      setReminderOffsetMinutes(event.target.value)
+                    }
+                    placeholder="Minutes before"
+                    aria-label="Custom reminder offset in minutes"
+                    autoFocus
+                    className="w-32 text-right"
                   />
-                </span>
-              }
-            />
-          </GroupedRows>
-        )}
+                )}
+                <input
+                  type="hidden"
+                  name="reminderOffsetMinutes"
+                  value={reminderOffsetMinutes}
+                />
+              </span>
+            }
+          />
+        </GroupedRows>
 
         <div className="flex flex-col gap-2">
           <SectionLabel>Priority</SectionLabel>
@@ -368,58 +374,43 @@ export function TaskForm({
           <input type="hidden" name="flexibility" value={flexibility} />
         </div>
 
-        {scheduleLocked ? (
-          <div className="flex flex-col gap-1.5">
-            <SectionLabel>Repeat</SectionLabel>
-            <p className="text-text-primary text-[15px]">
-              {repeatFrequency === "NONE"
-                ? "Does not repeat"
-                : describeRecurrenceRule(
-                    repeatFrequency === "WEEKLY"
-                      ? { frequency: "WEEKLY", daysOfWeek: repeatDaysOfWeek }
-                      : { frequency: repeatFrequency },
-                  )}
-            </p>
-            <p className="text-text-secondary text-xs">
-              Recurring task — schedule can&apos;t be edited yet. Deactivate and
-              recreate to change it.
-            </p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            <SectionLabel>Repeat</SectionLabel>
-            <div className="flex flex-wrap gap-2">
-              {REPEAT_OPTIONS.map(({ value, label }) => (
-                <Chip
-                  key={value}
-                  selected={repeatFrequency === value}
-                  onClick={() => setRepeatFrequency(value)}
-                >
-                  {label}
-                </Chip>
-              ))}
-            </div>
-            {repeatFrequency === "WEEKLY" && (
-              <WeekdayPicker
-                selected={repeatDaysOfWeek}
-                onToggle={toggleRepeatDay}
-              />
-            )}
-            <input
-              type="hidden"
-              name="repeatFrequency"
-              value={repeatFrequency}
-            />
-            {repeatDaysOfWeek.map((day) => (
-              <input
-                key={day}
-                type="hidden"
-                name="repeatDaysOfWeek"
-                value={day}
-              />
+        <div className="flex flex-col gap-3">
+          <SectionLabel>Repeat</SectionLabel>
+          <div className="flex flex-wrap gap-2">
+            {REPEAT_OPTIONS.filter(
+              ({ value }) => !recurring || value !== "NONE",
+            ).map(({ value, label }) => (
+              <Chip
+                key={value}
+                selected={repeatFrequency === value}
+                onClick={() => setRepeatFrequency(value)}
+              >
+                {label}
+              </Chip>
             ))}
           </div>
-        )}
+          {repeatFrequency === "WEEKLY" && (
+            <WeekdayPicker
+              selected={repeatDaysOfWeek}
+              onToggle={toggleRepeatDay}
+            />
+          )}
+          <input type="hidden" name="repeatFrequency" value={repeatFrequency} />
+          {repeatDaysOfWeek.map((day) => (
+            <input
+              key={day}
+              type="hidden"
+              name="repeatDaysOfWeek"
+              value={day}
+            />
+          ))}
+          {recurring && (
+            <p className="text-text-secondary text-xs">
+              A new time or repeat applies to upcoming occurrences — past ones
+              stay as they were.
+            </p>
+          )}
+        </div>
 
         <div className="flex flex-col gap-1.5">
           <SectionLabel>Description</SectionLabel>
