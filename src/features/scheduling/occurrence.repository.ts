@@ -36,6 +36,13 @@ export const occurrenceRepository = {
     return db.taskOccurrence.createMany({ data });
   },
 
+  // Removes superseded occurrences outright (a recurring task's new
+  // schedule replacing its open future ones, schedule-change.ts); their
+  // notifications go with them (onDelete: Cascade).
+  async deleteMany(where: Prisma.TaskOccurrenceWhereInput, db: Db = prisma) {
+    return db.taskOccurrence.deleteMany({ where });
+  },
+
   async updateMany(
     where: Prisma.TaskOccurrenceWhereInput,
     data: Prisma.TaskOccurrenceUpdateManyMutationInput,

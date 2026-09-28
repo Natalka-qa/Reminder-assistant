@@ -13,6 +13,14 @@ import {
   EXTERNAL_BUSY_NOT_CHECKED,
 } from "@/features/scheduling/conflict.service";
 import { initialRecurringIntervals } from "@/features/scheduling/occurrence-candidates";
+import {
+  anchorDateOf,
+  currentTimeOfDay,
+  isScheduleChange,
+  planScheduleChange,
+  type ExistingOccurrence,
+  type ScheduleChangePlan,
+} from "@/features/scheduling/schedule-change";
 import { notificationService } from "@/features/notifications/notification.service";
 import { ScheduleConflictError } from "@/features/scheduling/conflict.errors";
 import { createTaskSchema, updateTaskSchema } from "@/lib/validation/task";
@@ -46,6 +54,51 @@ function buildRecurrenceRule(data: {
     case "MONTHLY":
       return { frequency: data.repeatFrequency };
   }
+}
+
+// A recurring task's edit changed its time of day or repeat: the plan for
+// replacing what hasn't happened yet (schedule-change.ts), or null when the
+// schedule is as it was. A repeating task can't be turned into a one-off —
+// deactivating it is how it stops.
+function recurringSchedulePlan(
+  task: { recurrenceRule: string | null; occurrences: ExistingOccurrence[] },
+  data: {
+    date: string;
+    time: string;
+    durationMinutes: number;
+    repeatFrequency: "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
+    repeatDaysOfWeek: number[];
+  },
+  timezone: string,
+  now: Date,
+): (ScheduleChangePlan & { rule: RecurrenceRule }) | null {
+  const rule = buildRecurrenceRule(data);
+  if (!rule) {
+    throw new TaskValidationError(
+      "A repeating task can't stop repeating — deactivate it instead.",
+    );
+  }
+  const current = {
+    rule: task.recurrenceRule,
+    time: currentTimeOfDay(task.occurrences, timezone),
+  };
+  if (!isScheduleChange(current, { rule, time: data.time })) {
+    return null;
+  }
+  return {
+    rule,
+    ...planScheduleChange({
+      occurrences: task.occurrences,
+      rule,
+      // The start date isn't editable: the first occurrence stays the
+      // anchor, as it is for the daily window extension.
+      anchorDate: anchorDateOf(task.occurrences, timezone) ?? data.date,
+      time: data.time,
+      durationMinutes: data.durationMinutes,
+      timezone,
+      now,
+    }),
+  };
 }
 
 export const taskService = {
@@ -154,16 +207,27 @@ export const taskService = {
     const scheduledStart = zonedDateTimeToUtc(data.date, data.time, timezone);
     const scheduledEnd = addMinutes(scheduledStart, data.durationMinutes);
 
-    // Before the transaction, like createTask. Only a non-recurring task's
-    // time can change on edit (a recurring one's is locked, see below), so
-    // that's the only case worth asking Google about.
+    const now = new Date();
+
+    // Before the transaction, like createTask: a one-off task's new
+    // interval, or a recurring task's new occurrences if its schedule
+    // changed — nothing to ask Google about otherwise.
     const calendar = data.confirmConflicts
       ? EXTERNAL_BUSY_NOT_CHECKED
       : await conflictService.findExternalBusy(userId, async () => {
-          const task = await taskRepository.findById(taskId, userId);
-          return task?.recurrenceRule === null
-            ? [{ start: scheduledStart, end: scheduledEnd }]
-            : [];
+          const task = await taskRepository.findByIdWithOccurrences(
+            taskId,
+            userId,
+          );
+          if (!task) return [];
+          if (task.recurrenceRule === null) {
+            return [{ start: scheduledStart, end: scheduledEnd }];
+          }
+          const plan = recurringSchedulePlan(task, data, timezone, now);
+          return (plan?.candidates ?? []).map((candidate) => ({
+            start: candidate.scheduledStart,
+            end: candidate.scheduledEnd,
+          }));
         });
     const externalBusy = calendar.status === "checked" ? calendar.overlaps : [];
 
@@ -173,12 +237,24 @@ export const taskService = {
         throw new TaskNotFoundError(taskId);
       }
 
-      // Recurring tasks don't accept Date/Time/Repeat edits this sprint (the
-      // form locks those fields read-only — see task-form.tsx); enforce it
-      // here too so a hand-crafted request can't bypass the UI and silently
-      // reschedule/regenerate occurrences. durationMinutes is still editable
-      // and cascades to future occurrences below.
+      // A recurring task's time of day and repeat are editable; its start
+      // date isn't (the form shows it read-only). A changed schedule
+      // replaces the open occurrences still ahead — the new ones carry the
+      // new duration and reminder too, so nothing else needs cascading.
+      // With the schedule unchanged, a new duration cascades to future
+      // occurrences and a new offset to their reminders, as before.
       if (existing.recurrenceRule !== null) {
+        const occurrences = await occurrenceRepository.findByTaskId(
+          taskId,
+          userId,
+          tx,
+        );
+        const plan = recurringSchedulePlan(
+          { recurrenceRule: existing.recurrenceRule, occurrences },
+          data,
+          timezone,
+          now,
+        );
         const task = await taskRepository.update(
           taskId,
           userId,
@@ -189,10 +265,29 @@ export const taskService = {
             flexibility: data.flexibility,
             durationMinutes: data.durationMinutes,
             reminderOffsetMinutes: data.reminderOffsetMinutes,
+            ...(plan
+              ? { recurrenceRule: serializeRecurrenceRule(plan.rule) }
+              : {}),
             ...(data.active !== undefined ? { active: data.active } : {}),
           },
           tx,
         );
+
+        // An inactive task has no future occurrences to replace, and
+        // shouldn't get new ones — it keeps its new repeat for later.
+        if (plan && task.active) {
+          await occurrenceService.replaceFutureOccurrences(
+            task,
+            plan,
+            {
+              reminderOffsetMinutes: data.reminderOffsetMinutes,
+              confirmConflicts: data.confirmConflicts,
+              externalBusy,
+            },
+            tx,
+          );
+          return task;
+        }
 
         if (data.durationMinutes !== existing.durationMinutes) {
           await occurrenceService.cascadeDurationChange(

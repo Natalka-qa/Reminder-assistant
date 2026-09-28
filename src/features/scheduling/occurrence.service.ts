@@ -25,6 +25,7 @@ import {
   initialRecurringIntervals,
 } from "@/features/scheduling/occurrence-candidates";
 import type { Interval } from "@/features/scheduling/external-busy";
+import type { ScheduleChangePlan } from "@/features/scheduling/schedule-change";
 import {
   RECURRENCE_WINDOW_DAYS,
   parseRecurrenceRule,
@@ -209,6 +210,61 @@ export const occurrenceService = {
     return candidates;
   },
 
+  // Same transaction-only contract: a recurring task's time or repeat
+  // changed, so its open future occurrences give way to the new schedule's
+  // (schedule-change.ts). The new ones are checked for conflicts like a new
+  // recurring task's — after the old ones are gone, so the task never
+  // collides with itself — and a conflict rolls the whole edit back.
+  // Candidates never share a date, let alone a start, with an occurrence
+  // that's kept, so matching them back by scheduledStart stays exact.
+  async replaceFutureOccurrences(
+    task: { id: string; userId: string },
+    plan: ScheduleChangePlan,
+    {
+      reminderOffsetMinutes,
+      confirmConflicts,
+      externalBusy,
+    }: Omit<RecurringOccurrenceInput, "date" | "time" | "durationMinutes">,
+    tx: Tx,
+  ) {
+    await occurrenceRepository.deleteMany(
+      { id: { in: plan.replaceIds }, taskId: task.id, userId: task.userId },
+      tx,
+    );
+
+    const candidates = toCandidates(task.id, task.userId, plan.candidates);
+    if (!confirmConflicts) {
+      const conflicts = [];
+      for (const candidate of candidates) {
+        conflicts.push(
+          ...(await conflictService.findConflicts(
+            task.userId,
+            candidate.scheduledStart,
+            candidate.scheduledEnd,
+            undefined,
+            tx,
+          )),
+        );
+      }
+      if (conflicts.length > 0 || externalBusy.length > 0) {
+        throw new ScheduleConflictError(conflicts, externalBusy);
+      }
+    }
+    if (candidates.length === 0) return;
+
+    await occurrenceRepository.createMany(candidates, tx);
+    const created = await occurrenceRepository.findByTaskId(
+      task.id,
+      task.userId,
+      tx,
+    );
+    await notificationService.createForOccurrences(
+      matchCreatedOccurrences(candidates, created),
+      reminderOffsetMinutes,
+      tx,
+    );
+  },
+
   // Stops a deactivated task's future reminders from lingering: everything
   // still SCHEDULED after `after` is cancelled. Past/completed/skipped
   // occurrences are history and are left untouched.
@@ -299,11 +355,15 @@ export const occurrenceService = {
       // minStart/maxStart are only ever null for a recurring task whose
       // occurrences were somehow all removed — fall back to `now` as the
       // best available anchor/time-of-day rather than skipping it entirely.
+      // The anchor is the first occurrence's date; the time of day is the
+      // latest's — a changed schedule replaces the future occurrences
+      // (schedule-change.ts), so the first keeps the old time and the
+      // latest carries the current one.
       const anchorDate = minStart
         ? formatDateInZone(minStart, zone, "yyyy-LL-dd")
         : formatDateInZone(now, zone, "yyyy-LL-dd");
-      const time = minStart
-        ? formatTimeInZone(minStart, zone, "HH:mm")
+      const time = maxStart
+        ? formatTimeInZone(maxStart, zone, "HH:mm")
         : formatTimeInZone(now, zone, "HH:mm");
       const fromDate = maxStart
         ? formatDateInZone(addDaysInZone(maxStart, 1, zone), zone, "yyyy-LL-dd")
