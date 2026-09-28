@@ -381,17 +381,17 @@ export function NewTaskForm({
           When
         </p>
         <div className="-ml-3 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-          <PickerButton
+          <PickerField
             type="date"
             value={fields.date}
             ariaLabel={`Date: ${formatWhenDate(fields.date, today)}. Change date`}
             onChange={(value) => setField("date", value)}
           >
             {formatWhenDate(fields.date, today)}
-          </PickerButton>
+          </PickerField>
           {/* Always a time: a task can't be "any time" yet (decision A),
               so there's no remove-time button. */}
-          <PickerButton
+          <PickerField
             type="time"
             value={fields.time}
             ariaLabel={`Time: ${fields.time}. Change time`}
@@ -399,7 +399,7 @@ export function NewTaskForm({
             className="tabular-nums"
           >
             {fields.time}
-          </PickerButton>
+          </PickerField>
           <div className="relative">
             <select
               aria-label="Duration"
@@ -589,9 +589,15 @@ function Chevron() {
   );
 }
 
-// § 4 — a date or time shown as text; the real <input> stays out of sight
-// and opens its native picker (showPicker, or focus where that's missing).
-function PickerButton({
+// § 4 — a date or time shown as text, with the real <input> laid over it,
+// transparent: a tap or click lands on the input itself, so the browser's
+// own picker opens — the native one on a phone. (A hidden input opened
+// through showPicker() from a separate button doesn't open at all in
+// mobile Safari.) With a mouse, clicking a date field's text doesn't open
+// its picker by itself, so showPicker() does that too; where it isn't
+// supported or the picker is already open, the field still takes typing.
+// Hover and focus show on the text underneath.
+function PickerField({
   type,
   value,
   ariaLabel,
@@ -606,39 +612,35 @@ function PickerButton({
   className?: string;
   children: ReactNode;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
   return (
-    <div className="relative">
-      <button
-        type="button"
-        aria-label={ariaLabel}
-        onClick={() => {
-          const input = inputRef.current;
-          if (!input) return;
-          try {
-            input.showPicker();
-          } catch {
-            input.focus();
-          }
-        }}
+    <div className="group relative">
+      <span
+        aria-hidden
         className={cn(
-          "text-text-primary hover:bg-newtask-control-hover min-h-11 rounded-[10px] px-3 py-2.5 text-[19px] whitespace-nowrap transition-colors",
+          "text-text-primary group-hover:bg-newtask-control-hover group-has-[input:focus-visible]:ring-ring block min-h-11 rounded-[10px] px-3 py-2.5 text-[19px] whitespace-nowrap transition-colors group-has-[input:focus-visible]:ring-2",
           className,
         )}
       >
         {children}
-      </button>
+      </span>
       <input
-        ref={inputRef}
         type={type}
         value={value}
+        aria-label={ariaLabel}
         // A cleared picker leaves the field as it was: the task needs both.
         onChange={(event) => {
           if (event.target.value) onChange(event.target.value);
         }}
-        tabIndex={-1}
-        aria-hidden
-        className="pointer-events-none absolute bottom-0 left-3 size-px opacity-0"
+        onClick={(event) => {
+          if (!window.matchMedia("(pointer: fine)").matches) return;
+          try {
+            event.currentTarget.showPicker();
+          } catch {
+            // Already open, or not supported — typing still works.
+          }
+        }}
+        // 19px like the text: mobile Safari zooms into a field under 16px.
+        className="absolute inset-0 size-full cursor-pointer appearance-none text-[19px] opacity-0"
       />
     </div>
   );
