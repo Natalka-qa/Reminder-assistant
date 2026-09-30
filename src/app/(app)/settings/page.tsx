@@ -1,5 +1,6 @@
 import { verifySession, getCurrentUser } from "@/lib/auth/dal";
-import { dashboardService } from "@/features/scheduling/dashboard.service";
+import { analyticsService } from "@/features/analytics/analytics.service";
+import { tallyOutcomes } from "@/features/analytics/behavior-stats";
 import { userService } from "@/features/user/user.service";
 import { isTelegramEnabled } from "@/lib/telegram/telegram.config";
 import { googleCalendarService } from "@/features/google-calendar/google-calendar.service";
@@ -10,14 +11,19 @@ import { SettingsForm } from "./settings-form";
 import { TelegramConnect } from "./telegram-connect";
 import { GoogleCalendarConnect } from "./google-calendar-connect";
 import { SignOutButton } from "./sign-out-button";
+import { RecentActivity } from "./recent-activity";
+import { BehaviorPatternsSection } from "./behavior-patterns";
 
 // design_handoff_reminder_assistant/README.md § Settings.
 export default async function SettingsPage() {
   await verifySession();
   const user = await getCurrentUser();
   const stats = user
-    ? await dashboardService.getRecentActivityCounts(user.id, user.timezone)
-    : { completed: 0, partial: 0, skipped: 0 };
+    ? await analyticsService.getRecentActivity(user.id, user.timezone)
+    : tallyOutcomes([]);
+  const patterns = user
+    ? await analyticsService.getBehaviorPatterns(user.id, user.timezone)
+    : null;
   const profile = user ? await userService.getProfile(user.id) : null;
   const preferences =
     (user && (await userService.getSchedulePreferences(user.id))) ??
@@ -63,27 +69,11 @@ export default async function SettingsPage() {
 
       {calendarStatus && <GoogleCalendarConnect status={calendarStatus} />}
 
-      <div className="flex flex-col gap-3">
-        <SectionLabel>Last 7 days</SectionLabel>
-        <div className="flex flex-wrap gap-8">
-          <Stat value={stats.completed} label="Completed" />
-          <Stat value={stats.partial} label="Partial" />
-          <Stat value={stats.skipped} label="Skipped" />
-        </div>
-      </div>
+      <RecentActivity stats={stats} />
+
+      {patterns && <BehaviorPatternsSection patterns={patterns} />}
 
       <SignOutButton />
-    </div>
-  );
-}
-
-function Stat({ value, label }: { value: number; label: string }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="font-display text-[38px] leading-none font-light">
-        {value}
-      </span>
-      <span className="text-text-secondary text-xs">{label}</span>
     </div>
   );
 }

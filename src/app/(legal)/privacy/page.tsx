@@ -96,6 +96,12 @@ export default function PrivacyPage() {
           overlapping tasks, and send your reminders. We don&apos;t sell your
           data, show ads, or build profiles of you.
         </p>
+        <p>
+          Settings and Home also show patterns from your own task history — for
+          example, how many of your evening tasks get done. They&apos;re counted
+          from that history each time you open the page, only for you, and
+          aren&apos;t stored or shared.
+        </p>
       </LegalSection>
 
       <LegalSection heading="Who else is involved">

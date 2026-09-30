@@ -7,6 +7,7 @@ import {
   formatRelativeTimeLabel,
   groupRemainingByTime,
   latestOccurrenceEnd,
+  patternInsight,
   selectUpNext,
   type HomeOccurrence,
 } from "./home-view";
@@ -191,6 +192,63 @@ describe("buildInsightBody", () => {
   it("omits the overlap/evening sentences when there's nothing to say", () => {
     const body = buildInsightBody([occurrence("a", 9, 0)], 0, null);
     expect(body).toBe("No fixed tasks, one flexible one.");
+  });
+
+  it("ends with the pattern sentence when there is one", () => {
+    const body = buildInsightBody(
+      [occurrence("a", 9, 0)],
+      0,
+      null,
+      "You finish 33% of tasks after 20:00 — one of today's is that late.",
+    );
+    expect(body).toBe(
+      "No fixed tasks, one flexible one. You finish 33% of tasks after 20:00 — one of today's is that late.",
+    );
+  });
+});
+
+describe("patternInsight", () => {
+  // occurrence() builds 2026-04-26 at the given UTC hour; UTC keeps the
+  // local hour the same.
+  const LATE = { part: "late" as const, percent: 33 };
+
+  it("counts today's open tasks in the weak part of the day", () => {
+    const today = [
+      occurrence("a", 21, 0),
+      occurrence("b", 22, 30, { status: "SNOOZED" }),
+      occurrence("c", 9, 0),
+    ];
+    expect(patternInsight(LATE, today, "UTC")).toBe(
+      "You finish 33% of tasks after 20:00 — two of today's are that late.",
+    );
+  });
+
+  it("says 'then' for the other parts of the day", () => {
+    expect(
+      patternInsight(
+        { part: "afternoon", percent: 40 },
+        [occurrence("a", 14, 0)],
+        "UTC",
+      ),
+    ).toBe(
+      "You finish 40% of tasks in the afternoon — one of today's is then.",
+    );
+  });
+
+  it("stays quiet when those tasks are done or there's no weak part", () => {
+    expect(
+      patternInsight(LATE, [occurrence("a", 21, 0, { status: "DONE" })], "UTC"),
+    ).toBeNull();
+    expect(patternInsight(LATE, [occurrence("a", 9, 0)], "UTC")).toBeNull();
+    expect(patternInsight(null, [occurrence("a", 21, 0)], "UTC")).toBeNull();
+  });
+
+  it("reads the hour in the user's timezone", () => {
+    // 18:30 UTC is 20:30 in Madrid (CEST, UTC+2) in April.
+    expect(
+      patternInsight(LATE, [occurrence("a", 18, 30)], "Europe/Madrid"),
+    ).not.toBeNull();
+    expect(patternInsight(LATE, [occurrence("a", 18, 30)], "UTC")).toBeNull();
   });
 });
 

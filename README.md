@@ -155,6 +155,36 @@ A title with both reads as a workout ("Pay for the gym"); the switch is there to
 
 Suggested times start on :00, :15, :30 or :45 of your local time, never in the past, and the ones offered never overlap each other.
 
+## Your patterns
+
+The app counts what happened to your past tasks and shows it back to you. It's plain counting over each task's status and planned time — no model, nothing new is tracked or stored.
+
+**Each task counts once:**
+
+| Outcome     | When                                                                 |
+| ----------- | -------------------------------------------------------------------- |
+| Completed   | marked Done                                                          |
+| Partial     | marked Partially done                                                |
+| Skipped     | marked Skip                                                          |
+| Missed      | its day is over and it was never marked (still Scheduled or Snoozed) |
+| not counted | cancelled, or still open today or later                              |
+
+**Completion rate** = Completed ÷ everything counted. Partial and Missed count as not done: a late task you never opened isn't a finished one.
+
+**Where it shows:**
+
+- **`/settings`, "Last 7 days"** — today and the six days before: Completed, Partial, Skipped, Missed and the completion rate. Missed only counts days that are over.
+- **`/settings`, "Your patterns · last 30 days"** — the 30 whole days before today, so the numbers don't change during the day. The share done in each part of the day, by the task's planned local start: morning 05–12, afternoon 12–18, evening 18–20, after 20:00 20–05. Then weekdays against Saturday and Sunday.
+- **Home, "Assistant insight"** — one sentence, only when it's about today: "You finish 33% of tasks after 20:00 — two of today's are that late." One small extra database query per Home render, none to Google.
+
+**When there's a sentence:**
+
+- Nothing at all below **20** counted tasks in the 30 days — "Not enough history yet … (10 of 20 so far)".
+- A part of the day (or weekdays/weekends) takes part only with at least **5** tasks; fewer shows "too few".
+- A sentence only when the best and the worst are at least **15** points apart, on the whole percents you see. Otherwise the bars alone.
+
+Each task is counted on its own, so a daily task can carry a whole part of the day — the "N of M" next to each bar shows how much it rests on. Parts of the day use your current time zone; a task moved to another time counts at the time it ended up at.
+
 ## Architecture
 
 Layering rule (see `docs/adr/001-project-structure.md`): components never call Prisma directly.

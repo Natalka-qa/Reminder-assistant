@@ -4,6 +4,11 @@ import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-s
 import { findFreeSlots, searchBounds } from "@/features/scheduling/free-slots";
 import { taskKindOf } from "@/lib/parse-task";
 import type { SchedulePreferences } from "@/lib/validation/user";
+import {
+  PART_WHEN,
+  partOfDayOf,
+  type AnalyticsPart,
+} from "@/features/analytics/behavior-stats";
 
 // HOME_V2_UPDATE.md — pure view-model logic for the Home screen's "Up
 // next" spotlight, same-time collision grouping, and the assistant
@@ -12,7 +17,8 @@ import type { SchedulePreferences } from "@/lib/validation/user";
 // functions only compare Dates and count/group occurrences, so they're
 // testable without a database or a zoned clock. The one exception is
 // findMoveTime (S12-06): the user's day is local time, so it takes the
-// timezone and hands it to free-slots.ts.
+// timezone and hands it to free-slots.ts. patternInsight (S13-05) takes it
+// for the same reason — a part of the day is local time.
 
 export type HomeOccurrence = {
   id: string;
@@ -180,6 +186,7 @@ export function buildInsightBody(
   occurrences: HomeOccurrence[],
   overlapCount: number,
   eveningFreeLabel: string | null,
+  patternLine: string | null = null,
 ): string {
   const fixed = occurrences.filter(
     (o) => o.task.flexibility === "FIXED",
@@ -195,7 +202,30 @@ export function buildInsightBody(
   if (eveningFreeLabel) {
     parts.push(`Your evening is free after ${eveningFreeLabel}.`);
   }
+  if (patternLine) parts.push(patternLine);
   return parts.join(" ");
+}
+
+/**
+ * sprint-13-tasks.md S13-05 — one sentence from the last 30 days, only when
+ * it's about today: the part of the day tasks get dropped in (weakestPart,
+ * already past the thresholds) holds some of today's still-open tasks.
+ */
+export function patternInsight(
+  weakest: { part: AnalyticsPart; percent: number } | null,
+  occurrences: HomeOccurrence[],
+  timezone: string,
+): string | null {
+  if (!weakest) return null;
+  const count = occurrences.filter(
+    (o) =>
+      isActionableOccurrenceStatus(o.status) &&
+      partOfDayOf(o.scheduledStart, timezone) === weakest.part,
+  ).length;
+  if (count === 0) return null;
+  const verb = count === 1 ? "is" : "are";
+  const when = weakest.part === "late" ? "that late" : "then";
+  return `You finish ${weakest.percent}% of tasks ${PART_WHEN[weakest.part]} — ${wordFor(count)} of today's ${verb} ${when}.`;
 }
 
 /** Latest end time (scheduledStart + duration) across today's occurrences. */
