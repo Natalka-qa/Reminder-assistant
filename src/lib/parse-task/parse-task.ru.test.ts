@@ -14,6 +14,7 @@ describe("Russian", () => {
       time: "09:00",
       durationMinutes: 30,
       hits: ["завтра", "в 9", "на 30 минут"],
+      kind: "remote",
       language: "ru",
     });
   });
@@ -68,6 +69,7 @@ describe("Russian", () => {
     expect(parse("Позвонить маме утром")).toEqual({
       title: "Позвонить маме утром",
       hits: [],
+      kind: "remote",
       language: "ru",
     });
   });

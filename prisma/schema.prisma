@@ -22,6 +22,19 @@ model User {
   timezone            String    @default("UTC")
   timezoneConfirmedAt DateTime?
 
+  // Sprint 12 (sprint-12-tasks.md S12-09): when free time may be suggested
+  // — the searchable day and, on work days, the hours kept for work. Minutes
+  // since local midnight in `timezone`; workDays are ISO weekdays
+  // (1 = Monday), and none means no work hours at all.
+  dayStartMinutes  Int   @default(480)
+  dayEndMinutes    Int   @default(1260)
+  workDays         Int[] @default([1, 2, 3, 4, 5])
+  workStartMinutes Int   @default(540)
+  workEndMinutes   Int   @default(1020)
+  // The latest a workout may start; null = no limit. Per user, like the
+  // hours above ("Расхождения" п.12).
+  workoutLatestStartMinutes Int? @default(1200)
+
   // Sprint 10: Telegram as a second notification channel. telegramChatId is
   // set once the one-time link code below is redeemed by the webhook; the
   // code/expiry pair is cleared on redemption (or overwritten by generating

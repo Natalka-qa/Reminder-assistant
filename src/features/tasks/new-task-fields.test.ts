@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   durationChoices,
   formatDurationChoice,
+  formatNearbySlot,
   formatWhenDate,
+  noFreeTimeNotice,
+  onlyFreeTimeNotice,
+  searchDates,
   newTaskDefaults,
   overlapNotice,
   pastNotice,
@@ -174,5 +178,71 @@ describe("notices", () => {
     expect(overlapNotice([], 1)).toBe(
       "Overlaps with a busy time in your Google Calendar.",
     );
+  });
+});
+
+describe("formatNearbySlot", () => {
+  it("shows the time alone on the chosen day, with the weekday otherwise", () => {
+    expect(formatNearbySlot({ date: TODAY, time: "17:30" }, TODAY)).toBe(
+      "17:30",
+    );
+    expect(formatNearbySlot({ date: "2026-09-26", time: "09:00" }, TODAY)).toBe(
+      "Sat 09:00",
+    );
+  });
+});
+
+describe("a find-a-time request", () => {
+  it("puts the found slot below a hand edit and above the default", () => {
+    const found = { date: "2026-09-26", time: "18:00" };
+    const search = { timeSearch: { partOfDay: "evening" as const } };
+    expect(resolveTaskFields(search, {}, DEFAULTS, found)).toMatchObject({
+      date: "2026-09-26",
+      time: "18:00",
+      timeGiven: false,
+      flexibility: "FLEXIBLE",
+      durationMinutes: 30,
+    });
+    expect(
+      resolveTaskFields(search, { time: "19:30" }, DEFAULTS, found),
+    ).toMatchObject({ date: "2026-09-26", time: "19:30" });
+    expect(
+      resolveTaskFields({ ...search, durationMinutes: 60 }, {}, DEFAULTS, found)
+        .durationMinutes,
+    ).toBe(60);
+  });
+
+  it("searches the date it names, or the week ahead", () => {
+    expect(searchDates("2026-09-26", TODAY)).toEqual(["2026-09-26"]);
+    const week = searchDates(undefined, TODAY);
+    expect(week).toHaveLength(7);
+    expect([week[0], week[6]]).toEqual([TODAY, "2026-10-01"]);
+  });
+
+  it("says there's nothing free the way it was asked", () => {
+    expect(noFreeTimeNotice(["2026-09-26"], "evening", 60, TODAY)).toBe(
+      "No free hour tomorrow evening.",
+    );
+    expect(noFreeTimeNotice([TODAY], "afternoon", 30, TODAY)).toBe(
+      "No free 30 minutes this afternoon.",
+    );
+    expect(noFreeTimeNotice([TODAY], "any", 90, TODAY)).toBe(
+      "No free 1 h 30 min today.",
+    );
+    expect(noFreeTimeNotice(["2026-09-29"], "any", 60, TODAY)).toBe(
+      "No free hour on Tuesday.",
+    );
+    expect(
+      noFreeTimeNotice(searchDates(undefined, TODAY), "evening", 60, TODAY),
+    ).toBe("No free hour in the evening in the next 7 days.");
+  });
+
+  it("says a single slot is the only one, the same way", () => {
+    expect(onlyFreeTimeNotice(["2026-09-26"], "evening", 60, TODAY)).toBe(
+      "The only free hour tomorrow evening.",
+    );
+    expect(
+      onlyFreeTimeNotice(searchDates(undefined, TODAY), "any", 30, TODAY),
+    ).toBe("The only free 30 minutes in the next 7 days.");
   });
 });

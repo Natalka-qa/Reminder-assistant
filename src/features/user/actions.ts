@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { userService } from "@/features/user/user.service";
-import { InvalidTimezoneError } from "@/features/user/user.errors";
+import {
+  InvalidSchedulePreferencesError,
+  InvalidTimezoneError,
+} from "@/features/user/user.errors";
 import { env } from "@/lib/env";
 import { isTelegramEnabled } from "@/lib/telegram/telegram.config";
 
@@ -36,6 +39,42 @@ export async function updateTimezoneAction(
   }
 
   revalidatePath("/dashboard");
+  revalidatePath("/settings");
+  return { status: "success" };
+}
+
+export type UpdateSchedulePreferencesState = {
+  status: "idle" | "success" | "error";
+  message?: string;
+};
+
+// sprint-12-tasks.md S12-09 — "Start of day", "End of day", "Work hours"
+// and "Workouts start by" on /settings, saved together on any change.
+export async function updateSchedulePreferencesAction(
+  _prevState: UpdateSchedulePreferencesState,
+  formData: FormData,
+): Promise<UpdateSchedulePreferencesState> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { status: "error", message: "Not signed in." };
+  }
+
+  try {
+    await userService.setSchedulePreferences(user.id, {
+      dayStartMinutes: formData.get("dayStartMinutes"),
+      dayEndMinutes: formData.get("dayEndMinutes"),
+      workDays: formData.getAll("workDays"),
+      workStartMinutes: formData.get("workStartMinutes"),
+      workEndMinutes: formData.get("workEndMinutes"),
+      workoutLatestStartMinutes: formData.get("workoutLatestStartMinutes"),
+    });
+  } catch (error) {
+    if (error instanceof InvalidSchedulePreferencesError) {
+      return { status: "error", message: error.message };
+    }
+    throw error;
+  }
+
   revalidatePath("/settings");
   return { status: "success" };
 }

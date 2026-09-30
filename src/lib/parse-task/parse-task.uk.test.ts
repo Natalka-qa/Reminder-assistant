@@ -15,6 +15,7 @@ describe("Ukrainian", () => {
         time: "09:00",
         durationMinutes: 30,
         hits: ["завтра", "о 9", "на 30 хвилин"],
+        kind: "remote",
         language: "uk",
       },
     );

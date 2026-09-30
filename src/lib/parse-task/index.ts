@@ -1,9 +1,18 @@
-import { runLanguage, type LanguageResult } from "@/lib/parse-task/engine";
+import {
+  detectKind,
+  runLanguage,
+  type LanguageResult,
+  type TaskKind,
+} from "@/lib/parse-task/engine";
 import { en } from "@/lib/parse-task/languages/en";
 import { ru } from "@/lib/parse-task/languages/ru";
 import { uk } from "@/lib/parse-task/languages/uk";
 
-export type { ParsedFields, RepeatFrequency } from "@/lib/parse-task/engine";
+export type {
+  ParsedFields,
+  RepeatFrequency,
+  TaskKind,
+} from "@/lib/parse-task/engine";
 
 export type ParsedTask = LanguageResult & {
   /** Which rule set read the text. */
@@ -37,7 +46,26 @@ export function parseTask(text: string, today: string): ParsedTask {
     { ...runLanguage(uk, text, today), language: "uk" as const },
   ];
   if (UKRAINIAN_ONLY.test(text)) readings.reverse();
-  return readings.reduce((best, reading) =>
+  const best = readings.reduce((best, reading) =>
     reading.hits.length > best.hits.length ? reading : best,
   );
+  // A title with nothing else to recognise ("Написати листа") can land on
+  // the other language's reading — its words still say what kind it is.
+  if (!best.kind) {
+    const kind = detectKind(best.title, best.language === "ru" ? uk : ru);
+    if (kind) return { ...best, kind };
+  }
+  return best;
+}
+
+/**
+ * S12-06 — the kind a saved title reads as, for a task that's already
+ * there (Home's "A small suggestion"). Same words as parseTask, in every
+ * language the title could be in; a workout still takes precedence.
+ */
+export function taskKindOf(title: string): TaskKind | undefined {
+  const kinds = (CYRILLIC.test(title) ? [ru, uk] : [en]).map((language) =>
+    detectKind(title, language),
+  );
+  return kinds.includes("workout") ? "workout" : kinds.find(Boolean);
 }

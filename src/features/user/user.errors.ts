@@ -4,3 +4,10 @@ export class InvalidTimezoneError extends Error {
     this.name = "InvalidTimezoneError";
   }
 }
+
+export class InvalidSchedulePreferencesError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidSchedulePreferencesError";
+  }
+}

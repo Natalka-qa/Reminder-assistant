@@ -5,12 +5,7 @@ import { redirect } from "next/navigation";
 import type { Priority, Flexibility } from "@prisma/client";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth/dal";
-import {
-  addMinutes,
-  formatDateInZone,
-  formatTimeInZone,
-  zonedDateTimeToUtc,
-} from "@/lib/date";
+import { formatDateInZone, formatTimeInZone } from "@/lib/date";
 import { formatIntervalLabel } from "@/lib/format";
 import { dateStringSchema, timeStringSchema } from "@/lib/validation/task";
 import { taskService } from "@/features/tasks/task.service";
@@ -19,10 +14,11 @@ import {
   TaskValidationError,
 } from "@/features/tasks/task.errors";
 import { ScheduleConflictError } from "@/features/scheduling/conflict.errors";
+import type { ScheduleConflict } from "@/features/scheduling/conflict.service";
 import {
-  conflictService,
-  type ScheduleConflict,
-} from "@/features/scheduling/conflict.service";
+  slotService,
+  type OverlapPreview,
+} from "@/features/scheduling/slot.service";
 import type { Interval } from "@/features/scheduling/external-busy";
 
 export type ConflictSummary = {
@@ -198,25 +194,24 @@ export async function deactivateTaskAction(
   return { status: "success" };
 }
 
-export type OverlapPreview = {
-  tasks: { title: string; time: string }[];
-  /** Busy intervals from the user's Google Calendar (no titles). */
-  busyCount: number;
-};
+export type { OverlapPreview } from "@/features/scheduling/slot.service";
 
 const overlapPreviewInput = z.object({
   date: dateStringSchema,
   time: timeStringSchema,
   durationMinutes: z.number().int().min(0).max(1440),
+  // S12-10 — the task's kind (from the title's words) and the form's
+  // "Can do during work hours".
+  kind: z.enum(["workout", "remote"]).nullish(),
+  allowDuringWork: z.boolean().optional(),
 });
 
 // NEW_TASK_V2_UPDATE.md § 4 — the New task form's live "Overlaps with …"
-// notice. Read-only (decision D, review of 2026-09-25): the same checks
-// createTask runs — other tasks through conflictService.findConflicts,
-// Google Calendar through findExternalBusy — so the notice and the old
-// conflict dialog can't disagree. Null when there's nothing to say (not
-// signed in, a value the form shouldn't have sent, a time that doesn't
-// exist in the user's zone).
+// notice, with sprint-12-tasks.md S12-03's "Free nearby" slots. Read-only
+// (decision D, review of 2026-09-25): the same checks createTask runs, so
+// the notice and the old conflict dialog can't disagree. Null when there's
+// nothing to say (not signed in, a value the form shouldn't have sent, a
+// time that doesn't exist in the user's zone).
 export async function previewOverlapsAction(
   input: z.input<typeof overlapPreviewInput>,
 ): Promise<OverlapPreview | null> {
@@ -225,30 +220,15 @@ export async function previewOverlapsAction(
   if (!user || !parsed.success) {
     return null;
   }
-
-  let start: Date;
   try {
-    start = zonedDateTimeToUtc(
-      parsed.data.date,
-      parsed.data.time,
+    return await slotService.previewOverlaps(
+      user.id,
       user.timezone,
+      parsed.data,
     );
   } catch {
     return null;
   }
-  const end = addMinutes(start, parsed.data.durationMinutes);
-
-  const [conflicts, busy] = await Promise.all([
-    conflictService.findConflicts(user.id, start, end),
-    conflictService.findExternalBusy(user.id, () => [{ start, end }]),
-  ]);
-  return {
-    tasks: conflicts.map((conflict) => ({
-      title: conflict.title,
-      time: formatTimeInZone(conflict.start, user.timezone),
-    })),
-    busyCount: busy.status === "checked" ? busy.overlaps.length : 0,
-  };
 }
 
 export async function deleteTaskAction(

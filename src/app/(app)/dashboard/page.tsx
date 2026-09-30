@@ -3,6 +3,8 @@ import { verifySession, getCurrentUser } from "@/lib/auth/dal";
 import { formatDateInZone, formatTimeInZone, zonedNow } from "@/lib/date";
 import { formatDuration } from "@/lib/format";
 import { dashboardService } from "@/features/scheduling/dashboard.service";
+import { userService } from "@/features/user/user.service";
+import { DEFAULT_SCHEDULE_PREFERENCES } from "@/lib/validation/user";
 import { notificationService } from "@/features/notifications/notification.service";
 import {
   isActionableOccurrenceStatus,
@@ -12,6 +14,7 @@ import {
   buildCollisionSuggestion,
   buildInsightBody,
   countOverlappingToday,
+  findMoveTime,
   formatRelativeTimeLabel,
   groupRemainingByTime,
   latestOccurrenceEnd,
@@ -90,12 +93,15 @@ export default async function DashboardPage() {
     ? await notificationService.sendDueNotifications(new Date(), user.id)
     : [];
 
-  const [todayTasks, overdueTasks] = user
+  // S12-06 — the user's hours come along with the day's tasks, for where
+  // "A small suggestion" may move one.
+  const [todayTasks, overdueTasks, preferences] = user
     ? await Promise.all([
         dashboardService.getTodayTasks(user.id, timezone),
         dashboardService.getOverdueTasks(user.id, timezone),
+        userService.getSchedulePreferences(user.id),
       ])
-    : [[], []];
+    : [[], [], null];
 
   const snoozedIds = [...todayTasks, ...overdueTasks]
     .filter((occurrence) => occurrence.status === "SNOOZED")
@@ -133,6 +139,15 @@ export default async function DashboardPage() {
     eveningFreeLabel,
   );
   const collisionSuggestion = buildCollisionSuggestion(upNext, laterGroups);
+  // S12-06 — only a time that's actually free; none left today, no card.
+  const moveTime = collisionSuggestion
+    ? findMoveTime(collisionSuggestion, todayTasks, {
+        today: now.toISODate()!,
+        now: now.toJSDate(),
+        timezone,
+        preferences: preferences ?? DEFAULT_SCHEDULE_PREFERENCES,
+      })
+    : null;
 
   const alsoNowItems: AlsoNowItem[] =
     upNext?.alsoNow.map((o) => ({
@@ -271,15 +286,9 @@ export default async function DashboardPage() {
             />
           )}
 
-          {collisionSuggestion && (
+          {collisionSuggestion && moveTime && (
             <SuggestionCard
-              body={`${collisionSuggestion.movable.task.title} and ${collisionSuggestion.anchor.task.title} both sit at ${formatTimeInZone(collisionSuggestion.anchor.scheduledStart, timezone)}. ${collisionSuggestion.movable.task.title} is flexible — moving it to ${formatTimeInZone(
-                new Date(
-                  collisionSuggestion.anchor.scheduledStart.getTime() +
-                    collisionSuggestion.anchor.task.durationMinutes * 60_000,
-                ),
-                timezone,
-              )} keeps both.`}
+              body={`${collisionSuggestion.movable.task.title} and ${collisionSuggestion.anchor.task.title} both sit at ${formatTimeInZone(collisionSuggestion.anchor.scheduledStart, timezone)}. ${collisionSuggestion.movable.task.title} is flexible — moving it to ${formatTimeInZone(moveTime, timezone)} keeps both.`}
               editHref={`/tasks/${collisionSuggestion.movable.task.id}/edit`}
             />
           )}

@@ -5,8 +5,12 @@ import {
   setDuration,
   setMonthDay,
   setNextWeekday,
+  setPartOfDay,
+  setSearchDuration,
   setTime,
   setWeekly,
+  startTimeSearch,
+  words,
   type Language,
 } from "@/lib/parse-task/engine";
 
@@ -73,6 +77,26 @@ function hourWithDaypart(hour: number, daypart: string | undefined): number {
 
 export const ru: Language = {
   id: "ru",
+  searchGroups: [
+    // sprint-12-tasks.md S12-04 — "найди (мне) (свободное) время/окно".
+    [
+      rule(
+        "(?:найди(?:те)?|подбери(?:те)?|поищи(?:те)?)(?: мне)?(?: (?:свободное|свободный|свободные))?(?: (время|окно|окошко|слот))?",
+        (match, ctx) => startTimeSearch(ctx, match[1] !== undefined),
+      ),
+    ],
+    // Parts of the day, only inside a search.
+    [
+      rule("утром|с утра", (_, { out }) => setPartOfDay(out, "morning")),
+      rule("днём|днем|после обеда", (_, { out }) =>
+        setPartOfDay(out, "afternoon"),
+      ),
+      rule("вечером", (_, { out }) => setPartOfDay(out, "evening")),
+    ],
+    // "Найди час": in a search a bare "час" is an hour ("на час" is the
+    // ordinary rule's).
+    [rule("(?<!на )(?:один )?час", (_, { out }) => setSearchDuration(out, 60))],
+  ],
   groups: [
     // Importance
     [
@@ -186,6 +210,15 @@ export const ru: Language = {
     /^(?:напомни(?:те)?(?: мне)?|напомнить(?: мне)?|не забыть|не забудь(?:те)?|мне нужно|мне надо|нужно|надо)\s+/iu,
   // A leading "в"/"на" is usually meant ("В аптеку"), so only
   // conjunctions are dropped at the start.
+  searchFillers: /^(?:для|чтобы|на)\s+/iu,
+  kindWords: {
+    workout: words(
+      "тренировк\\p{L}*|тренироваться|спортзал\\p{L}*|зал|зале|тренажёрн\\p{L}*|тренажерн\\p{L}*|бег|бегать|побегать|пробежк\\p{L}*|йог\\p{L}*|пилатес\\p{L}*|плавани\\p{L}*|бассейн\\p{L}*|фитнес\\p{L}*|растяжк\\p{L}*|кроссфит\\p{L}*|зарядк\\p{L}*",
+    ),
+    remote: words(
+      "позвонить|звонок|звонк\\p{L}*|созвон\\p{L}*|набрать|написать|напиши|ответить|письм\\p{L}*|почт\\p{L}*|email|оплатить|оплат\\p{L}*|заплатить|заказать|записаться|забронировать|онлайн|zoom",
+    ),
+  },
   leadingDangling: "и|а",
   trailingDangling: "в|во|на|к|и|по|через|с|до|а|каждый|каждую|каждое",
 };

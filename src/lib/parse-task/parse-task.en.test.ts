@@ -22,6 +22,7 @@ describe("§ 11 test cases", () => {
       time: "09:00",
       durationMinutes: 30,
       hits: ["tomorrow", "at 9", "for 30 minutes"],
+      kind: "remote",
       language: "en",
     });
   });

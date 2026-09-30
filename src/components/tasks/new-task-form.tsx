@@ -24,16 +24,26 @@ import {
   type TaskActionState,
 } from "@/features/tasks/actions";
 import {
+  findFreeSlotsAction,
+  type FreeSlotsResult,
+} from "@/features/scheduling/actions";
+import {
   REMINDER_CHOICES,
   durationChoices,
   formatDurationChoice,
+  formatNearbySlot,
   formatWhenDate,
   newTaskDefaults,
+  noFreeTimeNotice,
+  onlyFreeTimeNotice,
   overlapNotice,
   pastNotice,
   repeatHint,
   resolveTaskFields,
+  searchDates,
+  SEARCH_DEFAULT_DURATION_MINUTES,
   type Flexibility,
+  type FoundSlot,
   type Importance,
   type TaskFieldOverrides,
 } from "@/features/tasks/new-task-fields";
@@ -78,6 +88,8 @@ const WEEKDAYS = [
 
 // § 4 — the overlap check waits for the When row to settle.
 const OVERLAP_DEBOUNCE_MS = 400;
+// S12-05 — a find-a-time request waits the same for the typing to settle.
+const SEARCH_DEBOUNCE_MS = 400;
 
 const initialState: TaskActionState = { status: "idle" };
 
@@ -97,10 +109,13 @@ export function NewTaskForm({
   timezone,
   today,
   nowMinutes,
+  hasWorkHours,
 }: {
   timezone: string;
   today: string;
   nowMinutes: number;
+  /** The user has work hours in /settings — the switch below is for them. */
+  hasWorkHours: boolean;
 }) {
   const [state, formAction, pending] = useActionState(
     createTaskAction,
@@ -127,9 +142,76 @@ export function NewTaskForm({
   // Relative dates ("tomorrow", "завтра") count from the user's today.
   const parsed = useMemo(() => parseTask(text, clock.date), [text, clock.date]);
   const { title, hits } = parsed;
-  const fields = resolveTaskFields(parsed, overrides, defaults);
+  const kind = parsed.kind ?? null;
+
+  // S12-05 — "Can do during work hours": the title's words decide (a call
+  // can, a workout can't) until the user flips it.
+  const [workOverride, setWorkOverride] = useState<boolean | null>(null);
+  const allowDuringWork = workOverride ?? kind === "remote";
+
+  // S12-05 — a find-a-time request ("find me an hour tomorrow evening"):
+  // free slots on the date it names, or the week ahead, for the length it
+  // names (half an hour otherwise), within the user's own day, work hours
+  // and workout limit. The first slot becomes the task's date and time;
+  // the rest are offered to switch to. As with the overlap check, a slow
+  // answer for an old request never lands on a new one.
+  const timeSearch = parsed.timeSearch ?? null;
+  const searchRequest = timeSearch
+    ? {
+        dates: searchDates(parsed.date, clock.date),
+        partOfDay: timeSearch.partOfDay,
+        durationMinutes:
+          overrides.durationMinutes ??
+          parsed.durationMinutes ??
+          SEARCH_DEFAULT_DURATION_MINUTES,
+        kind,
+        allowDuringWork,
+      }
+    : null;
+  const searchKey = searchRequest ? JSON.stringify(searchRequest) : null;
+  const [search, setSearch] = useState<{
+    key: string;
+    result: FreeSlotsResult | null;
+  } | null>(null);
+  useEffect(() => {
+    if (!searchKey) return;
+    let stale = false;
+    const timer = setTimeout(async () => {
+      const result = await findFreeSlotsAction(JSON.parse(searchKey));
+      if (!stale) {
+        setSearch({ key: searchKey, result });
+      }
+    }, SEARCH_DEBOUNCE_MS);
+    return () => {
+      stale = true;
+      clearTimeout(timer);
+    };
+  }, [searchKey]);
+  const searchAnswer =
+    searchKey !== null && search?.key === searchKey ? search : null;
+  const searching = searchKey !== null && searchAnswer === null;
+  const foundSlots = searchAnswer?.result?.slots ?? [];
+
+  // A "Free:" slot picked instead of the first one. It's still the app's
+  // suggestion, not a time the user set — the task stays Flexible
+  // ("Расхождения" п.3) — and it holds only for the search it came from.
+  const [picked, setPicked] = useState<{
+    key: string;
+    slot: FoundSlot;
+  } | null>(null);
+  const pickedSlot =
+    searchAnswer && picked?.key === searchKey ? picked.slot : null;
+
+  const fields = resolveTaskFields(
+    parsed,
+    overrides,
+    defaults,
+    pickedSlot ?? foundSlots[0] ?? null,
+  );
   const hasText = text.trim().length > 0;
-  const canCreate = title.length > 0;
+  // Not while a search is still looking: the task would save at the
+  // default time instead of the free one about to arrive.
+  const canCreate = title.length > 0 && !searching;
 
   function setField<K extends keyof TaskFieldOverrides>(
     key: K,
@@ -143,6 +225,7 @@ export function NewTaskForm({
     setText(value);
     if (!value.trim()) {
       setOverrides({});
+      setWorkOverride(null);
     }
   }
 
@@ -182,8 +265,12 @@ export function NewTaskForm({
   // something to check: a typed task or a time the user set, not the
   // untouched default. A result is shown only while it still matches the
   // fields, so a slow answer for an old time never appears under a new one.
-  const checkOverlaps = (hasText || fields.timeGiven) && fields.date >= today;
-  const overlapKey = `${fields.date}|${fields.time}|${fields.durationMinutes}`;
+  // S12-10 — where "Free nearby" may look depends on what the task is: a
+  // workout starts by the user's limit, and only a task that can be done
+  // during work may land in work hours.
+  const checkOverlaps =
+    (hasText || fields.timeGiven) && fields.date >= today && !searching;
+  const overlapKey = `${fields.date}|${fields.time}|${fields.durationMinutes}|${kind}|${allowDuringWork}`;
   const [preview, setPreview] = useState<{
     key: string;
     result: OverlapPreview;
@@ -197,6 +284,8 @@ export function NewTaskForm({
         date,
         time,
         durationMinutes: Number(duration),
+        kind,
+        allowDuringWork,
       });
       if (!stale && result) {
         setPreview({ key: overlapKey, result });
@@ -206,14 +295,37 @@ export function NewTaskForm({
       stale = true;
       clearTimeout(timer);
     };
-  }, [checkOverlaps, overlapKey]);
+  }, [checkOverlaps, overlapKey, kind, allowDuringWork]);
 
-  const notices = [
-    pastNotice(fields.date, fields.time, clock.date, clock.minutes),
-    checkOverlaps && preview?.key === overlapKey
-      ? overlapNotice(preview.result.tasks, preview.result.busyCount)
-      : null,
-  ].filter((notice): notice is string => notice !== null);
+  const past = pastNotice(fields.date, fields.time, clock.date, clock.minutes);
+  const overlap =
+    checkOverlaps && preview?.key === overlapKey ? preview.result : null;
+  const overlapText = overlap
+    ? overlapNotice(overlap.tasks, overlap.busyCount)
+    : null;
+
+  // sprint-12-tasks.md S12-03 — picking a "Free nearby" slot is a hand
+  // edit of the date and time, like choosing them in the pickers.
+  function chooseSlot(slot: { date: string; time: string }) {
+    setOverrides((current) => ({
+      ...current,
+      date: slot.date,
+      time: slot.time,
+    }));
+  }
+
+  // S12-05 — picking one of the search's "Free:" slots replaces the first
+  // one, and any date or time set by hand, without making the task Fixed.
+  function chooseFoundSlot(slot: FoundSlot) {
+    if (!searchKey) return;
+    setPicked({ key: searchKey, slot });
+    setOverrides((current) => {
+      const next = { ...current };
+      delete next.date;
+      delete next.time;
+      return next;
+    });
+  }
 
   function handleInputKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     // § 2 — Enter creates the task, Shift+Enter is a new line.
@@ -423,14 +535,99 @@ export function NewTaskForm({
             <Chevron />
           </div>
         </div>
-        {notices.map((notice) => (
-          <p
-            key={notice}
-            className="text-rose-tint-text text-[13px]/[1.5] text-pretty"
-          >
-            {notice}
+        {past && (
+          <p className="text-rose-tint-text text-[13px]/[1.5] text-pretty">
+            {past}
           </p>
-        ))}
+        )}
+        {overlapText && (
+          <p className="text-rose-tint-text text-[13px]/[1.5] text-pretty">
+            {overlapText}
+            {overlap && overlap.freeNearby.length > 0 && (
+              <>
+                {" "}
+                Free nearby:{" "}
+                {overlap.freeNearby.map((slot, index) => (
+                  <span key={`${slot.date} ${slot.time}`}>
+                    {index > 0 && " · "}
+                    <button
+                      type="button"
+                      onClick={() => chooseSlot(slot)}
+                      aria-label={`Move to ${formatWhenDate(slot.date, today)}, ${slot.time}`}
+                      className="text-burgundy decoration-newtask-example-underline hover:decoration-burgundy font-semibold underline underline-offset-[3px]"
+                    >
+                      {formatNearbySlot(slot, fields.date)}
+                    </button>
+                  </span>
+                ))}
+              </>
+            )}
+          </p>
+        )}
+        {timeSearch && (
+          <p className="text-newtask-quiet-text text-[13px]/[1.5] text-pretty">
+            {searching ? (
+              "Finding a free time…"
+            ) : searchAnswer?.result == null ? (
+              "Couldn't look for a free time — set it above."
+            ) : foundSlots.length === 0 ? (
+              <span className="text-rose-tint-text">
+                {noFreeTimeNotice(
+                  searchRequest!.dates,
+                  timeSearch.partOfDay,
+                  fields.durationMinutes,
+                  clock.date,
+                )}
+              </span>
+            ) : foundSlots.length === 1 &&
+              foundSlots[0].date === fields.date &&
+              foundSlots[0].time === fields.time ? (
+              // Nothing else to offer, and it's already set above.
+              onlyFreeTimeNotice(
+                searchRequest!.dates,
+                timeSearch.partOfDay,
+                fields.durationMinutes,
+                clock.date,
+              )
+            ) : (
+              <>
+                Free:{" "}
+                {foundSlots.map((slot, index) => {
+                  const current =
+                    slot.date === fields.date && slot.time === fields.time;
+                  return (
+                    <span key={`${slot.date} ${slot.time}`}>
+                      {index > 0 && " · "}
+                      <button
+                        type="button"
+                        aria-pressed={current}
+                        onClick={() => chooseFoundSlot(slot)}
+                        aria-label={`${formatWhenDate(slot.date, today)}, ${slot.time}`}
+                        className={cn(
+                          "text-burgundy font-semibold",
+                          current
+                            ? "bg-burgundy-tint rounded px-1"
+                            : "decoration-newtask-example-underline hover:decoration-burgundy underline underline-offset-[3px]",
+                        )}
+                      >
+                        {formatNearbySlot(slot, foundSlots[0].date)}
+                      </button>
+                    </span>
+                  );
+                })}
+              </>
+            )}
+            {searchAnswer?.result?.calendar === "unavailable" &&
+              " Google Calendar wasn't checked."}
+          </p>
+        )}
+        {hasWorkHours &&
+          (timeSearch || (overlap?.freeNearby.length ?? 0) > 0) && (
+            <WorkHoursSwitch
+              checked={allowDuringWork}
+              onChange={setWorkOverride}
+            />
+          )}
       </div>
 
       <SchedulingChoice
@@ -576,6 +773,45 @@ export function NewTaskForm({
         )}
       </div>
     </form>
+  );
+}
+
+// S12-05 — whether free time may be looked for in the user's work hours.
+function WorkHoursSwitch({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="text-text-primary flex min-h-11 items-center gap-3 self-start text-[14px]"
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "relative h-6 w-10 shrink-0 rounded-full border transition-colors",
+          checked
+            ? "bg-burgundy border-burgundy"
+            : "bg-surface border-border-medium",
+        )}
+      >
+        <span
+          className={cn(
+            "absolute top-[2px] size-[18px] rounded-full transition-transform",
+            checked
+              ? "translate-x-[18px] bg-white"
+              : "bg-border-medium translate-x-[2px]",
+          )}
+        />
+      </span>
+      Can do during work hours
+    </button>
   );
 }
 

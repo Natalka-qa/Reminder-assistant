@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import type { SchedulePreferences } from "@/lib/validation/user";
 
 export const userRepository = {
   findById(id: string) {
@@ -9,6 +10,24 @@ export const userRepository = {
     return prisma.user.update({
       where: { id },
       data: { timezone, timezoneConfirmedAt: new Date() },
+    });
+  },
+
+  updateSchedulePreferences(id: string, preferences: SchedulePreferences) {
+    return prisma.user.update({ where: { id }, data: preferences });
+  },
+
+  findSchedulePreferences(id: string) {
+    return prisma.user.findUnique({
+      where: { id },
+      select: {
+        dayStartMinutes: true,
+        dayEndMinutes: true,
+        workDays: true,
+        workStartMinutes: true,
+        workEndMinutes: true,
+        workoutLatestStartMinutes: true,
+      },
     });
   },
 

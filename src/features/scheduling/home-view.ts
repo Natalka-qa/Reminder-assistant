@@ -1,18 +1,24 @@
 import type { Flexibility, Priority } from "@prisma/client";
 import type { OccurrenceStatus } from "@/lib/db/types";
 import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-status";
+import { findFreeSlots, searchBounds } from "@/features/scheduling/free-slots";
+import { taskKindOf } from "@/lib/parse-task";
+import type { SchedulePreferences } from "@/lib/validation/user";
 
 // HOME_V2_UPDATE.md — pure view-model logic for the Home screen's "Up
 // next" spotlight, same-time collision grouping, and the assistant
 // insight/suggestion copy. No timezone/formatting here (that stays in the
 // page, which already has `timezone` and the date-lib helpers) — these
 // functions only compare Dates and count/group occurrences, so they're
-// testable without a database or a zoned clock.
+// testable without a database or a zoned clock. The one exception is
+// findMoveTime (S12-06): the user's day is local time, so it takes the
+// timezone and hands it to free-slots.ts.
 
 export type HomeOccurrence = {
   id: string;
   status: OccurrenceStatus;
   scheduledStart: Date;
+  scheduledEnd?: Date | null;
   task: {
     id: string;
     title: string;
@@ -252,4 +258,60 @@ export function buildCollisionSuggestion<T extends HomeOccurrence>(
     if (pair) return pair;
   }
   return null;
+}
+
+function occurrenceEnd(o: HomeOccurrence): Date {
+  return (
+    o.scheduledEnd ??
+    new Date(o.scheduledStart.getTime() + o.task.durationMinutes * 60_000)
+  );
+}
+
+/**
+ * sprint-12-tasks.md S12-06 — when the movable task can go instead: the
+ * first free slot of its length today once the anchor is over, not before
+ * `now`, inside the user's day. Busy is the rest of today's open tasks —
+ * Google isn't asked on Home ("Расхождения" п.9) — and, as in any search,
+ * the user's work hours unless the title reads as a remote task; a workout
+ * starts by the user's limit. Null when nothing is left today: then there's
+ * no suggestion to make.
+ */
+export function findMoveTime<T extends HomeOccurrence>(
+  { anchor, movable }: MovableSuggestion<T>,
+  todayTasks: T[],
+  {
+    today,
+    now,
+    timezone,
+    preferences,
+  }: {
+    today: string;
+    now: Date;
+    timezone: string;
+    preferences: SchedulePreferences;
+  },
+): Date | null {
+  const { windows, workBusy } = searchBounds(
+    [today],
+    "any",
+    preferences,
+    timezone,
+    { kind: taskKindOf(movable.task.title) },
+  );
+  const busy = todayTasks
+    .filter(
+      (o) => o.id !== movable.id && isActionableOccurrenceStatus(o.status),
+    )
+    .map((o) => ({ start: o.scheduledStart, end: occurrenceEnd(o) }));
+  const anchorEnd = occurrenceEnd(anchor);
+  const [slot] = findFreeSlots({
+    windows,
+    busy: [...busy, ...workBusy],
+    durationMinutes: movable.task.durationMinutes,
+    notBefore: anchorEnd > now ? anchorEnd : now,
+    limit: 1,
+    order: "earliest",
+    timezone,
+  });
+  return slot?.start ?? null;
 }

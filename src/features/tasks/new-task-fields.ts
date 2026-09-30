@@ -28,7 +28,18 @@ export type ParsedTaskFields = {
   repeat?: RepeatFrequency;
   repeatDays?: number[];
   priority?: Importance;
+  /** sprint-12-tasks.md S12-04 — the text asks to find a time. */
+  timeSearch?: { partOfDay: PartOfDay };
 };
+
+export type PartOfDay = "morning" | "afternoon" | "evening" | "any";
+
+/** A free slot the search found, in the user's local date and time. */
+export type FoundSlot = { date: string; time: string };
+
+// S12-05 — a search needs a length to look for; "find me some time" with
+// none named looks for half an hour.
+export const SEARCH_DEFAULT_DURATION_MINUTES = 30;
 
 /** Fields the user changed by hand — never overwritten by typing (§ 8). */
 export type TaskFieldOverrides = {
@@ -182,19 +193,27 @@ export type ResolvedTaskFields = {
  * said, else the default. § 5: Fixed when a time was given, Flexible when
  * the time is only the default. A weekly repeat's days follow the date's
  * weekday until picked by hand.
+ *
+ * S12-05 — a free slot `found` for a find-a-time request sits between the
+ * two: below a hand edit, above the default. It doesn't count as a time
+ * given — the app chose it — so the task stays Flexible.
  */
 export function resolveTaskFields(
   parsed: ParsedTaskFields,
   overrides: TaskFieldOverrides,
   defaults: NewTaskDefaults,
+  found: FoundSlot | null = null,
 ): ResolvedTaskFields {
-  const date = overrides.date ?? parsed.date ?? defaults.date;
+  const date = overrides.date ?? found?.date ?? parsed.date ?? defaults.date;
   const timeGiven = overrides.time !== undefined || parsed.time !== undefined;
   return {
     date,
-    time: overrides.time ?? parsed.time ?? defaults.time,
+    time: overrides.time ?? found?.time ?? parsed.time ?? defaults.time,
     timeGiven,
-    durationMinutes: overrides.durationMinutes ?? parsed.durationMinutes ?? 0,
+    durationMinutes:
+      overrides.durationMinutes ??
+      parsed.durationMinutes ??
+      (parsed.timeSearch ? SEARCH_DEFAULT_DURATION_MINUTES : 0),
     flexibility: overrides.flexibility ?? (timeGiven ? "FIXED" : "FLEXIBLE"),
     priority: overrides.priority ?? parsed.priority ?? "NORMAL",
     repeat: overrides.repeat ?? parsed.repeat ?? "NONE",
@@ -242,4 +261,86 @@ export function overlapNotice(
   const shown = items.slice(0, 2).join(" and ");
   const more = items.length - 2;
   return `Overlaps with ${shown}${more > 0 ? ` and ${more} more` : ""}.`;
+}
+
+/**
+ * sprint-12-tasks.md S12-03 — a "Free nearby" slot as it reads after the
+ * chosen time: just "17:30" on the same day, "Wed 09:00" on another.
+ */
+export function formatNearbySlot(
+  slot: { date: string; time: string },
+  chosenDate: string,
+): string {
+  return slot.date === chosenDate
+    ? slot.time
+    : `${format(slot.date, { weekday: "short" })} ${slot.time}`;
+}
+
+/**
+ * S12-05 — the dates a find-a-time request searches: the one it names, or
+ * the week ahead from today.
+ */
+export function searchDates(date: string | undefined, today: string): string[] {
+  if (date) return [date];
+  return Array.from({ length: 7 }, (_, index) => shiftDate(today, index));
+}
+
+function durationPhrase(minutes: number): string {
+  if (minutes === 60) return "hour";
+  if (minutes < 60) return `${minutes} minutes`;
+  return formatDurationChoice(minutes);
+}
+
+const PART_WORDS: Record<PartOfDay, string | null> = {
+  morning: "morning",
+  afternoon: "afternoon",
+  evening: "evening",
+  any: null,
+};
+
+// The time a request asked about, as it was asked: "tomorrow evening",
+// "this afternoon", "today", "on Friday", "in the evening in the next 7
+// days".
+function whenAsked(
+  dates: string[],
+  partOfDay: PartOfDay,
+  today: string,
+): string {
+  const part = PART_WORDS[partOfDay];
+  if (dates.length !== 1) {
+    return `${part ? `in the ${part} ` : ""}in the next ${dates.length} days`;
+  }
+  const [date] = dates;
+  const offset = daysBetween(today, date);
+  if (offset === 0) return part ? `this ${part}` : "today";
+  const day =
+    offset === 1 ? "tomorrow" : `on ${format(date, { weekday: "long" })}`;
+  return `${day}${part ? ` ${part}` : ""}`;
+}
+
+/**
+ * S12-05 — nothing free for the request, said the way it was asked: "No
+ * free hour tomorrow evening.", "No free 30 minutes this afternoon.", "No
+ * free hour in the evening in the next 7 days."
+ */
+export function noFreeTimeNotice(
+  dates: string[],
+  partOfDay: PartOfDay,
+  durationMinutes: number,
+  today: string,
+): string {
+  return `No free ${durationPhrase(durationMinutes)} ${whenAsked(dates, partOfDay, today)}.`;
+}
+
+/**
+ * S12-05 — one slot found, and it's already the task's time: "The only
+ * free hour tomorrow evening." instead of offering it again.
+ */
+export function onlyFreeTimeNotice(
+  dates: string[],
+  partOfDay: PartOfDay,
+  durationMinutes: number,
+  today: string,
+): string {
+  return `The only free ${durationPhrase(durationMinutes)} ${whenAsked(dates, partOfDay, today)}.`;
 }
