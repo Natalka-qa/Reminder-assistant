@@ -4,6 +4,7 @@ import { addDaysInZone, addMinutes, formatTimeInZone } from "@/lib/date";
 import { env } from "@/lib/env";
 import { sendEmail } from "@/lib/email/send-email";
 import { buildReminderEmail } from "@/lib/email/reminder-email";
+import { reminderChannels } from "@/features/notifications/reminder-channels";
 import { isTelegramEnabled } from "@/lib/telegram/telegram.config";
 import { sendTelegramMessage } from "@/lib/telegram/send-telegram-message";
 import { buildReminderTelegramMessage } from "@/lib/telegram/reminder-telegram-message";
@@ -197,12 +198,18 @@ export const notificationService = {
       }
 
       const taskUrl = `${env.AUTH_URL}/tasks/${task.id}`;
+      const channels = reminderChannels({
+        emailEnabled: user.emailRemindersEnabled,
+        telegramLinked: isTelegramEnabled() && Boolean(user.telegramChatId),
+        attemptCount: notification.attemptCount,
+      });
 
       // Best-effort second channel, independent of the email path below —
       // its own try/catch so a failure here never touches this
       // notification's status/retry count, which describes email delivery
-      // only (sprint-10-tasks.md "Расхождения" п.4).
-      if (isTelegramEnabled() && user.telegramChatId) {
+      // only (sprint-10-tasks.md "Расхождения" п.4). Once per notification,
+      // not again on every email retry (sprint-14-tasks.md S14-07).
+      if (channels.telegram && user.telegramChatId) {
         try {
           const text = buildReminderTelegramMessage({
             title: task.title,
@@ -214,6 +221,14 @@ export const notificationService = {
         } catch (error) {
           console.error("telegram reminder send failed:", error);
         }
+      }
+
+      // "Email reminders" off (S14-06): nothing to deliver or retry by
+      // email — the reminder is done once Telegram and the toast have had
+      // their go.
+      if (!channels.email) {
+        await notificationRepository.markSent(notification.id, db);
+        continue;
       }
 
       try {

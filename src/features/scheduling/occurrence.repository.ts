@@ -4,6 +4,9 @@ import { OccurrenceNotFoundError } from "@/features/scheduling/occurrence.errors
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
+/** An occurrence id, or a whole task. */
+export type OverlapExclusion = string | { taskId: string };
+
 // Symmetric to taskRepository's P2025 mapping — a record P2025 here means
 // the occurrence was deleted (e.g. cascaded from its task being deleted)
 // between the caller's own existence check and this update.
@@ -151,11 +154,15 @@ export const occurrenceRepository = {
   // SNOOZED occurrences count as active conflicts (snoozing doesn't free up
   // the time slot) — a completed/skipped/cancelled occurrence no longer
   // occupies it.
+  //
+  // `exclude` leaves out one occurrence (its id), or every occurrence of a
+  // task (sprint-14-tasks.md S14-02: a task being edited never overlaps
+  // itself).
   findOverlapping(
     userId: string,
     start: Date,
     end: Date,
-    excludeOccurrenceId?: string,
+    exclude?: OverlapExclusion,
     db: Db = prisma,
   ) {
     return db.taskOccurrence.findMany({
@@ -164,7 +171,11 @@ export const occurrenceRepository = {
         status: { in: ["SCHEDULED", "SNOOZED"] },
         scheduledStart: { lt: end },
         scheduledEnd: { gt: start },
-        ...(excludeOccurrenceId ? { id: { not: excludeOccurrenceId } } : {}),
+        ...(typeof exclude === "string"
+          ? { id: { not: exclude } }
+          : exclude
+            ? { taskId: { not: exclude.taskId } }
+            : {}),
       },
       orderBy: { scheduledStart: "asc" },
       include: { task: true },

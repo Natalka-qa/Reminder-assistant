@@ -57,3 +57,30 @@ export const DEFAULT_SCHEDULE_PREFERENCES: SchedulePreferences = {
   workEndMinutes: 17 * 60,
   workoutLatestStartMinutes: 20 * 60,
 };
+
+// sprint-14-tasks.md S14-06 — the reminder offsets the task forms offer
+// (REMINDER_CHOICES, new-task-fields.ts): At start time, 5, 10, 15, 30 min,
+// 1 hour, 1 day before. The default reminder has to be one of them.
+export const REMINDER_OFFSET_MINUTES = [0, 5, 10, 15, 30, 60, 1440] as const;
+
+export const reminderPreferencesSchema = z.object({
+  defaultReminderMinutes: z.coerce
+    .number()
+    .int()
+    .refine(
+      (minutes) =>
+        (REMINDER_OFFSET_MINUTES as readonly number[]).includes(minutes),
+      { message: "Pick one of the reminder times offered." },
+    ),
+  emailRemindersEnabled: z.preprocess(
+    (value) => value === true || value === "true",
+    z.boolean(),
+  ),
+});
+
+export type ReminderPreferences = z.output<typeof reminderPreferencesSchema>;
+
+export const DEFAULT_REMINDER_PREFERENCES: ReminderPreferences = {
+  defaultReminderMinutes: 15,
+  emailRemindersEnabled: true,
+};

@@ -11,3 +11,10 @@ export class InvalidSchedulePreferencesError extends Error {
     this.name = "InvalidSchedulePreferencesError";
   }
 }
+
+export class InvalidReminderPreferencesError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidReminderPreferencesError";
+  }
+}

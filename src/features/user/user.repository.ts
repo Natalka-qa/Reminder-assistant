@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/db/prisma";
-import type { SchedulePreferences } from "@/lib/validation/user";
+import type {
+  ReminderPreferences,
+  SchedulePreferences,
+} from "@/lib/validation/user";
 
 export const userRepository = {
   findById(id: string) {
@@ -28,6 +31,17 @@ export const userRepository = {
         workEndMinutes: true,
         workoutLatestStartMinutes: true,
       },
+    });
+  },
+
+  updateReminderPreferences(id: string, preferences: ReminderPreferences) {
+    return prisma.user.update({ where: { id }, data: preferences });
+  },
+
+  findReminderPreferences(id: string) {
+    return prisma.user.findUnique({
+      where: { id },
+      select: { defaultReminderMinutes: true, emailRemindersEnabled: true },
     });
   },
 

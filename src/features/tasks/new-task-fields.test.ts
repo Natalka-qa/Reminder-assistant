@@ -12,7 +12,10 @@ import {
   pastNotice,
   repeatHint,
   resolveTaskFields,
+  DEFAULT_REMINDER_MINUTES,
+  REMINDER_CHOICES,
 } from "./new-task-fields";
+import { REMINDER_OFFSET_MINUTES } from "@/lib/validation/user";
 
 const TODAY = "2026-09-25"; // a Friday
 const DEFAULTS = { date: TODAY, time: "15:00" };
@@ -244,5 +247,26 @@ describe("a find-a-time request", () => {
     expect(
       onlyFreeTimeNotice(searchDates(undefined, TODAY), "any", 30, TODAY),
     ).toBe("The only free 30 minutes in the next 7 days.");
+  });
+});
+
+describe("reminder defaults (S14-06)", () => {
+  it("offers exactly the offsets Settings accepts as a default", () => {
+    expect(REMINDER_CHOICES.map((choice) => choice.value)).toEqual([
+      ...REMINDER_OFFSET_MINUTES,
+    ]);
+  });
+
+  it("starts at the user's default reminder, below a hand edit", () => {
+    const defaults = { date: TODAY, time: "15:00", reminderOffsetMinutes: 30 };
+    expect(resolveTaskFields({}, {}, defaults).reminderOffsetMinutes).toBe(30);
+    expect(
+      resolveTaskFields({}, { reminderOffsetMinutes: 5 }, defaults)
+        .reminderOffsetMinutes,
+    ).toBe(5);
+    expect(
+      resolveTaskFields({}, {}, { date: TODAY, time: "15:00" })
+        .reminderOffsetMinutes,
+    ).toBe(DEFAULT_REMINDER_MINUTES);
   });
 });

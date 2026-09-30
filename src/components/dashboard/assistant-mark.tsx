@@ -1,5 +1,5 @@
 // HOME_V2_UPDATE.md § 6 — replaces the "✦" glyph everywhere on Home (only
-// on Home; Login/TaskForm's rose-tint "✦" is unchanged, out of this
+// on Home; Login's rose-tint "✦" is unchanged, out of this
 // screen's scope). Ring + filled core + one small satellite dot, one of
 // three colourways per context. `animated` mirrors the reference
 // prototype exactly: only the greeting's "personal" mark pulses the

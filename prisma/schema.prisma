@@ -35,6 +35,13 @@ model User {
   // hours above ("Расхождения" п.12).
   workoutLatestStartMinutes Int? @default(1200)
 
+  // Sprint 14 (sprint-14-tasks.md S14-06): what a new task's reminder starts
+  // at (one of the form's choices, minutes before the start), and whether
+  // reminders are emailed at all — Telegram and the in-app toast don't
+  // depend on it.
+  defaultReminderMinutes Int     @default(15)
+  emailRemindersEnabled  Boolean @default(true)
+
   // Sprint 10: Telegram as a second notification channel. telegramChatId is
   // set once the one-time link code below is redeemed by the webhook; the
   // code/expiry pair is cleared on redemption (or overwritten by generating

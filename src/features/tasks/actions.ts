@@ -20,6 +20,7 @@ import {
   type OverlapPreview,
 } from "@/features/scheduling/slot.service";
 import type { Interval } from "@/features/scheduling/external-busy";
+import type { RecurringOverlapDay } from "@/features/scheduling/recurring-overlaps";
 
 export type ConflictSummary = {
   occurrenceId: string;
@@ -195,6 +196,7 @@ export async function deactivateTaskAction(
 }
 
 export type { OverlapPreview } from "@/features/scheduling/slot.service";
+export type { RecurringOverlapDay } from "@/features/scheduling/recurring-overlaps";
 
 const overlapPreviewInput = z.object({
   date: dateStringSchema,
@@ -208,8 +210,9 @@ const overlapPreviewInput = z.object({
 
 // NEW_TASK_V2_UPDATE.md § 4 — the New task form's live "Overlaps with …"
 // notice, with sprint-12-tasks.md S12-03's "Free nearby" slots. Read-only
-// (decision D, review of 2026-09-25): the same checks createTask runs, so
-// the notice and the old conflict dialog can't disagree. Null when there's
+// (decision D, review of 2026-09-25): the same checks createTask runs
+// without confirmConflicts, so the notice and the server can't disagree.
+// Since Sprint 14 no form asks the server instead. Null when there's
 // nothing to say (not signed in, a value the form shouldn't have sent, a
 // time that doesn't exist in the user's zone).
 export async function previewOverlapsAction(
@@ -226,6 +229,56 @@ export async function previewOverlapsAction(
       user.timezone,
       parsed.data,
     );
+  } catch {
+    return null;
+  }
+}
+
+const editOverlapPreviewInput = overlapPreviewInput.extend({
+  taskId: z.string().min(1),
+  repeatFrequency: z.enum(["NONE", "DAILY", "WEEKLY", "MONTHLY"]),
+  repeatDaysOfWeek: z.array(z.number().int().min(1).max(7)),
+});
+
+export type EditOverlapPreview =
+  | { kind: "one-off"; preview: OverlapPreview }
+  | { kind: "recurring"; days: RecurringOverlapDay[] };
+
+// sprint-14-tasks.md S14-02 — the edit form's notice. A one-off task is
+// checked like New task's, without itself; a recurring one across the
+// occurrences a save would create, with no "Free nearby" ("Расхождения"
+// п.5). Read-only; null as previewOverlapsAction, or for someone else's
+// task.
+export async function previewTaskEditOverlapsAction(
+  input: z.input<typeof editOverlapPreviewInput>,
+): Promise<EditOverlapPreview | null> {
+  const user = await getCurrentUser();
+  const parsed = editOverlapPreviewInput.safeParse(input);
+  if (!user || !parsed.success) {
+    return null;
+  }
+  const { taskId, repeatFrequency, repeatDaysOfWeek, ...when } = parsed.data;
+  try {
+    const task = await taskService.getTask(user.id, taskId);
+    if (!task) return null;
+    if (task.recurrenceRule !== null) {
+      return {
+        kind: "recurring",
+        days: await taskService.previewRecurringOverlaps(
+          user.id,
+          taskId,
+          user.timezone,
+          { ...when, repeatFrequency, repeatDaysOfWeek },
+        ),
+      };
+    }
+    return {
+      kind: "one-off",
+      preview: await slotService.previewOverlaps(user.id, user.timezone, {
+        ...when,
+        excludeTaskId: taskId,
+      }),
+    };
   } catch {
     return null;
   }

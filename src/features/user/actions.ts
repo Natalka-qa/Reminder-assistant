@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { userService } from "@/features/user/user.service";
 import {
+  InvalidReminderPreferencesError,
   InvalidSchedulePreferencesError,
   InvalidTimezoneError,
 } from "@/features/user/user.errors";
@@ -76,6 +77,36 @@ export async function updateSchedulePreferencesAction(
   }
 
   revalidatePath("/settings");
+  return { status: "success" };
+}
+
+export type UpdateReminderPreferencesState = UpdateSchedulePreferencesState;
+
+// sprint-14-tasks.md S14-06 — "Default reminder" and "Email reminders" on
+// /settings, saved together on any change, like the hours above.
+export async function updateReminderPreferencesAction(
+  _prevState: UpdateReminderPreferencesState,
+  formData: FormData,
+): Promise<UpdateReminderPreferencesState> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { status: "error", message: "Not signed in." };
+  }
+
+  try {
+    await userService.setReminderPreferences(user.id, {
+      defaultReminderMinutes: formData.get("defaultReminderMinutes"),
+      emailRemindersEnabled: formData.get("emailRemindersEnabled"),
+    });
+  } catch (error) {
+    if (error instanceof InvalidReminderPreferencesError) {
+      return { status: "error", message: error.message };
+    }
+    throw error;
+  }
+
+  revalidatePath("/settings");
+  revalidatePath("/tasks/new");
   return { status: "success" };
 }
 

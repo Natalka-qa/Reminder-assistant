@@ -45,8 +45,9 @@ const taskFormFields = {
     .max(1440)
     .optional()
     .default(0),
-  // Set by the conflict dialog's "Create anyway" action (Sprint 4) to skip
-  // the conflict check for this one submission — see TaskService.
+  // Skips the conflict check for this one submission — see TaskService.
+  // Sprint 4's dialog set it on "Create anyway"; since New task v2 and Edit
+  // task v2 (S14-04) both forms always set it and show overlaps as a notice.
   confirmConflicts: z.coerce.boolean().optional().default(false),
 };
 

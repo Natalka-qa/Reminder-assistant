@@ -12,14 +12,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SwitchTrack } from "@/components/ui/switch-track";
 import {
+  updateReminderPreferencesAction,
   updateSchedulePreferencesAction,
   updateTimezoneAction,
+  type UpdateReminderPreferencesState,
   type UpdateSchedulePreferencesState,
   type UpdateTimezoneState,
 } from "@/features/user/actions";
 import { formatMinutes } from "@/features/scheduling/calendar-layout";
-import type { SchedulePreferences } from "@/lib/validation/user";
+import { REMINDER_CHOICES } from "@/features/tasks/new-task-fields";
+import type {
+  ReminderPreferences,
+  SchedulePreferences,
+} from "@/lib/validation/user";
 
 const timezones = Intl.supportedValuesOf("timeZone");
 const initialState: UpdateTimezoneState = { status: "idle" };
@@ -39,14 +46,20 @@ function timeLabel(minutes: number): string {
 // each with a hint line, saved on change (no Save button, as in the
 // mockup). Timezone, and since sprint-12-tasks.md S12-09 the hours free
 // time is suggested in: the day, work hours and the latest start for a
-// workout — each user's own ("Расхождения" п.11–12). Default reminder and
-// Email reminders are still placeholders: nothing backs them yet.
+// workout — each user's own ("Расхождения" п.11–12). Since
+// sprint-14-tasks.md S14-06, Default reminder (where a new task's reminder
+// starts) and Email reminders are real too.
 export function SettingsForm({
   currentTimezone,
   preferences,
+  reminderPreferences,
+  telegramLinked,
 }: {
   currentTimezone: string;
   preferences: SchedulePreferences;
+  reminderPreferences: ReminderPreferences;
+  /** Telegram reminders are on — they keep coming with email off. */
+  telegramLinked: boolean;
 }) {
   const [state, formAction, pending] = useActionState(
     updateTimezoneAction,
@@ -113,6 +126,45 @@ export function SettingsForm({
     startTransition(() => prefsAction(data));
   }
 
+  // S14-06 — same snap-back as the hours: a refused change shows what's
+  // saved, not what was sent.
+  const [remindersState, remindersAction] = useActionState(
+    updateReminderPreferencesAction,
+    initialPreferencesState as UpdateReminderPreferencesState,
+  );
+  const [reminders, setReminders] = useState(reminderPreferences);
+  const [savedReminders, setSavedReminders] = useState(reminderPreferences);
+  const [sentReminders, setSentReminders] = useState(reminderPreferences);
+  const [seenRemindersState, setSeenRemindersState] = useState(remindersState);
+  if (remindersState !== seenRemindersState) {
+    setSeenRemindersState(remindersState);
+    if (remindersState.status === "success") setSavedReminders(sentReminders);
+    if (remindersState.status === "error") setReminders(savedReminders);
+  }
+
+  useEffect(() => {
+    if (remindersState.status === "success") {
+      toast.success("Reminders saved");
+    } else if (remindersState.status === "error" && remindersState.message) {
+      toast.error(remindersState.message);
+    }
+  }, [remindersState]);
+
+  function saveReminders(next: ReminderPreferences) {
+    setReminders(next);
+    setSentReminders(next);
+    const data = new FormData();
+    data.set("defaultReminderMinutes", String(next.defaultReminderMinutes));
+    data.set("emailRemindersEnabled", String(next.emailRemindersEnabled));
+    startTransition(() => remindersAction(data));
+  }
+
+  const emailHint = reminders.emailRemindersEnabled
+    ? "Sent to your email address"
+    : telegramLinked
+      ? "Reminders go to Telegram and the app"
+      : "Reminders will only show in the app";
+
   function toggleWorkDay(day: number) {
     savePrefs({
       ...prefs,
@@ -149,9 +201,39 @@ export function SettingsForm({
         />
         <GroupedRow
           label="Default reminder"
-          value="15 min before"
-          hint="Coming in a later sprint"
-          className="opacity-50"
+          hint="Where a new task starts"
+          value={
+            <Select
+              value={String(reminders.defaultReminderMinutes)}
+              onValueChange={(value) =>
+                value !== null &&
+                saveReminders({
+                  ...reminders,
+                  defaultReminderMinutes: Number(value),
+                })
+              }
+            >
+              <SelectTrigger
+                aria-label="Default reminder"
+                className="h-auto w-fit gap-1 border-0 bg-transparent p-0 text-[15px]"
+              >
+                <SelectValue>
+                  {(value: string) =>
+                    REMINDER_CHOICES.find(
+                      (choice) => String(choice.value) === value,
+                    )?.label
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {REMINDER_CHOICES.map((choice) => (
+                  <SelectItem key={choice.value} value={String(choice.value)}>
+                    {choice.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          }
         />
         <GroupedRow
           label="Start of day"
@@ -200,9 +282,24 @@ export function SettingsForm({
         />
         <GroupedRow
           label="Email reminders"
-          value="On"
-          hint="Coming in a later sprint"
-          className="opacity-50"
+          hint={emailHint}
+          value={
+            <button
+              type="button"
+              role="switch"
+              aria-checked={reminders.emailRemindersEnabled}
+              aria-label="Email reminders"
+              onClick={() =>
+                saveReminders({
+                  ...reminders,
+                  emailRemindersEnabled: !reminders.emailRemindersEnabled,
+                })
+              }
+              className="flex min-h-11 items-center"
+            >
+              <SwitchTrack checked={reminders.emailRemindersEnabled} />
+            </button>
+          }
         />
       </GroupedRows>
 

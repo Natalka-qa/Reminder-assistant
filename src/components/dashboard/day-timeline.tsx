@@ -29,8 +29,8 @@ export type TimelineGroupData = {
 // HOME_V2_UPDATE.md §§ 3-4 — "The rest of your day". Self-contained client
 // component (same reasoning as reminder-row.tsx). The `openConflict`
 // badge in the reference routes to "the existing Conflict screen" — that
-// screen only exists as the create-time AlertDialog in task-form.tsx
-// (Sprint 9's redesign), not a route you can navigate to for two
+// screen never existed as a route (the old form's conflict dialog is gone
+// too, sprint-14-tasks.md S14-05), not one you can navigate to for two
 // already-existing overlapping tasks, so `conflictHref` points at the
 // first colliding task's own detail page instead — the real, working
 // equivalent of "go look at what's colliding here."

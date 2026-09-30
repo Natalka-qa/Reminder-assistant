@@ -14,6 +14,10 @@ import {
 } from "@/features/scheduling/conflict.service";
 import { initialRecurringIntervals } from "@/features/scheduling/occurrence-candidates";
 import {
+  recurringOverlapDays,
+  type RecurringOverlapDay,
+} from "@/features/scheduling/recurring-overlaps";
+import {
   anchorDateOf,
   currentTimeOfDay,
   isScheduleChange,
@@ -104,6 +108,66 @@ function recurringSchedulePlan(
 export const taskService = {
   getTask(userId: string, taskId: string) {
     return taskRepository.findByIdWithOccurrences(taskId, userId);
+  },
+
+  /**
+   * sprint-14-tasks.md S14-02 — the edit form's overlap notice for a
+   * recurring task: the occurrences a save would create (the same plan
+   * updateTask follows), each against the user's other tasks and Google
+   * busy times. One query for the tasks and one Google request for the
+   * whole span. Read-only. Empty when the schedule is unchanged — nothing
+   * new would be created.
+   */
+  async previewRecurringOverlaps(
+    userId: string,
+    taskId: string,
+    timezone: string,
+    input: {
+      date: string;
+      time: string;
+      durationMinutes: number;
+      repeatFrequency: "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
+      repeatDaysOfWeek: number[];
+    },
+    now = new Date(),
+  ): Promise<RecurringOverlapDay[]> {
+    const task = await taskRepository.findByIdWithOccurrences(taskId, userId);
+    if (!task || task.recurrenceRule === null) return [];
+    let plan;
+    try {
+      plan = recurringSchedulePlan(task, input, timezone, now);
+    } catch (error) {
+      if (error instanceof TaskValidationError) return [];
+      throw error;
+    }
+    if (!plan || plan.candidates.length === 0) return [];
+
+    const intervals = plan.candidates.map((candidate) => ({
+      start: candidate.scheduledStart,
+      end: candidate.scheduledEnd,
+    }));
+    const spanStart = new Date(
+      Math.min(...intervals.map((i) => i.start.getTime())),
+    );
+    const spanEnd = new Date(
+      Math.max(...intervals.map((i) => i.end.getTime())),
+    );
+    const [others, external] = await Promise.all([
+      occurrenceRepository.findOverlapping(userId, spanStart, spanEnd, {
+        taskId,
+      }),
+      conflictService.findExternalBusy(userId, () => intervals),
+    ]);
+    return recurringOverlapDays(
+      plan.candidates,
+      others.map((occurrence) => ({
+        title: occurrence.task.title,
+        start: occurrence.scheduledStart,
+        end: occurrence.scheduledEnd ?? occurrence.scheduledStart,
+      })),
+      external.status === "checked" ? external.busy : [],
+      timezone,
+    );
   },
 
   getActiveTasks(userId: string) {
@@ -260,7 +324,9 @@ export const taskService = {
           userId,
           {
             title: data.title,
-            description: data.description,
+            // The edit form sends the whole task: no note means none, so a
+            // cleared note is cleared (S14-04), not kept as it was.
+            description: data.description ?? null,
             priority: data.priority,
             flexibility: data.flexibility,
             durationMinutes: data.durationMinutes,
@@ -335,7 +401,7 @@ export const taskService = {
         userId,
         {
           title: data.title,
-          description: data.description,
+          description: data.description ?? null,
           priority: data.priority,
           flexibility: data.flexibility,
           durationMinutes: data.durationMinutes,

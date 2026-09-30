@@ -1,10 +1,13 @@
 import {
+  reminderPreferencesSchema,
   schedulePreferencesSchema,
   timezoneSchema,
+  type ReminderPreferences,
   type SchedulePreferences,
 } from "@/lib/validation/user";
 import { userRepository } from "@/features/user/user.repository";
 import {
+  InvalidReminderPreferencesError,
   InvalidSchedulePreferencesError,
   InvalidTimezoneError,
 } from "@/features/user/user.errors";
@@ -36,6 +39,21 @@ export const userService = {
   // Null for a user that doesn't exist — every real row has the defaults.
   getSchedulePreferences(userId: string): Promise<SchedulePreferences | null> {
     return userRepository.findSchedulePreferences(userId);
+  },
+
+  // sprint-14-tasks.md S14-06 — "Default reminder" and "Email reminders".
+  async setReminderPreferences(userId: string, input: unknown) {
+    const result = reminderPreferencesSchema.safeParse(input);
+    if (!result.success) {
+      throw new InvalidReminderPreferencesError(
+        result.error.issues[0]?.message ?? "Invalid reminder settings",
+      );
+    }
+    return userRepository.updateReminderPreferences(userId, result.data);
+  },
+
+  getReminderPreferences(userId: string): Promise<ReminderPreferences | null> {
+    return userRepository.findReminderPreferences(userId);
   },
 
   getProfile(userId: string) {

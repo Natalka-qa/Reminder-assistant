@@ -16,6 +16,18 @@ export function isActionableOccurrenceStatus(
   return status === "SCHEDULED" || status === "SNOOZED";
 }
 
+/**
+ * sprint-14-tasks.md S14-10 — "Remove this one": only an occurrence of a
+ * repeating task (a one-off task has Delete), and only one still open — a
+ * done or skipped one is history.
+ */
+export function canRemoveOccurrence(
+  status: OccurrenceStatus,
+  recurring: boolean,
+): boolean {
+  return recurring && isActionableOccurrenceStatus(status);
+}
+
 export const OCCURRENCE_STATUS_LABELS: Record<OccurrenceStatus, string> = {
   SCHEDULED: "Scheduled",
   DONE: "Done",

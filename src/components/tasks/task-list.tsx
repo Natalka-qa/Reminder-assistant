@@ -9,7 +9,7 @@ import {
   type TaskListItem,
 } from "@/features/tasks/task-list-view";
 import type { TaskSort, TaskTab } from "@/features/tasks/task-list-params";
-import { formatTimeInZone } from "@/lib/date";
+import { formatDateInZone, formatTimeInZone } from "@/lib/date";
 import { TaskGroup } from "@/components/tasks/task-group";
 import { TaskRow } from "@/components/tasks/task-row";
 
@@ -73,6 +73,12 @@ export function TaskList({
               priority={item.priority}
               status={item.status}
               overdue={item.timing === "overdue"}
+              recurring={item.isRecurring}
+              dateLabel={formatDateInZone(
+                item.scheduledStart,
+                timezone,
+                "LLL d",
+              )}
               meta={buildMeta(item, { ...metaContext, timeInColumn: false })}
               columnMeta={
                 group.timeColumn
