@@ -8,6 +8,7 @@ import {
   InvalidOccurrenceTransitionError,
   OccurrenceNotFoundError,
   OccurrenceNotMovableError,
+  OccurrenceNotRemovableError,
 } from "@/features/scheduling/occurrence.errors";
 import {
   notificationService,
@@ -51,7 +52,8 @@ function runOccurrenceAction(
     } catch (error) {
       if (
         error instanceof OccurrenceNotFoundError ||
-        error instanceof InvalidOccurrenceTransitionError
+        error instanceof InvalidOccurrenceTransitionError ||
+        error instanceof OccurrenceNotRemovableError
       ) {
         return { status: "error", message: error.message };
       }
@@ -73,6 +75,11 @@ export const partialOccurrenceAction = runOccurrenceAction((userId, id) =>
 
 export const skipOccurrenceAction = runOccurrenceAction((userId, id) =>
   occurrenceService.skipOccurrence(userId, id),
+);
+
+// sprint-14-tasks.md S14-10 — "Remove this one" on a repeating task.
+export const removeOccurrenceAction = runOccurrenceAction((userId, id) =>
+  occurrenceService.removeOccurrence(userId, id),
 );
 
 export async function snoozeOccurrenceAction(

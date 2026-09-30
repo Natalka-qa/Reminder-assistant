@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { schedulePreferencesSchema } from "./user";
+import { schedulePreferencesSchema, reminderPreferencesSchema } from "./user";
 
 const defaults = {
   dayStartMinutes: 480,
@@ -76,5 +76,33 @@ describe("the workout limit", () => {
         workoutLatestStartMinutes: null,
       }).workoutLatestStartMinutes,
     ).toBeNull();
+  });
+});
+
+describe("reminderPreferencesSchema (S14-06)", () => {
+  it("takes the form's values as strings", () => {
+    expect(
+      reminderPreferencesSchema.parse({
+        defaultReminderMinutes: "30",
+        emailRemindersEnabled: "false",
+      }),
+    ).toEqual({ defaultReminderMinutes: 30, emailRemindersEnabled: false });
+    expect(
+      reminderPreferencesSchema.parse({
+        defaultReminderMinutes: 1440,
+        emailRemindersEnabled: "true",
+      }),
+    ).toEqual({ defaultReminderMinutes: 1440, emailRemindersEnabled: true });
+  });
+
+  it("refuses a reminder the forms don't offer", () => {
+    const result = reminderPreferencesSchema.safeParse({
+      defaultReminderMinutes: "45",
+      emailRemindersEnabled: "true",
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toBe(
+      "Pick one of the reminder times offered.",
+    );
   });
 });

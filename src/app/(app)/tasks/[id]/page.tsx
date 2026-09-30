@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { verifySession, getCurrentUser } from "@/lib/auth/dal";
 import { taskService } from "@/features/tasks/task.service";
 import {
+  canRemoveOccurrence,
   isActionableOccurrenceStatus,
   OCCURRENCE_STATUS_LABELS,
 } from "@/features/scheduling/occurrence-status";
@@ -19,6 +20,7 @@ import { PriorityChip, PRIORITY_LABELS } from "@/components/ui/priority-chip";
 import { GroupedRows, GroupedRow } from "@/components/ui/grouped-rows";
 import { SectionLabel } from "@/components/ui/section-label";
 import { TaskDetailActions } from "@/components/tasks/task-detail-actions";
+import { RemoveOccurrenceButton } from "@/components/tasks/remove-occurrence-button";
 import { TaskActions } from "./task-actions";
 import { CalendarCheckToast } from "./calendar-check-toast";
 
@@ -133,6 +135,23 @@ export default async function TaskDetailPage({
           nextReminderLabel={nextReminderLabels.get(heroOccurrence.id)}
         />
       )}
+      {/* S14-10 — this day only; the series stays. */}
+      {heroOccurrence && canRemoveOccurrence(heroOccurrence.status, !!rule) && (
+        <div className="-mt-3 flex justify-center">
+          <RemoveOccurrenceButton
+            // A new occurrence in this place is a new button, not the old
+            // one's state carried over.
+            key={heroOccurrence.id}
+            occurrenceId={heroOccurrence.id}
+            dateLabel={formatDateInZone(
+              heroOccurrence.scheduledStart,
+              user.timezone,
+              "LLL d",
+            )}
+            variant="button"
+          />
+        </div>
+      )}
 
       <GroupedRows>
         {heroOccurrence && (
@@ -172,8 +191,23 @@ export default async function TaskDetailPage({
                   )}{" "}
                   · {formatTimeInZone(occurrence.scheduledStart, user.timezone)}
                 </span>
-                <span className="text-text-secondary text-meta">
-                  {OCCURRENCE_STATUS_LABELS[occurrence.status]}
+                <span className="flex items-center gap-4">
+                  <span className="text-text-secondary text-meta">
+                    {OCCURRENCE_STATUS_LABELS[occurrence.status]}
+                  </span>
+                  {canRemoveOccurrence(occurrence.status, !!rule) && (
+                    <RemoveOccurrenceButton
+                      occurrenceId={occurrence.id}
+                      dateLabel={formatDateInZone(
+                        occurrence.scheduledStart,
+                        user.timezone,
+                        "LLL d",
+                      )}
+                      variant="text"
+                      label="Remove"
+                      textClassName="text-text-tertiary hover:text-burgundy text-meta relative min-h-11 transition-colors after:absolute after:-inset-x-2 after:-inset-y-1"
+                    />
+                  )}
                 </span>
               </div>
             ))}

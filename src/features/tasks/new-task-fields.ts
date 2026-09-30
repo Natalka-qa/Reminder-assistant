@@ -53,7 +53,12 @@ export type TaskFieldOverrides = {
   reminderOffsetMinutes?: number;
 };
 
-export type NewTaskDefaults = { date: string; time: string };
+export type NewTaskDefaults = {
+  date: string;
+  time: string;
+  /** Settings → Default reminder (S14-06); DEFAULT_REMINDER_MINUTES if unset. */
+  reminderOffsetMinutes?: number;
+};
 
 // § 6 — every offset the backend accepts is a whole number of minutes up
 // to a day; "No reminder" isn't among them (decision B: every occurrence
@@ -67,8 +72,8 @@ export const REMINDER_CHOICES: { value: number; label: string }[] = [
   { value: 60, label: "1 hour before" },
   { value: 1440, label: "1 day before" },
 ];
-// § 6 — "Default = Settings → Default reminder (15 min)". That setting is
-// still a placeholder on /settings, so its shown value is the default.
+// § 6 — "Default = Settings → Default reminder (15 min)". The setting is
+// real since sprint-14-tasks.md S14-06; this is its column default.
 export const DEFAULT_REMINDER_MINUTES = 15;
 
 const DURATION_CHOICES = [0, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180];
@@ -219,7 +224,9 @@ export function resolveTaskFields(
     repeat: overrides.repeat ?? parsed.repeat ?? "NONE",
     repeatDays: overrides.repeatDays ?? parsed.repeatDays ?? [isoWeekday(date)],
     reminderOffsetMinutes:
-      overrides.reminderOffsetMinutes ?? DEFAULT_REMINDER_MINUTES,
+      overrides.reminderOffsetMinutes ??
+      defaults.reminderOffsetMinutes ??
+      DEFAULT_REMINDER_MINUTES,
   };
 }
 

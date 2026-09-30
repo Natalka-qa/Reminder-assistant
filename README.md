@@ -97,7 +97,7 @@ Skip this entirely if you don't want the Telegram notification channel — the t
 
 Skip this if you don't need it — without `GOOGLE_CALENDAR_ENABLED=true` there's no "Google Calendar" section on `/settings`, no request ever goes to Google, and conflict checks and free-time suggestions only look at your own tasks.
 
-With it, a connected user's **primary** calendar is checked for busy times whenever they create or edit a task, and an overlap shows up the same way an overlapping task does — in the New task form's overlap notice and the edit form's conflict dialog; either way the task can still be saved. Free-time suggestions skip those busy times too (see "Finding free time"). Only free/busy is read — scope `calendar.freebusy`, never event titles or details — and the busy times aren't stored. The connection is a second Auth.js provider, `google-calendar`, on the same OAuth client as "Sign in with Google"; its tokens live in the `Account` row with `provider = "google-calendar"`. Connecting writes real OAuth tokens, so test it locally against a Neon dev branch, not production.
+With it, a connected user's **primary** calendar is checked for busy times whenever they create or edit a task, and an overlap shows up the same way an overlapping task does — in the overlap notice of the New task and Edit task forms; either way the task can still be saved. Free-time suggestions skip those busy times too (see "Finding free time"). Only free/busy is read — scope `calendar.freebusy`, never event titles or details — and the busy times aren't stored. The connection is a second Auth.js provider, `google-calendar`, on the same OAuth client as "Sign in with Google"; its tokens live in the `Account` row with `provider = "google-calendar"`. Connecting writes real OAuth tokens, so test it locally against a Neon dev branch, not production.
 
 In the Google Cloud project that owns `GOOGLE_CLIENT_ID`:
 
@@ -114,7 +114,7 @@ In the Google Cloud project that owns `GOOGLE_CLIENT_ID`:
 The app suggests free times in three places. It only fills in a date and time — nothing is saved until you press "Create task" or save the edit.
 
 - **New task, from a phrase.** "Find me an hour tomorrow evening for a workout", "Найди завтра вечером час для тренировки", "Знайди завтра ввечері годину для тренування". The first free slot becomes the task's date and time (the task stays Flexible — the app picked the time, you didn't), and up to two more are offered under When. Nothing free: "No free hour tomorrow evening." and the rest of the form is filled as usual.
-- **New task, from an overlap.** When the chosen time overlaps a task or a Google Calendar busy time, the notice adds "Free nearby: 17:30 · 20:45" — up to two slots closest to it, one on each side where there's room.
+- **New task or Edit task, from an overlap.** When the chosen time overlaps a task or a Google Calendar busy time, the notice adds "Free nearby: 17:30 · 20:45" — up to two slots closest to it, one on each side where there's room.
 - **Home, "A small suggestion".** When a flexible task sits at the same time as another one, the card suggests moving it to the first free time today after the other ends. No free time left today — no card.
 
 **Your hours** are on `/settings`, each user's own:
@@ -154,6 +154,36 @@ A title with both reads as a workout ("Pay for the gym"); the switch is there to
 - The rest is the title, in the case it was written in: «для тренировки» → «Тренировки». The parser is rules, not a model — it doesn't change word forms.
 
 Suggested times start on :00, :15, :30 or :45 of your local time, never in the past, and the ones offered never overlap each other.
+
+## Editing a task
+
+`/tasks/[id]/edit` is built from the same parts as New task (`components/tasks/task-fields/`), with what editing needs instead of the sentence:
+
+- **The title is a plain field.** It isn't read as a sentence — a saved "Call mom tomorrow" doesn't move the task when you touch it. Date, time and the rest are set with the same controls as in New task.
+- **Saving untouched changes nothing.** Every field starts at the task's own value. A **Critical** task keeps Critical among its choices (New task offers Low / Normal / High only), and a reminder outside the list — say 45 min, from the old form's "Custom…" — stays as its own choice.
+- **Overlaps are a notice, never a dialog**, and the task never overlaps itself. A one-off task gets "Free nearby", like New task.
+- **A repeating task** keeps its start date and can't stop repeating (deactivate it instead). Changing its time or days replaces the occurrences still ahead; the notice checks every new day in the next 30 days — "Overlaps on 2 days: Oct 3 with Dentist at 07:30, …" — with one Google request, and offers no "Free nearby" (a time free on every day isn't looked for).
+- Clearing the note clears it.
+
+**One day of a repeating task** — "Remove this one" on the task's page (and "Remove" next to each of its next days), or in a Tasks row's `···` actions:
+
+|                 | What happens                                                                                                                                         |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Skip            | The day stays, marked Skipped. It counts as not done in "How it's going".                                                                            |
+| Remove this one | The day goes — from Home, Tasks and Calendar — with its reminder. It isn't counted anywhere. Changing the series' time or days later brings it back. |
+| Deactivate      | Every day ahead goes; the task stays for its history.                                                                                                |
+| Delete          | The task and all its history go.                                                                                                                     |
+
+## Reminders
+
+Two settings on `/settings`, each user's own:
+
+| Setting          | Default       | What it does                                                                                                                                   |
+| ---------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Default reminder | 15 min before | Where a new task's reminder starts: at start time, 5 / 10 / 15 / 30 min, 1 hour or 1 day before. Each task can still have its own.             |
+| Email reminders  | On            | Off: no reminder emails. Telegram (if connected) and the in-app reminder on Home still come; with no Telegram, reminders only show in the app. |
+
+A reminder whose email fails is retried; Telegram is sent once, not again on every retry.
 
 ## Your patterns
 

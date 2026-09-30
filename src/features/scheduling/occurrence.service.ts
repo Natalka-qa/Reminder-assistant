@@ -8,12 +8,17 @@ import {
   zonedDateTimeToUtc,
 } from "@/lib/date";
 import { occurrenceRepository } from "@/features/scheduling/occurrence.repository";
-import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-status";
+import {
+  canRemoveOccurrence,
+  isActionableOccurrenceStatus,
+} from "@/features/scheduling/occurrence-status";
+import { runInTransaction } from "@/lib/db/transaction";
 import { notificationService } from "@/features/notifications/notification.service";
 import {
   InvalidOccurrenceTransitionError,
   OccurrenceNotFoundError,
   OccurrenceNotMovableError,
+  OccurrenceNotRemovableError,
 } from "@/features/scheduling/occurrence.errors";
 import { planMoveToToday } from "@/features/scheduling/move-to-today";
 import { conflictService } from "@/features/scheduling/conflict.service";
@@ -414,6 +419,40 @@ export const occurrenceService = {
     return transitionOccurrence(userId, occurrenceId, {
       status: "PARTIALLY_DONE",
       completedAt: new Date(),
+    });
+  },
+
+  // sprint-14-tasks.md S14-10 — one occurrence of a repeating task goes,
+  // the rest of the series stays. CANCELLED, not deleted: the row keeps the
+  // day taken, so extending the window never recreates it, and lists,
+  // Calendar and the stats already leave CANCELLED out. Its reminder goes
+  // in the same transaction. A later change of the series' time or repeat
+  // builds the days ahead anew and brings it back ("Расхождения" п.15 (а)).
+  async removeOccurrence(userId: string, occurrenceId: string) {
+    const occurrence = await occurrenceRepository.findById(
+      occurrenceId,
+      userId,
+    );
+    if (!occurrence) {
+      throw new OccurrenceNotFoundError(occurrenceId);
+    }
+    if (
+      !canRemoveOccurrence(
+        occurrence.status,
+        occurrence.task.recurrenceRule !== null,
+      )
+    ) {
+      throw new OccurrenceNotRemovableError(occurrenceId);
+    }
+    return runInTransaction(async (tx) => {
+      const updated = await occurrenceRepository.update(
+        occurrenceId,
+        userId,
+        { status: "CANCELLED" },
+        tx,
+      );
+      await notificationService.cancelForOccurrence(occurrenceId, tx);
+      return updated;
     });
   },
 

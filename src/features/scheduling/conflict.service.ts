@@ -4,7 +4,10 @@ import type {
   Priority,
   Flexibility,
 } from "@prisma/client";
-import { occurrenceRepository } from "@/features/scheduling/occurrence.repository";
+import {
+  occurrenceRepository,
+  type OverlapExclusion,
+} from "@/features/scheduling/occurrence.repository";
 import {
   busyQueryWindow,
   findBusyOverlaps,
@@ -52,14 +55,14 @@ export const conflictService = {
     userId: string,
     start: Date,
     end: Date,
-    excludeOccurrenceId?: string,
+    exclude?: OverlapExclusion,
     db?: Db,
   ): Promise<ScheduleConflict[]> {
     const overlapping = await occurrenceRepository.findOverlapping(
       userId,
       start,
       end,
-      excludeOccurrenceId,
+      exclude,
       db,
     );
 

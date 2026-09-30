@@ -5,7 +5,10 @@ import { isTelegramEnabled } from "@/lib/telegram/telegram.config";
 import { googleCalendarService } from "@/features/google-calendar/google-calendar.service";
 import { isGoogleCalendarEnabled } from "@/lib/google-calendar/google-calendar.config";
 import { SectionLabel } from "@/components/ui/section-label";
-import { DEFAULT_SCHEDULE_PREFERENCES } from "@/lib/validation/user";
+import {
+  DEFAULT_REMINDER_PREFERENCES,
+  DEFAULT_SCHEDULE_PREFERENCES,
+} from "@/lib/validation/user";
 import { SettingsForm } from "./settings-form";
 import { TelegramConnect } from "./telegram-connect";
 import { GoogleCalendarConnect } from "./google-calendar-connect";
@@ -57,6 +60,15 @@ export default async function SettingsPage() {
       <SettingsForm
         currentTimezone={user?.timezone ?? "UTC"}
         preferences={preferences}
+        reminderPreferences={
+          profile
+            ? {
+                defaultReminderMinutes: profile.defaultReminderMinutes,
+                emailRemindersEnabled: profile.emailRemindersEnabled,
+              }
+            : DEFAULT_REMINDER_PREFERENCES
+        }
+        telegramLinked={isTelegramEnabled() && Boolean(profile?.telegramChatId)}
       />
 
       {isTelegramEnabled() && (

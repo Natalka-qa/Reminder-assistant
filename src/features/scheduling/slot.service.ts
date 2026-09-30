@@ -7,7 +7,10 @@ import {
 import { shiftDate } from "@/lib/date/calendar-date";
 import { isGoogleCalendarEnabled } from "@/lib/google-calendar/google-calendar.config";
 import { googleCalendarService } from "@/features/google-calendar/google-calendar.service";
-import { occurrenceRepository } from "@/features/scheduling/occurrence.repository";
+import {
+  occurrenceRepository,
+  type OverlapExclusion,
+} from "@/features/scheduling/occurrence.repository";
 import { conflictService } from "@/features/scheduling/conflict.service";
 import type { Interval } from "@/features/scheduling/external-busy";
 import {
@@ -70,13 +73,13 @@ async function searchSetup(
 async function busyTasks(
   userId: string,
   span: Interval,
-  excludeOccurrenceId?: string,
+  exclude?: OverlapExclusion,
 ): Promise<Interval[]> {
   const occurrences = await occurrenceRepository.findOverlapping(
     userId,
     span.start,
     span.end,
-    excludeOccurrenceId,
+    exclude,
   );
   return occurrences.map((occurrence) => ({
     start: occurrence.scheduledStart,
@@ -168,14 +171,22 @@ export const slotService = {
       date,
       time,
       durationMinutes,
+      excludeTaskId,
       ...searchFor
-    }: { date: string; time: string; durationMinutes: number } & SearchFor,
+    }: {
+      date: string;
+      time: string;
+      durationMinutes: number;
+      /** S14-02 — the task being edited: neither an overlap nor busy. */
+      excludeTaskId?: string;
+    } & SearchFor,
     now = new Date(),
   ): Promise<OverlapPreview> {
+    const exclude = excludeTaskId ? { taskId: excludeTaskId } : undefined;
     const start = zonedDateTimeToUtc(date, time, timezone);
     const end = addMinutes(start, durationMinutes);
     const [conflicts, external] = await Promise.all([
-      conflictService.findConflicts(userId, start, end),
+      conflictService.findConflicts(userId, start, end, exclude),
       conflictService.findExternalBusy(userId, () => [{ start, end }]),
     ]);
     const busyCount =
@@ -204,7 +215,7 @@ export const slotService = {
       return preview;
     }
     const busy = [
-      ...(await busyTasks(userId, windowsSpan(windows, timezone))),
+      ...(await busyTasks(userId, windowsSpan(windows, timezone), exclude)),
       ...workBusy,
     ];
     if (external.status === "checked") {

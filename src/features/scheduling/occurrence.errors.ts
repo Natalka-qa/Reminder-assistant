@@ -18,3 +18,12 @@ export class OccurrenceNotMovableError extends Error {
     this.name = "OccurrenceNotMovableError";
   }
 }
+
+export class OccurrenceNotRemovableError extends Error {
+  constructor(occurrenceId: string) {
+    super(
+      `Occurrence "${occurrenceId}" can't be removed — only an open one of a repeating task can`,
+    );
+    this.name = "OccurrenceNotRemovableError";
+  }
+}

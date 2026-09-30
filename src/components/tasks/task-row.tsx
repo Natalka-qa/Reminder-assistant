@@ -22,6 +22,7 @@ import {
 } from "@/features/scheduling/actions";
 import type { SnoozeOption } from "@/features/notifications/notification.service";
 import { cn } from "@/lib/utils";
+import { RemoveOccurrenceButton } from "@/components/tasks/remove-occurrence-button";
 
 const SNOOZE_OPTIONS: { value: SnoozeOption; label: string }[] = [
   { value: "15m", label: "+15 minutes" },
@@ -95,6 +96,8 @@ export function TaskRow({
   time,
   conflict,
   canMoveToToday,
+  recurring,
+  dateLabel,
 }: {
   occurrenceId: string;
   taskId: string;
@@ -107,6 +110,10 @@ export function TaskRow({
   time?: TaskRowTime;
   conflict?: { taskId: string; title: string };
   canMoveToToday: boolean;
+  /** S14-10 — a repeating task's row offers "Remove this one". */
+  recurring: boolean;
+  /** "Oct 7" — this occurrence's day, for the confirmation. */
+  dateLabel: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [shownStatus, setShownStatus] = useOptimistic(status);
@@ -307,6 +314,15 @@ export function TaskRow({
           >
             Skip
           </button>
+          {recurring && actionable && (
+            <RemoveOccurrenceButton
+              occurrenceId={occurrenceId}
+              dateLabel={dateLabel}
+              variant="text"
+              textClassName={actionClass}
+              onRemoved={() => setActionsOpen(false)}
+            />
+          )}
           <Link href={`/tasks/${taskId}/edit`} className={actionClass}>
             Edit
           </Link>

@@ -5,13 +5,10 @@ import {
   useEffect,
   useId,
   useMemo,
-  useRef,
   useState,
   type KeyboardEvent,
-  type ReactNode,
 } from "react";
-import Link from "next/link";
-import { Check, ChevronDown, Mic, Plus } from "lucide-react";
+import { Mic } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useZonedClock } from "@/lib/date/zoned-clock";
@@ -29,8 +26,6 @@ import {
 } from "@/features/scheduling/actions";
 import {
   REMINDER_CHOICES,
-  durationChoices,
-  formatDurationChoice,
   formatNearbySlot,
   formatWhenDate,
   newTaskDefaults,
@@ -42,48 +37,30 @@ import {
   resolveTaskFields,
   searchDates,
   SEARCH_DEFAULT_DURATION_MINUTES,
-  type Flexibility,
   type FoundSlot,
-  type Importance,
   type TaskFieldOverrides,
 } from "@/features/tasks/new-task-fields";
+import { RoseNotice } from "@/components/tasks/task-fields/shared";
+import {
+  OverlapNotice,
+  WhenGroup,
+  WorkHoursSwitch,
+} from "@/components/tasks/task-fields/when-group";
+import { SchedulingChoice } from "@/components/tasks/task-fields/scheduling-choice";
+import {
+  IMPORTANCE_CHOICES,
+  TaskDetailsFields,
+} from "@/components/tasks/task-fields/details-fields";
+import { NoteField } from "@/components/tasks/task-fields/note-field";
+import {
+  FormActions,
+  FormHeader,
+} from "@/components/tasks/task-fields/form-chrome";
 
 const EXAMPLES = [
   "Call the dentist tomorrow at 9 for 30 minutes",
   "Pay rent on October 1",
   "Take vitamins every morning",
-];
-
-const FLEXIBILITY_CHOICES: {
-  value: Flexibility;
-  label: string;
-  hint: string;
-}[] = [
-  { value: "FIXED", label: "Fixed", hint: "At a specific time" },
-  { value: "FLEXIBLE", label: "Flexible", hint: "Can be moved if needed" },
-];
-
-const IMPORTANCE_CHOICES: { value: Importance; label: string }[] = [
-  { value: "LOW", label: "Low" },
-  { value: "NORMAL", label: "Normal" },
-  { value: "HIGH", label: "High" },
-];
-
-const REPEAT_CHOICES = [
-  { value: "NONE", label: "Does not repeat" },
-  { value: "DAILY", label: "Every day" },
-  { value: "WEEKLY", label: "Every week" },
-  { value: "MONTHLY", label: "Every month" },
-] as const;
-
-const WEEKDAYS = [
-  { value: 1, label: "Mo", name: "Monday" },
-  { value: 2, label: "Tu", name: "Tuesday" },
-  { value: 3, label: "We", name: "Wednesday" },
-  { value: 4, label: "Th", name: "Thursday" },
-  { value: 5, label: "Fr", name: "Friday" },
-  { value: 6, label: "Sa", name: "Saturday" },
-  { value: 7, label: "Su", name: "Sunday" },
 ];
 
 // § 4 — the overlap check waits for the When row to settle.
@@ -93,9 +70,6 @@ const SEARCH_DEBOUNCE_MS = 400;
 
 const initialState: TaskActionState = { status: "idle" };
 
-const EYEBROW =
-  "text-newtask-quiet-text text-eyebrow tracking-eyebrow font-semibold uppercase";
-
 // NEW_TASK_V2_UPDATE.md — one form: say the task in a sentence, check what
 // was understood, adjust any field by hand, create. lib/parse-task reads
 // the sentence (English, Russian or Ukrainian) on every change — it's
@@ -103,31 +77,37 @@ const EYEBROW =
 // new-task-fields.ts: a hand edit wins over the text, the text over the
 // default (§ 8). The existing
 // createTaskAction saves it, with confirmConflicts set: this form states
-// overlaps as a notice (§ 4) and never blocks — the old conflict dialog
-// stays on the edit form only (decision D, review of 2026-09-25).
+// overlaps as a notice (§ 4) and never blocks (decision D, review of
+// 2026-09-25). Edit task works the same way since Sprint 14 (S14-04), and
+// both are built from components/tasks/task-fields.
 export function NewTaskForm({
   timezone,
   today,
   nowMinutes,
   hasWorkHours,
+  defaultReminderMinutes,
 }: {
   timezone: string;
   today: string;
   nowMinutes: number;
   /** The user has work hours in /settings — the switch below is for them. */
   hasWorkHours: boolean;
+  /** Settings → Default reminder (S14-06). */
+  defaultReminderMinutes: number;
 }) {
   const [state, formAction, pending] = useActionState(
     createTaskAction,
     initialState,
   );
   const clock = useZonedClock(timezone, { date: today, minutes: nowMinutes });
-  const defaults = newTaskDefaults(today, nowMinutes);
+  const defaults = {
+    ...newTaskDefaults(today, nowMinutes),
+    reminderOffsetMinutes: defaultReminderMinutes,
+  };
   const [text, setText] = useState("");
   const [overrides, setOverrides] = useState<TaskFieldOverrides>({});
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote] = useState("");
-  const noteRef = useRef<HTMLTextAreaElement>(null);
   const ids = {
     input: useId(),
     status: useId(),
@@ -254,12 +234,6 @@ export function NewTaskForm({
     }
   }, [state]);
 
-  useEffect(() => {
-    if (noteOpen) {
-      noteRef.current?.focus();
-    }
-  }, [noteOpen]);
-
   // § 4 — overlaps with existing tasks (and Google Calendar busy times) on
   // the chosen date, for the chosen time and duration. Only once there's
   // something to check: a typed task or a time the user set, not the
@@ -341,16 +315,6 @@ export function NewTaskForm({
     }
   }
 
-  function toggleWeekday(day: number) {
-    const days = fields.repeatDays.includes(day)
-      ? fields.repeatDays.filter((d) => d !== day)
-      : [...fields.repeatDays, day].sort((a, b) => a - b);
-    // § 6 — at least one day stays on.
-    if (days.length > 0) {
-      setField("repeatDays", days);
-    }
-  }
-
   const hint = repeatHint(fields.repeat, fields.date, today, fields.time);
 
   return (
@@ -386,15 +350,7 @@ export function NewTaskForm({
       <input type="hidden" name="description" value={noteOpen ? note : ""} />
       <input type="hidden" name="confirmConflicts" value="true" />
 
-      <div className="flex items-center justify-between gap-3">
-        <p className={EYEBROW}>New task</p>
-        <Link
-          href="/dashboard"
-          className="text-newtask-quiet-text hover:text-text-primary flex min-h-11 items-center px-1 text-[14px] transition-colors"
-        >
-          Cancel
-        </Link>
-      </div>
+      <FormHeader label="New task" cancelHref="/dashboard" />
 
       <div className="flex flex-col gap-3.5">
         <label
@@ -484,85 +440,25 @@ export function NewTaskForm({
         </div>
       </div>
 
-      <div
-        role="group"
-        aria-labelledby={ids.when}
-        className="flex flex-col gap-1.5"
+      <WhenGroup
+        labelId={ids.when}
+        today={today}
+        date={fields.date}
+        time={fields.time}
+        durationMinutes={fields.durationMinutes}
+        onDateChange={(value) => setField("date", value)}
+        onTimeChange={(value) => setField("time", value)}
+        onDurationChange={(value) => setField("durationMinutes", value)}
       >
-        <p id={ids.when} className={EYEBROW}>
-          When
-        </p>
-        <div className="-ml-3 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-          <PickerField
-            type="date"
-            value={fields.date}
-            ariaLabel={`Date: ${formatWhenDate(fields.date, today)}. Change date`}
-            onChange={(value) => setField("date", value)}
-          >
-            {formatWhenDate(fields.date, today)}
-          </PickerField>
-          {/* Always a time: a task can't be "any time" yet (decision A),
-              so there's no remove-time button. */}
-          <PickerField
-            type="time"
-            value={fields.time}
-            ariaLabel={`Time: ${fields.time}. Change time`}
-            onChange={(value) => setField("time", value)}
-            className="tabular-nums"
-          >
-            {fields.time}
-          </PickerField>
-          <div className="relative">
-            <select
-              aria-label="Duration"
-              value={fields.durationMinutes}
-              onChange={(event) =>
-                setField("durationMinutes", Number(event.target.value))
-              }
-              className={cn(
-                "hover:bg-newtask-control-hover field-sizing-content min-h-11 cursor-pointer appearance-none rounded-[10px] bg-transparent py-2.5 pr-[30px] pl-3 text-[19px] transition-colors",
-                fields.durationMinutes > 0
-                  ? "text-text-primary"
-                  : "text-newtask-quiet-text",
-              )}
-            >
-              {durationChoices(fields.durationMinutes).map((minutes) => (
-                <option key={minutes} value={minutes}>
-                  {formatDurationChoice(minutes)}
-                </option>
-              ))}
-            </select>
-            <Chevron />
-          </div>
-        </div>
-        {past && (
-          <p className="text-rose-tint-text text-[13px]/[1.5] text-pretty">
-            {past}
-          </p>
-        )}
-        {overlapText && (
-          <p className="text-rose-tint-text text-[13px]/[1.5] text-pretty">
-            {overlapText}
-            {overlap && overlap.freeNearby.length > 0 && (
-              <>
-                {" "}
-                Free nearby:{" "}
-                {overlap.freeNearby.map((slot, index) => (
-                  <span key={`${slot.date} ${slot.time}`}>
-                    {index > 0 && " · "}
-                    <button
-                      type="button"
-                      onClick={() => chooseSlot(slot)}
-                      aria-label={`Move to ${formatWhenDate(slot.date, today)}, ${slot.time}`}
-                      className="text-burgundy decoration-newtask-example-underline hover:decoration-burgundy font-semibold underline underline-offset-[3px]"
-                    >
-                      {formatNearbySlot(slot, fields.date)}
-                    </button>
-                  </span>
-                ))}
-              </>
-            )}
-          </p>
+        {past && <RoseNotice>{past}</RoseNotice>}
+        {overlap && overlapText && (
+          <OverlapNotice
+            text={overlapText}
+            freeNearby={overlap.freeNearby}
+            currentDate={fields.date}
+            today={today}
+            onChoose={chooseSlot}
+          />
         )}
         {timeSearch && (
           <p className="text-newtask-quiet-text text-[13px]/[1.5] text-pretty">
@@ -628,7 +524,7 @@ export function NewTaskForm({
               onChange={setWorkOverride}
             />
           )}
-      </div>
+      </WhenGroup>
 
       <SchedulingChoice
         labelId={ids.scheduling}
@@ -636,376 +532,37 @@ export function NewTaskForm({
         onChange={(value) => setField("flexibility", value)}
       />
 
-      <div className="flex flex-col">
-        <SelectRow
-          id={ids.reminder}
-          label="Reminder"
-          value={fields.reminderOffsetMinutes}
-          onChange={(value) => setField("reminderOffsetMinutes", Number(value))}
-          options={REMINDER_CHOICES}
-        />
-        <div
-          role="group"
-          aria-labelledby={ids.importance}
-          className="border-newtask-hairline flex items-center justify-between gap-3 border-t py-2"
-        >
-          <p id={ids.importance} className="text-text-primary text-[15px]">
-            Importance
-          </p>
-          <div className="border-border flex gap-0.5 rounded-full border p-[3px]">
-            {IMPORTANCE_CHOICES.map((choice) => {
-              const on = fields.priority === choice.value;
-              return (
-                <button
-                  key={choice.value}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => setField("priority", choice.value)}
-                  className={cn(
-                    "relative min-h-9 rounded-full px-3.5 text-[13px] transition-colors after:absolute after:inset-x-0 after:-inset-y-1",
-                    on
-                      ? "bg-burgundy-tint text-burgundy font-semibold"
-                      : "text-newtask-quiet-text hover:text-text-primary font-medium",
-                  )}
-                >
-                  {choice.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        <div className="border-newtask-hairline flex flex-col border-y">
-          <SelectRow
-            id={ids.repeat}
-            label="Repeat"
-            value={fields.repeat}
-            onChange={(value) =>
-              setField("repeat", value as TaskFieldOverrides["repeat"])
-            }
-            options={REPEAT_CHOICES}
-            bordered={false}
-          />
-          {fields.repeat === "WEEKLY" && (
-            <div
-              role="group"
-              aria-label="Repeat on"
-              className="flex flex-wrap gap-1.5 pt-0.5 pb-3.5"
-            >
-              {WEEKDAYS.map((weekday) => {
-                const on = fields.repeatDays.includes(weekday.value);
-                return (
-                  <button
-                    key={weekday.value}
-                    type="button"
-                    aria-pressed={on}
-                    aria-label={weekday.name}
-                    onClick={() => toggleWeekday(weekday.value)}
-                    className={cn(
-                      "relative size-10 rounded-full border text-[12px] transition-colors after:absolute after:-inset-[2px]",
-                      on
-                        ? "bg-burgundy border-burgundy font-semibold text-white"
-                        : "bg-surface border-border text-text-tertiary font-medium",
-                    )}
-                  >
-                    {weekday.label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          {hint && (
-            <p className="text-newtask-quiet-text pb-3.5 text-[13px]">{hint}</p>
-          )}
-        </div>
-      </div>
-
-      {noteOpen ? (
-        <div className="-mt-1.5 flex flex-col gap-2">
-          <label htmlFor={ids.note} className={EYEBROW}>
-            Note
-          </label>
-          <textarea
-            ref={noteRef}
-            id={ids.note}
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-            rows={3}
-            maxLength={2000}
-            placeholder="Anything you’ll want to know then"
-            className="border-border bg-surface text-text-primary placeholder:text-placeholder-text focus:border-burgundy w-full resize-y rounded-[14px] border px-4 py-3.5 text-[15px]/[1.55] outline-none"
-          />
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setNoteOpen(true)}
-          className="text-burgundy hover:text-burgundy-hover -mt-3.5 flex min-h-11 items-center gap-2 self-start py-2.5 text-[14px] font-semibold transition-colors"
-        >
-          <Plus aria-hidden className="size-3.5" strokeWidth={1.8} />
-          Add a note
-        </button>
-      )}
-
-      <div className="flex flex-wrap items-center gap-[18px]">
-        <button
-          type="submit"
-          disabled={!canCreate || pending}
-          aria-disabled={!canCreate || pending}
-          className={cn(
-            "h-[50px] rounded-full px-[30px] text-[15px] font-semibold text-white transition-colors",
-            canCreate
-              ? "bg-burgundy hover:bg-burgundy-hover"
-              : "bg-newtask-muted-burgundy cursor-not-allowed",
-          )}
-        >
-          {pending ? "Creating…" : "Create task"}
-        </button>
-        <Link
-          href="/dashboard"
-          className="text-newtask-quiet-text hover:text-text-primary flex min-h-11 items-center px-1 text-[15px] transition-colors"
-        >
-          Cancel
-        </Link>
-        {!canCreate && (
-          <p className="text-newtask-quiet-text text-[13px]">
-            Describe the task first.
-          </p>
-        )}
-      </div>
-    </form>
-  );
-}
-
-// S12-05 — whether free time may be looked for in the user's work hours.
-function WorkHoursSwitch({
-  checked,
-  onChange,
-}: {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className="text-text-primary flex min-h-11 items-center gap-3 self-start text-[14px]"
-    >
-      <span
-        aria-hidden
-        className={cn(
-          "relative h-6 w-10 shrink-0 rounded-full border transition-colors",
-          checked
-            ? "bg-burgundy border-burgundy"
-            : "bg-surface border-border-medium",
-        )}
-      >
-        <span
-          className={cn(
-            "absolute top-[2px] left-0 size-[18px] rounded-full transition-transform",
-            checked
-              ? "translate-x-[18px] bg-white"
-              : "bg-border-medium translate-x-[2px]",
-          )}
-        />
-      </span>
-      Can do during work hours
-    </button>
-  );
-}
-
-function Chevron() {
-  return (
-    <ChevronDown
-      aria-hidden
-      className="text-newtask-chevron pointer-events-none absolute top-1/2 right-2.5 size-3 -translate-y-1/2"
-      strokeWidth={1.6}
-    />
-  );
-}
-
-// § 4 — a date or time shown as text, with the real <input> laid over it,
-// transparent: a tap or click lands on the input itself, so the browser's
-// own picker opens — the native one on a phone. (A hidden input opened
-// through showPicker() from a separate button doesn't open at all in
-// mobile Safari.) With a mouse, clicking a date field's text doesn't open
-// its picker by itself, so showPicker() does that too; where it isn't
-// supported or the picker is already open, the field still takes typing.
-// Hover and focus show on the text underneath.
-function PickerField({
-  type,
-  value,
-  ariaLabel,
-  onChange,
-  className,
-  children,
-}: {
-  type: "date" | "time";
-  value: string;
-  ariaLabel: string;
-  onChange: (value: string) => void;
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="group relative">
-      <span
-        aria-hidden
-        className={cn(
-          "text-text-primary group-hover:bg-newtask-control-hover group-has-[input:focus-visible]:ring-ring block min-h-11 rounded-[10px] px-3 py-2.5 text-[19px] whitespace-nowrap transition-colors group-has-[input:focus-visible]:ring-2",
-          className,
-        )}
-      >
-        {children}
-      </span>
-      <input
-        type={type}
-        value={value}
-        aria-label={ariaLabel}
-        // A cleared picker leaves the field as it was: the task needs both.
-        onChange={(event) => {
-          if (event.target.value) onChange(event.target.value);
-        }}
-        onClick={(event) => {
-          if (!window.matchMedia("(pointer: fine)").matches) return;
-          try {
-            event.currentTarget.showPicker();
-          } catch {
-            // Already open, or not supported — typing still works.
-          }
-        }}
-        // 19px like the text: mobile Safari zooms into a field under 16px.
-        className="absolute inset-0 size-full cursor-pointer appearance-none text-[19px] opacity-0"
+      <TaskDetailsFields
+        ids={ids}
+        reminderOffsetMinutes={fields.reminderOffsetMinutes}
+        reminderChoices={REMINDER_CHOICES}
+        onReminderChange={(value) => setField("reminderOffsetMinutes", value)}
+        priority={fields.priority}
+        importanceChoices={IMPORTANCE_CHOICES}
+        onPriorityChange={(value) => setField("priority", value)}
+        repeat={fields.repeat}
+        onRepeatChange={(value) => setField("repeat", value)}
+        repeatDays={fields.repeatDays}
+        onRepeatDaysChange={(days) => setField("repeatDays", days)}
+        repeatHint={hint}
       />
-    </div>
-  );
-}
 
-// § 5 — two cards acting as one radio group: arrow keys move the choice.
-function SchedulingChoice({
-  labelId,
-  value,
-  onChange,
-}: {
-  labelId: string;
-  value: Flexibility;
-  onChange: (value: Flexibility) => void;
-}) {
-  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+      <NoteField
+        id={ids.note}
+        open={noteOpen}
+        onOpen={() => setNoteOpen(true)}
+        value={note}
+        onChange={setNote}
+      />
 
-  function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
-    const index = FLEXIBILITY_CHOICES.findIndex((c) => c.value === value);
-    const step =
-      event.key === "ArrowRight" || event.key === "ArrowDown"
-        ? 1
-        : event.key === "ArrowLeft" || event.key === "ArrowUp"
-          ? -1
-          : 0;
-    if (step === 0) return;
-    event.preventDefault();
-    const next =
-      (index + step + FLEXIBILITY_CHOICES.length) % FLEXIBILITY_CHOICES.length;
-    onChange(FLEXIBILITY_CHOICES[next].value);
-    refs.current[next]?.focus();
-  }
-
-  return (
-    <div
-      role="radiogroup"
-      aria-labelledby={labelId}
-      className="flex flex-col gap-2.5"
-    >
-      <p id={labelId} className={EYEBROW}>
-        Scheduling
-      </p>
-      <div className="grid grid-cols-2 gap-2.5">
-        {FLEXIBILITY_CHOICES.map((choice, index) => {
-          const on = choice.value === value;
-          return (
-            <button
-              key={choice.value}
-              ref={(element) => {
-                refs.current[index] = element;
-              }}
-              type="button"
-              role="radio"
-              aria-checked={on}
-              tabIndex={on ? 0 : -1}
-              onClick={() => onChange(choice.value)}
-              onKeyDown={handleKeyDown}
-              className={cn(
-                "flex min-h-16 flex-col gap-[3px] rounded-[14px] border px-4 py-3.5 text-left transition-colors",
-                on
-                  ? "bg-newtask-choice-selected border-burgundy"
-                  : "bg-surface border-border hover:border-newtask-muted-burgundy",
-              )}
-            >
-              <span
-                className={cn(
-                  "flex items-center justify-between gap-2 text-[15px] font-semibold",
-                  on ? "text-burgundy" : "text-text-primary",
-                )}
-              >
-                {choice.label}
-                <Check
-                  aria-hidden
-                  className={cn("text-burgundy size-3.5", !on && "opacity-0")}
-                  strokeWidth={1.8}
-                />
-              </span>
-              <span className="text-newtask-quiet-text text-[13px]">
-                {choice.hint}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// § 6 — label left, a borderless native select right, a hairline above.
-function SelectRow({
-  id,
-  label,
-  value,
-  onChange,
-  options,
-  bordered = true,
-}: {
-  id: string;
-  label: string;
-  value: string | number;
-  onChange: (value: string) => void;
-  options: readonly { value: string | number; label: string }[];
-  bordered?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex items-center justify-between gap-3 py-1.5",
-        bordered && "border-newtask-hairline border-t",
-      )}
-    >
-      <label htmlFor={id} className="text-text-primary text-[15px]">
-        {label}
-      </label>
-      <div className="relative -mr-2.5">
-        <select
-          id={id}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className="text-text-primary hover:bg-newtask-control-hover min-h-11 max-w-full cursor-pointer appearance-none rounded-[10px] bg-transparent py-2.5 pr-[30px] pl-3 text-right text-[15px] transition-colors [text-align-last:right]"
-        >
-          {options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <Chevron />
-      </div>
-    </div>
+      <FormActions
+        submitLabel="Create task"
+        pendingLabel="Creating…"
+        pending={pending}
+        canSubmit={canCreate}
+        cancelHref="/dashboard"
+        blockedHint="Describe the task first."
+      />
+    </form>
   );
 }
