@@ -8,12 +8,15 @@ import { OnboardingBanner } from "./onboarding-banner";
 // content column caps at 620px per "Interactions & behaviour" > Responsive,
 // except a page marked `data-layout="wide"` (Tasks, TASKS_V2_UPDATE.md § 1),
 // which gets 760px on desktop, or `data-layout="calendar"` (the week
-// timeline, 880px in the Calendar v2 prototype).
+// timeline, 880px in the Calendar v2 prototype). `overflow-x-clip` on the
+// content column trims the Home greeting's decorative glow and sky scene,
+// which bleed past the right edge by design, without making the column a
+// scroll container.
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-full flex-1 flex-col md:flex-row">
       <Nav />
-      <div className="flex flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col overflow-x-clip">
         <Suspense fallback={null}>
           <OnboardingBanner />
         </Suspense>

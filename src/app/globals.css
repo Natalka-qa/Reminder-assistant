@@ -330,7 +330,11 @@
      every `bg-muted` in the app. */
   --surface: #ffffff;
   --text-primary: #242326;
-  --text-secondary: #77747a;
+  /* The handoff's #77747a is 4.26:1 on --background (#f7f6f3), under AA
+     for the 12–15px text that uses it (eyebrows, greeting, meta lines).
+     Darkened to 5.07:1 on --background, 4.65:1 on --border-soft; still
+     lighter than --text-tertiary so the hierarchy holds. */
+  --text-secondary: #6b686e;
   /* Also not in the Design tokens table (same situation as --border-medium
      above) — the Sidebar's inactive nav-item text and the generic Chip/pill's
      unselected text share this exact gray. */
