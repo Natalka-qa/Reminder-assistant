@@ -5,6 +5,7 @@ import { isTelegramEnabled } from "@/lib/telegram/telegram.config";
 import { googleCalendarService } from "@/features/google-calendar/google-calendar.service";
 import { isGoogleCalendarEnabled } from "@/lib/google-calendar/google-calendar.config";
 import { SectionLabel } from "@/components/ui/section-label";
+import { DEFAULT_SCHEDULE_PREFERENCES } from "@/lib/validation/user";
 import { SettingsForm } from "./settings-form";
 import { TelegramConnect } from "./telegram-connect";
 import { GoogleCalendarConnect } from "./google-calendar-connect";
@@ -18,6 +19,9 @@ export default async function SettingsPage() {
     ? await dashboardService.getRecentActivityCounts(user.id, user.timezone)
     : { completed: 0, partial: 0, skipped: 0 };
   const profile = user ? await userService.getProfile(user.id) : null;
+  const preferences =
+    (user && (await userService.getSchedulePreferences(user.id))) ??
+    DEFAULT_SCHEDULE_PREFERENCES;
   const calendarStatus =
     user && isGoogleCalendarEnabled()
       ? await googleCalendarService.getConnectionStatus(user.id)
@@ -48,7 +52,10 @@ export default async function SettingsPage() {
         </div>
       </div>
 
-      <SettingsForm currentTimezone={user?.timezone ?? "UTC"} />
+      <SettingsForm
+        currentTimezone={user?.timezone ?? "UTC"}
+        preferences={preferences}
+      />
 
       {isTelegramEnabled() && (
         <TelegramConnect connected={Boolean(profile?.telegramChatId)} />

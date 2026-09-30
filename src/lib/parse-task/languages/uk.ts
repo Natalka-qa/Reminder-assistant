@@ -5,8 +5,12 @@ import {
   setDuration,
   setMonthDay,
   setNextWeekday,
+  setPartOfDay,
+  setSearchDuration,
   setTime,
   setWeekly,
+  startTimeSearch,
+  words,
   type Language,
 } from "@/lib/parse-task/engine";
 
@@ -76,6 +80,33 @@ const TIME_PREPOSITION = "о|об|в|у|до";
 
 export const uk: Language = {
   id: "uk",
+  searchGroups: [
+    // sprint-12-tasks.md S12-04 — "знайди (мені) (вільний) час/вікно".
+    // Here "час" is "time", not "hour" (that's "годину").
+    [
+      rule(
+        "(?:знайди(?:ть)?|підбери(?:ть)?|пошукай(?:те)?)(?: мені)?(?: (?:вільний|вільне|вільну|вільні))?(?: (час|вікно|віконце|слот))?",
+        (match, ctx) => startTimeSearch(ctx, match[1] !== undefined),
+      ),
+    ],
+    // Parts of the day, only inside a search.
+    [
+      rule("вранці|зранку|уранці", (_, { out }) =>
+        setPartOfDay(out, "morning"),
+      ),
+      rule("вдень|удень|після обіду|по обіді", (_, { out }) =>
+        setPartOfDay(out, "afternoon"),
+      ),
+      rule("ввечері|увечері", (_, { out }) => setPartOfDay(out, "evening")),
+    ],
+    // "Знайди годину": in a search a bare "годину" is an hour ("на
+    // годину" is the ordinary rule's).
+    [
+      rule("(?<!на )(?:одну )?годин(?:у|ку)", (_, { out }) =>
+        setSearchDuration(out, 60),
+      ),
+    ],
+  ],
   groups: [
     // Importance
     [
@@ -187,6 +218,15 @@ export const uk: Language = {
   fillers:
     /^(?:нагадай(?:те)?(?: мені)?|нагадати(?: мені)?|не забути|не забудь(?:те)?|мені треба|мені потрібно|треба|потрібно)\s+/iu,
   // As in Russian, a leading "у"/"на" is usually meant ("У магазин").
+  searchFillers: /^(?:для|щоб|аби|на)\s+/iu,
+  kindWords: {
+    workout: words(
+      "тренуванн\\p{L}*|тренуватися|спортзал\\p{L}*|зал|залі|біг|бігати|пробіжк\\p{L}*|йог\\p{L}*|пілатес\\p{L}*|плаванн\\p{L}*|басейн\\p{L}*|фітнес\\p{L}*|розтяжк\\p{L}*|кросфіт\\p{L}*|зарядк\\p{L}*",
+    ),
+    remote: words(
+      "зателефонувати|подзвонити|дзвінок|дзвінк\\p{L}*|написати|напиши|відповісти|лист|листа|пошт\\p{L}*|email|оплатити|сплатити|оплат\\p{L}*|замовити|записатися|забронювати|онлайн|zoom",
+    ),
+  },
   leadingDangling: "і|й|та|а",
   trailingDangling: "о|об|в|у|на|до|і|й|та|по|через|з|кожного|кожен|кожну",
 };

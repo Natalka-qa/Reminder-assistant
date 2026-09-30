@@ -13,6 +13,13 @@ import {
   notificationService,
   type SnoozeOption,
 } from "@/features/notifications/notification.service";
+import { z } from "zod";
+import { dateStringSchema } from "@/lib/validation/task";
+import {
+  slotService,
+  type CalendarCheck,
+  type LocalSlot,
+} from "@/features/scheduling/slot.service";
 
 export type OccurrenceActionState = {
   status: "idle" | "success" | "error";
@@ -138,4 +145,37 @@ export async function moveOccurrenceToTodayAction(
 
   revalidateOccurrencePaths(taskId);
   return { status: "success" };
+}
+
+const freeSlotsInput = z.object({
+  dates: z.array(dateStringSchema).min(1).max(7),
+  partOfDay: z.enum(["morning", "afternoon", "evening", "any"]),
+  durationMinutes: z.number().int().min(0).max(1440),
+  // S12-10 — the task's kind (from the title's words) and the form's
+  // "Can do during work hours".
+  kind: z.enum(["workout", "remote"]).nullish(),
+  allowDuringWork: z.boolean().optional(),
+});
+
+export type FreeSlotsResult = { slots: LocalSlot[]; calendar: CalendarCheck };
+
+// sprint-12-tasks.md S12-02 — up to three free slots for the New task
+// form's "find me an hour tomorrow evening". Read-only. Null when there's
+// nothing to answer (not signed in, input the form shouldn't have sent).
+export async function findFreeSlotsAction(
+  input: z.input<typeof freeSlotsInput>,
+): Promise<FreeSlotsResult | null> {
+  const user = await getCurrentUser();
+  const parsed = freeSlotsInput.safeParse(input);
+  if (!user || !parsed.success) {
+    return null;
+  }
+  try {
+    return await slotService.findFreeSlots(user.id, user.timezone, {
+      ...parsed.data,
+      limit: 3,
+    });
+  } catch {
+    return null;
+  }
 }

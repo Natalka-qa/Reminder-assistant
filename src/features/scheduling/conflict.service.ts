@@ -26,8 +26,16 @@ export type ScheduleConflict = {
 };
 
 export type ExternalBusyCheck =
-  // Google answered; `overlaps` may well be empty.
-  | { status: "checked"; overlaps: Interval[] }
+  // Google answered; `overlaps` may well be empty. `busy` is everything
+  // Google reported in the `window` it was asked about (the candidates
+  // padded by a day, busyQueryWindow) — what "Free nearby" searches around
+  // the task without a second request (sprint-12-tasks.md S12-03).
+  | {
+      status: "checked";
+      overlaps: Interval[];
+      busy: Interval[];
+      window: { timeMin: Date; timeMax: Date };
+    }
   // Nothing to ask: the feature is off, the calendar isn't connected, or
   // there are no intervals to check.
   | { status: "skipped" }
@@ -97,6 +105,8 @@ export const conflictService = {
         return {
           status: "checked",
           overlaps: findBusyOverlaps(intervals, result.busy),
+          busy: result.busy,
+          window,
         };
     }
   },

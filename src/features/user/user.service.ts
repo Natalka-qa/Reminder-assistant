@@ -1,6 +1,13 @@
-import { timezoneSchema } from "@/lib/validation/user";
+import {
+  schedulePreferencesSchema,
+  timezoneSchema,
+  type SchedulePreferences,
+} from "@/lib/validation/user";
 import { userRepository } from "@/features/user/user.repository";
-import { InvalidTimezoneError } from "@/features/user/user.errors";
+import {
+  InvalidSchedulePreferencesError,
+  InvalidTimezoneError,
+} from "@/features/user/user.errors";
 import {
   createTelegramLinkCode,
   isTelegramLinkCodeActive,
@@ -13,6 +20,22 @@ export const userService = {
       throw new InvalidTimezoneError(timezone);
     }
     return userRepository.updateTimezone(userId, result.data);
+  },
+
+  // sprint-12-tasks.md S12-09 — the searchable day and work hours.
+  async setSchedulePreferences(userId: string, input: unknown) {
+    const result = schedulePreferencesSchema.safeParse(input);
+    if (!result.success) {
+      throw new InvalidSchedulePreferencesError(
+        result.error.issues[0]?.message ?? "Invalid hours",
+      );
+    }
+    return userRepository.updateSchedulePreferences(userId, result.data);
+  },
+
+  // Null for a user that doesn't exist — every real row has the defaults.
+  getSchedulePreferences(userId: string): Promise<SchedulePreferences | null> {
+    return userRepository.findSchedulePreferences(userId);
   },
 
   getProfile(userId: string) {

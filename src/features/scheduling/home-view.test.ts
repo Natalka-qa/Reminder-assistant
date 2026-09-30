@@ -3,12 +3,17 @@ import {
   buildCollisionSuggestion,
   buildInsightBody,
   countOverlappingToday,
+  findMoveTime,
   formatRelativeTimeLabel,
   groupRemainingByTime,
   latestOccurrenceEnd,
   selectUpNext,
   type HomeOccurrence,
 } from "./home-view";
+import {
+  DEFAULT_SCHEDULE_PREFERENCES,
+  type SchedulePreferences,
+} from "@/lib/validation/user";
 
 function occurrence(
   id: string,
@@ -286,5 +291,113 @@ describe("buildCollisionSuggestion", () => {
 
   it("returns null with no collisions anywhere", () => {
     expect(buildCollisionSuggestion(null, [])).toBeNull();
+  });
+});
+
+describe("findMoveTime", () => {
+  // UTC, so the hours below are the user's own; Tue Sep 29 is a work day.
+  const TZ = "UTC";
+  const TUESDAY = "2026-09-29";
+  const at = (hour: number, minute = 0) =>
+    new Date(Date.UTC(2026, 8, 29, hour, minute));
+  const EARLY = at(0);
+  const NO_WORK: SchedulePreferences = {
+    ...DEFAULT_SCHEDULE_PREFERENCES,
+    workDays: [],
+  };
+
+  function task(
+    id: string,
+    hour: number,
+    {
+      title = `Task ${id}`,
+      flexibility = "FLEXIBLE",
+      status = "SCHEDULED",
+    }: Partial<{
+      title: string;
+      flexibility: HomeOccurrence["task"]["flexibility"];
+      status: HomeOccurrence["status"];
+    }> = {},
+  ): HomeOccurrence {
+    return {
+      id,
+      status,
+      scheduledStart: at(hour),
+      scheduledEnd: at(hour + 1),
+      task: {
+        id: `task-${id}`,
+        title,
+        flexibility,
+        priority: "NORMAL",
+        durationMinutes: 60,
+      },
+    };
+  }
+
+  function moveTime(
+    anchor: HomeOccurrence,
+    movable: HomeOccurrence,
+    others: HomeOccurrence[] = [],
+    { now = EARLY, preferences = NO_WORK } = {},
+  ) {
+    return findMoveTime({ anchor, movable }, [anchor, movable, ...others], {
+      today: TUESDAY,
+      now,
+      timezone: TZ,
+      preferences,
+    });
+  }
+
+  const fixedAt = (hour: number) =>
+    task("anchor", hour, { title: "Dentist", flexibility: "FIXED" });
+
+  it("skips a task that starts as the anchor ends", () => {
+    // The plan's case: anchor 13:00–14:00, another task 14:00–15:00.
+    expect(
+      moveTime(fixedAt(13), task("movable", 13), [task("next", 14)]),
+    ).toEqual(at(15));
+  });
+
+  it("doesn't count the task itself or ones already done", () => {
+    expect(
+      moveTime(fixedAt(13), task("movable", 13), [
+        task("done", 14, { status: "DONE" }),
+      ]),
+    ).toEqual(at(14));
+  });
+
+  it("is never in the past", () => {
+    expect(
+      moveTime(fixedAt(13), task("movable", 13), [], { now: at(16, 10) }),
+    ).toEqual(at(16, 15));
+  });
+
+  it("keeps to the user's day, and gives up when nothing is left", () => {
+    expect(moveTime(fixedAt(20), task("movable", 20))).toBeNull();
+    expect(
+      moveTime(fixedAt(20), task("movable", 20), [], {
+        preferences: { ...NO_WORK, dayEndMinutes: 22 * 60 },
+      }),
+    ).toEqual(at(21));
+  });
+
+  it("stays out of work hours unless the task reads as remote", () => {
+    const preferences = DEFAULT_SCHEDULE_PREFERENCES; // Mon–Fri 09:00–17:00
+    const groceries = task("movable", 10, { title: "Buy groceries" });
+    const call = task("movable", 10, { title: "Call the bank" });
+    expect(moveTime(fixedAt(10), groceries, [], { preferences })).toEqual(
+      at(17),
+    );
+    expect(moveTime(fixedAt(10), call, [], { preferences })).toEqual(at(11));
+  });
+
+  it("starts a workout by the user's limit", () => {
+    const gym = task("movable", 19, { title: "Gym" });
+    expect(moveTime(fixedAt(19), gym)).toEqual(at(20));
+    expect(
+      moveTime(fixedAt(19), gym, [], {
+        preferences: { ...NO_WORK, workoutLatestStartMinutes: 19 * 60 + 30 },
+      }),
+    ).toBeNull();
   });
 });

@@ -5,8 +5,11 @@ import {
   setDuration,
   setMonthDay,
   setNextWeekday,
+  setPartOfDay,
   setTime,
   setWeekly,
+  startTimeSearch,
+  words,
   type Language,
 } from "@/lib/parse-task/engine";
 
@@ -51,6 +54,25 @@ const meridiemOf = (value: string | undefined) =>
 
 export const en: Language = {
   id: "en",
+  searchGroups: [
+    // sprint-12-tasks.md S12-04 — "find me an hour", "find a time".
+    [
+      rule(
+        "(?:please )?(?:find|look for|search for)(?: me)?(?: (a|some))?(?: free)?(?: (time|slot|window|spot))?",
+        (match, ctx) => startTimeSearch(ctx, match[2] !== undefined),
+      ),
+    ],
+    // Parts of the day, only inside a search.
+    [
+      rule("(?:in the )?morning", (_, { out }) => setPartOfDay(out, "morning")),
+      rule("(?:in the )?afternoon", (_, { out }) =>
+        setPartOfDay(out, "afternoon"),
+      ),
+      rule("(?:in the )?evening|at night", (_, { out }) =>
+        setPartOfDay(out, "evening"),
+      ),
+    ],
+  ],
   groups: [
     // Importance
     [
@@ -91,9 +113,17 @@ export const en: Language = {
         setDaysAhead(ctx, 2),
       ),
       rule("tomorrow|tmrw", (_, ctx) => setDaysAhead(ctx, 1)),
-      rule("today|tonight|this (?:morning|afternoon|evening)", (_, ctx) =>
-        setDaysAhead(ctx, 0),
-      ),
+      rule("today|tonight|this (morning|afternoon|evening)", (match, ctx) => {
+        // In a search, "tonight"/"this evening" also say when in the day.
+        if (/tonight/i.test(match[0])) setPartOfDay(ctx.out, "evening");
+        else if (match[1]) {
+          setPartOfDay(
+            ctx.out,
+            match[1].toLowerCase() as "morning" | "afternoon" | "evening",
+          );
+        }
+        return setDaysAhead(ctx, 0);
+      }),
       rule("in (\\d{1,3}) days?", (match, ctx) =>
         setDaysAhead(ctx, Number(match[1])),
       ),
@@ -162,6 +192,15 @@ export const en: Language = {
   ],
   fillers:
     /^(?:remind me to|remember to|i need to|need to|don['’]t forget to)\s+/iu,
+  searchFillers: /^(?:(?:to|for)\s+)?(?:(?:a|an|the|my)\s+)?/iu,
+  kindWords: {
+    workout: words(
+      "workout|work out|gym|run|running|jog|jogging|yoga|pilates|swim|swimming|training|exercise|fitness|cycling|crossfit|stretching",
+    ),
+    remote: words(
+      "call|phone|ring|email|e-mail|message|text|reply|write|pay|order|book|renew|submit|zoom|online",
+    ),
+  },
   leadingDangling: "on|at|for|by|in|every|and",
   trailingDangling: "on|at|for|by|in|every|and|from",
 };

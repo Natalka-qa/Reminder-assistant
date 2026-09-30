@@ -95,9 +95,9 @@ Skip this entirely if you don't want the Telegram notification channel — the t
 
 ### Google Calendar setup
 
-Skip this if you don't need it — without `GOOGLE_CALENDAR_ENABLED=true` there's no "Google Calendar" section on `/settings`, no request ever goes to Google, and conflict checks only look at your own tasks.
+Skip this if you don't need it — without `GOOGLE_CALENDAR_ENABLED=true` there's no "Google Calendar" section on `/settings`, no request ever goes to Google, and conflict checks and free-time suggestions only look at your own tasks.
 
-With it, a connected user's **primary** calendar is checked for busy times whenever they create or edit a task, and an overlap shows up in the same conflict dialog as an overlapping task ("Create anyway" still saves). Only free/busy is read — scope `calendar.freebusy`, never event titles or details — and the busy times aren't stored. The connection is a second Auth.js provider, `google-calendar`, on the same OAuth client as "Sign in with Google"; its tokens live in the `Account` row with `provider = "google-calendar"`. Connecting writes real OAuth tokens, so test it locally against a Neon dev branch, not production.
+With it, a connected user's **primary** calendar is checked for busy times whenever they create or edit a task, and an overlap shows up the same way an overlapping task does — in the New task form's overlap notice and the edit form's conflict dialog; either way the task can still be saved. Free-time suggestions skip those busy times too (see "Finding free time"). Only free/busy is read — scope `calendar.freebusy`, never event titles or details — and the busy times aren't stored. The connection is a second Auth.js provider, `google-calendar`, on the same OAuth client as "Sign in with Google"; its tokens live in the `Account` row with `provider = "google-calendar"`. Connecting writes real OAuth tokens, so test it locally against a Neon dev branch, not production.
 
 In the Google Cloud project that owns `GOOGLE_CLIENT_ID`:
 
@@ -108,6 +108,52 @@ In the Google Cloud project that owns `GOOGLE_CLIENT_ID`:
 5. **Audience → Publish app → Confirm** ("In production"). Until then the app is in **Testing**: only accounts under **Audience → Test users** can connect — everyone else gets "Access blocked … Error 403: access_denied" — and refresh tokens expire after 7 days, so the connection drops to "Not connected" every week. Testing plus your own account as a test user is fine for local development; production needs "In production" before the flag is turned on.
 6. Set `GOOGLE_CALENDAR_ENABLED=true` in `.env.local` (or Vercel's environment variables) and restart/redeploy.
 7. On `/settings`, click "Connect" under Google Calendar and keep the calendar box ticked on Google's consent screen — if it's unticked, `/settings` says so and offers "Connect" again. "Disconnect" revokes the access at Google and deletes the tokens.
+
+## Finding free time
+
+The app suggests free times in three places. It only fills in a date and time — nothing is saved until you press "Create task" or save the edit.
+
+- **New task, from a phrase.** "Find me an hour tomorrow evening for a workout", "Найди завтра вечером час для тренировки", "Знайди завтра ввечері годину для тренування". The first free slot becomes the task's date and time (the task stays Flexible — the app picked the time, you didn't), and up to two more are offered under When. Nothing free: "No free hour tomorrow evening." and the rest of the form is filled as usual.
+- **New task, from an overlap.** When the chosen time overlaps a task or a Google Calendar busy time, the notice adds "Free nearby: 17:30 · 20:45" — up to two slots closest to it, one on each side where there's room.
+- **Home, "A small suggestion".** When a flexible task sits at the same time as another one, the card suggests moving it to the first free time today after the other ends. No free time left today — no card.
+
+**Your hours** are on `/settings`, each user's own:
+
+| Setting                   | Default             | What it does                                                                                                       |
+| ------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Start of day / End of day | 08:00 / 21:00       | Nothing is suggested outside them. Morning is start of day–12:00, afternoon 12:00–18:00, evening 18:00–end of day. |
+| Work hours                | Mon–Fri 09:00–17:00 | Busy for suggestions, unless the task can be done during work. No days picked — no work hours.                     |
+| Workouts start by         | 20:00               | The latest a workout may **start** (a one-hour workout can be 20:00–21:00). "No limit" turns it off.               |
+
+**What counts as busy:**
+
+- Your open tasks (Scheduled or Snoozed), checked the same way the overlap notice checks them — touching isn't overlapping. A slot you're offered never shows up as an overlap.
+- Your Google Calendar's busy times, if `GOOGLE_CALENDAR_ENABLED=true` and you've connected it: **one** free/busy request per search, however many days it covers. "Free nearby" asks nothing extra — it reuses the overlap check's request. Home never asks Google.
+- Work hours, unless "Can do during work hours" is on. The switch appears under When during a search or with "Free nearby", and starts on for tasks whose title reads as remote.
+
+**What a task is** comes from words in its title, in all three languages — nothing is stored:
+
+- _Workout:_ workout, gym, run, yoga, swim… / тренировка, зал, бег, йога, бассейн… / тренування, зал, біг, йога, басейн…
+- _Remote_ (can be done during work): call, email, pay, order, book, zoom… / позвонить, написать, оплатить, созвон… / зателефонувати, написати, оплатити…
+
+A title with both reads as a workout ("Pay for the gym"); the switch is there to say otherwise.
+
+**Why "Google Calendar wasn't checked":** Google was asked and didn't answer — it's down, or the connection has expired (in Google's Testing mode, every 7 days; see "Google Calendar setup"). The slots are still free of your own tasks, but a meeting may be in the way. With the flag off or no calendar connected, the search uses your tasks alone, sends nothing to Google and shows no note.
+
+**Phrases the parser reads as a search** — a request word, then any of date, part of day and length, in any order:
+
+|            | Request                                                       | Part of day                          | Length                             |
+| ---------- | ------------------------------------------------------------- | ------------------------------------ | ---------------------------------- |
+| English    | find / look for / search for (me) (a free) time, slot, window | morning, afternoon, evening, tonight | an hour, 30 minutes, half an hour… |
+| Русский    | найди / подбери / поищи (мне) (свободное) время, окно, слот   | утром, днём, после обеда, вечером    | час, полчаса, на 30 минут…         |
+| Українська | знайди / підбери / пошукай (мені) (вільний) час, вікно, слот  | вранці, вдень, по обіді, ввечері     | годину, півгодини, на 30 хвилин…   |
+
+- In Russian a bare «час» is an hour («Найди час» — 60 min). In Ukrainian «час» is _time_, so «Знайди час ввечері» has no length.
+- No length named — 30 minutes. No date — the next 7 days. No part of day — the whole day.
+- A time in the phrase wins: "Find time tomorrow at 7pm" is just 19:00, no search.
+- The rest is the title, in the case it was written in: «для тренировки» → «Тренировки». The parser is rules, not a model — it doesn't change word forms.
+
+Suggested times start on :00, :15, :30 or :45 of your local time, never in the past, and the ones offered never overlap each other.
 
 ## Architecture
 
