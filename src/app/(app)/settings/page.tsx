@@ -1,6 +1,5 @@
 import { verifySession, getCurrentUser } from "@/lib/auth/dal";
 import { analyticsService } from "@/features/analytics/analytics.service";
-import { tallyOutcomes } from "@/features/analytics/behavior-stats";
 import { userService } from "@/features/user/user.service";
 import { isTelegramEnabled } from "@/lib/telegram/telegram.config";
 import { googleCalendarService } from "@/features/google-calendar/google-calendar.service";
@@ -11,18 +10,15 @@ import { SettingsForm } from "./settings-form";
 import { TelegramConnect } from "./telegram-connect";
 import { GoogleCalendarConnect } from "./google-calendar-connect";
 import { SignOutButton } from "./sign-out-button";
-import { RecentActivity } from "./recent-activity";
-import { BehaviorPatternsSection } from "./behavior-patterns";
+import { GroupedRows, GroupedRow } from "@/components/ui/grouped-rows";
 
 // design_handoff_reminder_assistant/README.md § Settings.
 export default async function SettingsPage() {
   await verifySession();
   const user = await getCurrentUser();
+  // S13-04 — the numbers live on /progress; here, one row pointing there.
   const stats = user
     ? await analyticsService.getRecentActivity(user.id, user.timezone)
-    : tallyOutcomes([]);
-  const patterns = user
-    ? await analyticsService.getBehaviorPatterns(user.id, user.timezone)
     : null;
   const profile = user ? await userService.getProfile(user.id) : null;
   const preferences =
@@ -69,9 +65,14 @@ export default async function SettingsPage() {
 
       {calendarStatus && <GoogleCalendarConnect status={calendarStatus} />}
 
-      <RecentActivity stats={stats} />
-
-      {patterns && <BehaviorPatternsSection patterns={patterns} />}
+      <GroupedRows>
+        <GroupedRow
+          label="How it's going"
+          hint="Last 7 days and your patterns"
+          value={stats?.percent == null ? undefined : `${stats.percent}% done`}
+          href="/progress"
+        />
+      </GroupedRows>
 
       <SignOutButton />
     </div>

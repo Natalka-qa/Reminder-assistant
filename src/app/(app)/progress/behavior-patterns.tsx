@@ -11,7 +11,8 @@ import {
 } from "@/features/analytics/behavior-stats";
 
 // sprint-13-tasks.md S13-04 — what the last 30 days say about when tasks get
-// done. No handoff design: built from the "Last 7 days" pieces next to it.
+// done, on /progress ("How it's going"). No handoff design: built from the
+// "Last 7 days" pieces above it.
 // The bars only repeat the numbers beside them (aria-hidden), so all of it
 // reads the same without them; grey text is --tasks-meta (AA, see
 // recent-activity.tsx).
@@ -41,7 +42,7 @@ export function BehaviorPatternsSection({
 
   return (
     <div className="flex flex-col gap-3">
-      <SectionLabel>Your patterns · last 30 days</SectionLabel>
+      <SectionLabel>Last 30 days</SectionLabel>
       {patterns.enough ? (
         <>
           {sentences.map((sentence) => (

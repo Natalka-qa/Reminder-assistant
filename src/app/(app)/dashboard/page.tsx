@@ -138,15 +138,16 @@ export default async function DashboardPage() {
   const overlapCount = countOverlappingToday(upNext, laterGroups);
   const dayEnd = latestOccurrenceEnd(todayTasks);
   const eveningFreeLabel = dayEnd ? formatTimeInZone(dayEnd, timezone) : null;
+  const patternLine = patternInsight(
+    patterns ? weakestPart(patterns) : null,
+    todayTasks,
+    timezone,
+  );
   const insightBody = buildInsightBody(
     todayTasks,
     overlapCount,
     eveningFreeLabel,
-    patternInsight(
-      patterns ? weakestPart(patterns) : null,
-      todayTasks,
-      timezone,
-    ),
+    patternLine,
   );
   const collisionSuggestion = buildCollisionSuggestion(upNext, laterGroups);
   // S12-06 — only a time that's actually free; none left today, no card.
@@ -247,7 +248,12 @@ export default async function DashboardPage() {
         />
       ) : (
         <>
-          {todayTasks.length > 0 && <AssistantInsight body={insightBody} />}
+          {todayTasks.length > 0 && (
+            <AssistantInsight
+              body={insightBody}
+              moreHref={patternLine ? "/progress" : undefined}
+            />
+          )}
 
           {upNext && (
             <UpNext

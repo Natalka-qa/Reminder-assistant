@@ -1,7 +1,8 @@
 import { SectionLabel } from "@/components/ui/section-label";
 import type { Tally } from "@/features/analytics/behavior-stats";
 
-// Settings' "Last 7 days" (README § Settings). S13-03 adds Missed and the
+// "Last 7 days" (README § Settings), on /progress since S13-04. S13-03 adds
+// Missed and the
 // completion rate — Done out of everything counted, Missed included (§17).
 // Grey text is --tasks-meta (5.1:1 on --background): --text-secondary is
 // 4.26:1, under AA — same fix as Tasks v2 and Calendar v2.
