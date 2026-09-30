@@ -1,5 +1,5 @@
 import { verifySession, getCurrentUser } from "@/lib/auth/dal";
-import { dashboardService } from "@/features/scheduling/dashboard.service";
+import { analyticsService } from "@/features/analytics/analytics.service";
 import { userService } from "@/features/user/user.service";
 import { isTelegramEnabled } from "@/lib/telegram/telegram.config";
 import { googleCalendarService } from "@/features/google-calendar/google-calendar.service";
@@ -10,14 +10,16 @@ import { SettingsForm } from "./settings-form";
 import { TelegramConnect } from "./telegram-connect";
 import { GoogleCalendarConnect } from "./google-calendar-connect";
 import { SignOutButton } from "./sign-out-button";
+import { GroupedRows, GroupedRow } from "@/components/ui/grouped-rows";
 
 // design_handoff_reminder_assistant/README.md § Settings.
 export default async function SettingsPage() {
   await verifySession();
   const user = await getCurrentUser();
+  // S13-04 — the numbers live on /progress; here, one row pointing there.
   const stats = user
-    ? await dashboardService.getRecentActivityCounts(user.id, user.timezone)
-    : { completed: 0, partial: 0, skipped: 0 };
+    ? await analyticsService.getRecentActivity(user.id, user.timezone)
+    : null;
   const profile = user ? await userService.getProfile(user.id) : null;
   const preferences =
     (user && (await userService.getSchedulePreferences(user.id))) ??
@@ -63,27 +65,16 @@ export default async function SettingsPage() {
 
       {calendarStatus && <GoogleCalendarConnect status={calendarStatus} />}
 
-      <div className="flex flex-col gap-3">
-        <SectionLabel>Last 7 days</SectionLabel>
-        <div className="flex flex-wrap gap-8">
-          <Stat value={stats.completed} label="Completed" />
-          <Stat value={stats.partial} label="Partial" />
-          <Stat value={stats.skipped} label="Skipped" />
-        </div>
-      </div>
+      <GroupedRows>
+        <GroupedRow
+          label="How it's going"
+          hint="Last 7 days and your patterns"
+          value={stats?.percent == null ? undefined : `${stats.percent}% done`}
+          href="/progress"
+        />
+      </GroupedRows>
 
       <SignOutButton />
-    </div>
-  );
-}
-
-function Stat({ value, label }: { value: number; label: string }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="font-display text-[38px] leading-none font-light">
-        {value}
-      </span>
-      <span className="text-text-secondary text-xs">{label}</span>
     </div>
   );
 }

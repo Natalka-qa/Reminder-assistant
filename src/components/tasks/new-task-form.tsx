@@ -803,7 +803,7 @@ function WorkHoursSwitch({
       >
         <span
           className={cn(
-            "absolute top-[2px] size-[18px] rounded-full transition-transform",
+            "absolute top-[2px] left-0 size-[18px] rounded-full transition-transform",
             checked
               ? "translate-x-[18px] bg-white"
               : "bg-border-medium translate-x-[2px]",

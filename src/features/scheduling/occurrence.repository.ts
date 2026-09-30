@@ -108,6 +108,16 @@ export const occurrenceRepository = {
     });
   },
 
+  // sprint-13-tasks.md S13-02 — only what the outcome counts need, without
+  // the task: patterns read up to 30 days, on every Home render too.
+  // `end` is exclusive, unlike findForUserBetween.
+  findOutcomesBetween(userId: string, start: Date, end: Date, db: Db = prisma) {
+    return db.taskOccurrence.findMany({
+      where: { userId, scheduledStart: { gte: start, lt: end } },
+      select: { status: true, scheduledStart: true },
+    });
+  },
+
   findUpcomingForUser(
     userId: string,
     after: Date,

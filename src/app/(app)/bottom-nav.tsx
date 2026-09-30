@@ -23,7 +23,10 @@ export function BottomNav() {
   const pathname = usePathname();
 
   function renderItem({ href, label, icon: Icon }: NavItem) {
-    const active = pathname.startsWith(href);
+    // /progress is reached from Settings (S13-04), so Settings stays lit.
+    const active =
+      pathname.startsWith(href) ||
+      (href === "/settings" && pathname.startsWith("/progress"));
     return (
       <Link
         key={href}

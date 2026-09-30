@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AssistantMark } from "@/components/dashboard/assistant-mark";
 
 // HOME_V2_UPDATE.md § 5 — "Assistant insight" card. Background gradient,
@@ -6,7 +7,14 @@ import { AssistantMark } from "@/components/dashboard/assistant-mark";
 // same reasoning); only the body copy is data — computed by the caller via
 // home-view.ts's buildInsightBody, never hardcoded (the title itself is
 // static in the reference prototype too, so it stays static here).
-export function AssistantInsight({ body }: { body: string }) {
+export function AssistantInsight({
+  body,
+  moreHref,
+}: {
+  body: string;
+  /** S13-05 — set when the body ends with a pattern sentence. */
+  moreHref?: string;
+}) {
   return (
     <div
       className="relative flex flex-col gap-[9px] overflow-hidden rounded-[20px] border p-[22px] pb-6"
@@ -57,6 +65,14 @@ export function AssistantInsight({ body }: { body: string }) {
       <p className="text-blue-ink-body relative max-w-[270px] text-[14px] leading-[1.6] text-pretty">
         {body}
       </p>
+      {moreHref && (
+        <Link
+          href={moreHref}
+          className="text-blue-ink-body decoration-blue-ink-body/40 hover:decoration-blue-ink-body relative self-start text-[14px] font-semibold underline underline-offset-4"
+        >
+          How it&apos;s going →
+        </Link>
+      )}
     </div>
   );
 }

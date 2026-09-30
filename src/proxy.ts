@@ -27,5 +27,6 @@ export const config = {
     "/tasks/:path*",
     "/calendar/:path*",
     "/settings/:path*",
+    "/progress/:path*",
   ],
 };

@@ -4,6 +4,8 @@ import { formatDateInZone, formatTimeInZone, zonedNow } from "@/lib/date";
 import { formatDuration } from "@/lib/format";
 import { dashboardService } from "@/features/scheduling/dashboard.service";
 import { userService } from "@/features/user/user.service";
+import { analyticsService } from "@/features/analytics/analytics.service";
+import { weakestPart } from "@/features/analytics/behavior-stats";
 import { DEFAULT_SCHEDULE_PREFERENCES } from "@/lib/validation/user";
 import { notificationService } from "@/features/notifications/notification.service";
 import {
@@ -18,6 +20,7 @@ import {
   formatRelativeTimeLabel,
   groupRemainingByTime,
   latestOccurrenceEnd,
+  patternInsight,
   selectUpNext,
   type HomeOccurrence,
 } from "@/features/scheduling/home-view";
@@ -94,14 +97,16 @@ export default async function DashboardPage() {
     : [];
 
   // S12-06 — the user's hours come along with the day's tasks, for where
-  // "A small suggestion" may move one.
-  const [todayTasks, overdueTasks, preferences] = user
+  // "A small suggestion" may move one. S13-05 — so do the last 30 days'
+  // patterns, one narrow query, for the insight card's last sentence.
+  const [todayTasks, overdueTasks, preferences, patterns] = user
     ? await Promise.all([
         dashboardService.getTodayTasks(user.id, timezone),
         dashboardService.getOverdueTasks(user.id, timezone),
         userService.getSchedulePreferences(user.id),
+        analyticsService.getBehaviorPatterns(user.id, timezone),
       ])
-    : [[], [], null];
+    : [[], [], null, null];
 
   const snoozedIds = [...todayTasks, ...overdueTasks]
     .filter((occurrence) => occurrence.status === "SNOOZED")
@@ -133,10 +138,16 @@ export default async function DashboardPage() {
   const overlapCount = countOverlappingToday(upNext, laterGroups);
   const dayEnd = latestOccurrenceEnd(todayTasks);
   const eveningFreeLabel = dayEnd ? formatTimeInZone(dayEnd, timezone) : null;
+  const patternLine = patternInsight(
+    patterns ? weakestPart(patterns) : null,
+    todayTasks,
+    timezone,
+  );
   const insightBody = buildInsightBody(
     todayTasks,
     overlapCount,
     eveningFreeLabel,
+    patternLine,
   );
   const collisionSuggestion = buildCollisionSuggestion(upNext, laterGroups);
   // S12-06 — only a time that's actually free; none left today, no card.
@@ -237,7 +248,12 @@ export default async function DashboardPage() {
         />
       ) : (
         <>
-          {todayTasks.length > 0 && <AssistantInsight body={insightBody} />}
+          {todayTasks.length > 0 && (
+            <AssistantInsight
+              body={insightBody}
+              moreHref={patternLine ? "/progress" : undefined}
+            />
+          )}
 
           {upNext && (
             <UpNext

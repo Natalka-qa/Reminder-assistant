@@ -46,7 +46,10 @@ export function Sidebar({
 
         <nav className="flex flex-col gap-1">
           {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-            const active = pathname.startsWith(href);
+            // /progress is reached from Settings (S13-04), so Settings stays lit.
+            const active =
+              pathname.startsWith(href) ||
+              (href === "/settings" && pathname.startsWith("/progress"));
             return (
               <Link
                 key={href}
