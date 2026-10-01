@@ -162,6 +162,38 @@ describe("repeats", () => {
     });
   });
 
+  it("reads listed days with just spaces or commas between them", () => {
+    for (const text of ["Gym every Mon Wed", "Gym every mon, wed"]) {
+      expect(parse(text)).toMatchObject({
+        title: "Gym",
+        repeat: "WEEKLY",
+        repeatDays: [1, 3],
+      });
+    }
+    expect(parse("Gym every mon wed fri at 8")).toMatchObject({
+      title: "Gym",
+      repeatDays: [1, 3, 5],
+      time: "08:00",
+    });
+  });
+
+  it("takes a repeat said twice out of the title", () => {
+    expect(parse("Daily check every day at 22")).toMatchObject({
+      title: "Check",
+      repeat: "DAILY",
+      time: "22:00",
+    });
+    expect(parse("Stretch daily, every day")).toMatchObject({
+      title: "Stretch",
+      repeat: "DAILY",
+    });
+  });
+
+  it("keeps a second, different time in the title", () => {
+    expect(parse("Call at 9 or at 10")).toMatchObject({ time: "09:00" });
+    expect(parse("Call at 9 or at 10").title).toContain("10");
+  });
+
   it("repeats on weekdays", () => {
     expect(parse("Standup every weekday at 10")).toMatchObject({
       title: "Standup",

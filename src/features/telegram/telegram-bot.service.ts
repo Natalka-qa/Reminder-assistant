@@ -45,7 +45,7 @@ import {
   pastNotice,
   repeatHint,
 } from "@/features/tasks/new-task-fields";
-import { taskInputFromPhrase } from "@/features/tasks/phrase-task-input";
+import { taskInputsFromPhrase } from "@/features/tasks/phrase-task-input";
 import { taskService } from "@/features/tasks/task.service";
 import {
   TaskNotFoundError,
@@ -198,16 +198,19 @@ async function showNext(user: User, chatId: string, now: Date) {
 
 async function addTask(user: User, chatId: string, text: string, now: Date) {
   const { today, nowMinutes } = localNow(now, user.timezone);
-  const phrase = taskInputFromPhrase(text, {
+  // "Dance every Mon at 19 and Wed at 20" is two tasks, each with its own
+  // reply and buttons; anything else is one.
+  const phrases = taskInputsFromPhrase(text, {
     today,
     nowMinutes,
     defaultReminderMinutes: user.defaultReminderMinutes,
   });
-  if (phrase.status === "empty") {
+  const [first] = phrases;
+  if (first.status === "empty") {
     await sendTelegramMessage(chatId, EMPTY_PHRASE_MESSAGE);
     return;
   }
-  if (phrase.status === "needs-search") {
+  if (first.status === "needs-search") {
     await sendTelegramMessage(chatId, NEEDS_SEARCH_MESSAGE, {
       inline_keyboard: [
         [{ text: "Open New task", url: `${env.AUTH_URL}/tasks/new` }],
@@ -216,26 +219,29 @@ async function addTask(user: User, chatId: string, text: string, now: Date) {
     return;
   }
 
-  const { input } = phrase;
-  let taskId: string;
-  try {
-    const { task } = await taskService.createTask(
-      user.id,
-      user.timezone,
-      input,
-    );
-    taskId = task.id;
-  } catch (error) {
-    if (error instanceof TaskValidationError) {
-      await sendTelegramMessage(chatId, error.message);
-      return;
+  for (const phrase of phrases) {
+    if (phrase.status !== "ready") continue;
+    const { input } = phrase;
+    let taskId: string;
+    try {
+      const { task } = await taskService.createTask(
+        user.id,
+        user.timezone,
+        input,
+      );
+      taskId = task.id;
+    } catch (error) {
+      if (error instanceof TaskValidationError) {
+        await sendTelegramMessage(chatId, error.message);
+        return;
+      }
+      throw error;
     }
-    throw error;
-  }
-  revalidateAfterChange(taskId);
+    revalidateAfterChange(taskId);
 
-  const reply = await createdReply(user, taskId, input, now);
-  await sendTelegramMessage(chatId, reply.text, reply.buttons);
+    const reply = await createdReply(user, taskId, input, now);
+    await sendTelegramMessage(chatId, reply.text, reply.buttons);
+  }
 }
 
 /**

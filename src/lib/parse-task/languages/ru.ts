@@ -75,6 +75,9 @@ function hourWithDaypart(hour: number, daypart: string | undefined): number {
   }
 }
 
+/** Weekday words, for splitting "Mon at 19 and Wed at 20" (split.ts). */
+export const WEEKDAY_PATTERN = WEEKDAY;
+
 export const ru: Language = {
   id: "ru",
   searchGroups: [
@@ -112,7 +115,7 @@ export const ru: Language = {
         (_, { out }) => setWeekly(out, [1, 2, 3, 4, 5]),
       ),
       rule(
-        `(?:по|каждый|каждую|каждое) (?:${WEEKDAY})(?:\\s*(?:,|и)\\s*(?:по )?(?:${WEEKDAY}))*`,
+        `(?:по|каждый|каждую|каждое) (?:${WEEKDAY})(?:(?:\\s*(?:,|и)\\s*|\\s+)(?:по )?(?:${WEEKDAY}))*`,
         (match, { out }) => {
           const days = [
             ...match[0].matchAll(new RegExp(`(?:${WEEKDAY})`, "giu")),

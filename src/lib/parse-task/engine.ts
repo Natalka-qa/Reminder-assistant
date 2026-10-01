@@ -207,6 +207,17 @@ export function runLanguage(
     ? [...language.searchGroups, ...language.groups]
     : language.groups;
 
+  const take = (match: RegExpExecArray) => {
+    hits.push({
+      index: match.index,
+      text: match[0].replace(/^[\s,]+|[\s,]+$/g, ""),
+    });
+    rest =
+      rest.slice(0, match.index) +
+      " ".repeat(match[0].length) +
+      rest.slice(match.index + match[0].length);
+  };
+
   for (const group of groups) {
     let matched = false;
     for (const { pattern, apply } of group) {
@@ -214,17 +225,20 @@ export function runLanguage(
       let match: RegExpExecArray | null;
       while (!matched && (match = pattern.exec(rest)) !== null) {
         if (apply(match, ctx) === false) continue;
-        hits.push({
-          index: match.index,
-          text: match[0].replace(/^[\s,]+|[\s,]+$/g, ""),
-        });
-        rest =
-          rest.slice(0, match.index) +
-          " ".repeat(match[0].length) +
-          rest.slice(match.index + match[0].length);
+        take(match);
         matched = true;
       }
-      if (matched) break;
+      if (!matched) continue;
+      // The same thing said twice ("daily … every day") is taken out of
+      // the title too — only when it says exactly what the first match
+      // did; anything else stays in the title, as before.
+      const said = JSON.stringify(out);
+      while ((match = pattern.exec(rest)) !== null) {
+        const probe = { ...ctx, out: structuredClone(out) };
+        if (apply(match, probe) === false) continue;
+        if (JSON.stringify(probe.out) === said) take(match);
+      }
+      break;
     }
   }
 

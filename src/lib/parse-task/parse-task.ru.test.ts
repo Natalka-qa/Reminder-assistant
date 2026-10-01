@@ -104,6 +104,12 @@ describe("Russian", () => {
       durationMinutes: 60,
     });
     expect(parse("Отчёт каждую пятницу").repeatDays).toEqual([5]);
+    // Days with just a space between them.
+    expect(parse("Зал по пн ср пт")).toMatchObject({
+      title: "Зал",
+      repeat: "WEEKLY",
+      repeatDays: [1, 3, 5],
+    });
     expect(parse("Уборка по будням").repeatDays).toEqual([1, 2, 3, 4, 5]);
   });
 

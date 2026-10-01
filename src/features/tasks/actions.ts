@@ -7,7 +7,11 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { formatDateInZone, formatTimeInZone } from "@/lib/date";
 import { formatIntervalLabel } from "@/lib/format";
-import { dateStringSchema, timeStringSchema } from "@/lib/validation/task";
+import {
+  createTaskSchema,
+  dateStringSchema,
+  timeStringSchema,
+} from "@/lib/validation/task";
 import { taskService } from "@/features/tasks/task.service";
 import {
   TaskNotFoundError,
@@ -135,6 +139,49 @@ export async function createTaskAction(
   redirect(
     `/tasks/${taskId}${calendarUnavailable ? CALENDAR_UNAVAILABLE_QUERY : ""}`,
   );
+}
+
+// "Dance every Mon at 19 and Wed at 20" — New task saves one task per day
+// and time (splitTaskPhrase), sent as a JSON list in `tasks`: the same
+// fields createTaskAction reads, one set per task. All are checked before
+// any is saved, so a bad one saves none; then it's Tasks, where they all
+// show, rather than one task's page.
+export async function createTasksAction(
+  _prevState: TaskActionState,
+  formData: FormData,
+): Promise<TaskActionState> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { status: "error", message: "Not signed in." };
+  }
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(String(formData.get("tasks") ?? ""));
+  } catch {
+    return { status: "error", message: "Couldn't read the tasks." };
+  }
+  const parsed = z.array(createTaskSchema).min(1).max(7).safeParse(raw);
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.error.issues[0]?.message ?? "Couldn't read the tasks.",
+    };
+  }
+
+  try {
+    for (const input of parsed.data) {
+      await taskService.createTask(user.id, user.timezone, input);
+    }
+  } catch (error) {
+    if (error instanceof TaskValidationError) {
+      return { status: "error", message: error.message };
+    }
+    throw error;
+  }
+
+  revalidateTaskPaths();
+  redirect("/tasks");
 }
 
 export async function updateTaskAction(

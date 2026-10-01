@@ -52,6 +52,9 @@ const MERIDIEM = "am|pm|a\\.m\\.|p\\.m\\.";
 const meridiemOf = (value: string | undefined) =>
   value ? (value.replace(/\./g, "").toLowerCase() as "am" | "pm") : undefined;
 
+/** Weekday words, for splitting "Mon at 19 and Wed at 20" (split.ts). */
+export const WEEKDAY_PATTERN = WEEKDAY;
+
 export const en: Language = {
   id: "en",
   searchGroups: [
@@ -86,14 +89,16 @@ export const en: Language = {
       rule("(?:every|each|on) (?:weekdays?|workdays?)", (_, { out }) =>
         setWeekly(out, [1, 2, 3, 4, 5]),
       ),
+      // "every mon and wed", "every mon, wed", and "every Mon Wed" — the
+      // days may also follow one another with just a space.
       rule(
-        `(?:every|each) (?:${WEEKDAY})(?:\\s*(?:,|and|&)\\s*(?:${WEEKDAY}))*`,
+        `(?:every|each) (?:${WEEKDAY})(?:(?:\\s*(?:,|and|&)\\s*|\\s+)(?:${WEEKDAY}))*`,
         (match, { out }) =>
           setWeekly(
             out,
             match[0]
               .replace(/^(?:every|each)\s+/i, "")
-              .split(/\s*(?:,|and|&)\s*/i)
+              .split(/\s*(?:,|and|&)\s*|\s+/i)
               .map(weekdayOf),
           ),
       ),

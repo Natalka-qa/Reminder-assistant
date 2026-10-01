@@ -83,6 +83,12 @@ describe("Ukrainian", () => {
       time: "19:00",
       durationMinutes: 60,
     });
+    // Days with just a space between them.
+    expect(parse("Зала по пн ср пт")).toMatchObject({
+      title: "Зала",
+      repeat: "WEEKLY",
+      repeatDays: [1, 3, 5],
+    });
     expect(parse("Йога щопонеділка")).toMatchObject({
       title: "Йога",
       repeatDays: [1],
