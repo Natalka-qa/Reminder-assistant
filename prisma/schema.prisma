@@ -50,6 +50,13 @@ model User {
   telegramLinkCode          String?   @unique
   telegramLinkCodeExpiresAt DateTime?
 
+  // Sprint 15 (sprint-15-tasks.md S15-10): the morning summary in Telegram.
+  // Minutes after the user's midnight it's sent at, null = off (the
+  // default); sentOn is the user's local "YYYY-MM-DD" it last went out, so
+  // a second cron run that day doesn't send it again.
+  telegramSummaryMinutes Int?
+  telegramSummarySentOn  String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

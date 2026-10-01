@@ -9,8 +9,10 @@ import {
   latestOccurrenceEnd,
   patternInsight,
   selectUpNext,
+  withoutRemoved,
   type HomeOccurrence,
 } from "./home-view";
+import type { OccurrenceStatus } from "@/lib/db/types";
 import {
   DEFAULT_SCHEDULE_PREFERENCES,
   type SchedulePreferences,
@@ -457,5 +459,19 @@ describe("findMoveTime", () => {
         preferences: { ...NO_WORK, workoutLatestStartMinutes: 19 * 60 + 30 },
       }),
     ).toBeNull();
+  });
+});
+
+describe("withoutRemoved", () => {
+  it("leaves out a day removed from a repeating task, keeps the rest", () => {
+    const day = (id: string, status: OccurrenceStatus) => ({ id, status });
+    expect(
+      withoutRemoved([
+        day("a", "SCHEDULED"),
+        day("b", "CANCELLED"),
+        day("c", "DONE"),
+        day("d", "SKIPPED"),
+      ]).map((o) => o.id),
+    ).toEqual(["a", "c", "d"]);
   });
 });

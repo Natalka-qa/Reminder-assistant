@@ -91,7 +91,19 @@ Skip this entirely if you don't want the Telegram notification channel — the t
 
    Only needs to be re-run if the token, secret, or deployment URL changes.
 
-5. On `/settings`, click "Connect" and open the resulting `t.me/...` link — Telegram sends the bot `/start <code>`, which the webhook uses to link your account.
+5. Register the command menu once, the same way (the "/" button next to the message box):
+
+   ```bash
+   curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setMyCommands" \
+     -H "Content-Type: application/json" \
+     -d '{"commands": [{"command": "today", "description": "What is planned for today"}, {"command": "next", "description": "The next task"}, {"command": "help", "description": "What I can do"}]}'
+   ```
+
+6. On `/settings`, click "Connect" and open the resulting `t.me/...` link — Telegram sends the bot `/start <code>`, which the webhook uses to link your account.
+
+If `/start` gets no answer, check `getWebhookInfo` first (`curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/getWebhookInfo"`): an empty `url` means step 4 hasn't been run for this bot.
+
+The webhook only reaches a public URL, so a local `next dev` never gets updates from Telegram; to try the bot locally, POST updates to `/api/telegram/webhook` yourself with the `x-telegram-bot-api-secret-token` header.
 
 ### Google Calendar setup
 
@@ -184,6 +196,17 @@ Two settings on `/settings`, each user's own:
 | Email reminders  | On            | Off: no reminder emails. Telegram (if connected) and the in-app reminder on Home still come; with no Telegram, reminders only show in the app. |
 
 A reminder whose email fails is retried; Telegram is sent once, not again on every retry.
+
+## Telegram bot
+
+Once a chat is connected (see "Telegram setup"), it works as a second way in, on the same data as the app:
+
+- **Write a task** the way you'd say it — "Call mom tomorrow at 18", "Позвонить маме в пятницу в 10" — and it's added by the same rules as a sentence in New task, with your Default reminder. The reply shows what was added and when, and the same notices as the form ("Overlaps with …", "… has already passed today"). Under it: **+1 h** and **Tomorrow** to fix the time or day, **Undo**, **Open**. They work for 10 minutes and until something of the task is marked; +1 h only before 23:00, Tomorrow only for a one-off task. A find-a-time sentence ("find an hour tomorrow evening") isn't searched in the chat — the reply links to New task.
+- **/today** — the day in your timezone, with how many tasks are overdue; **/next** — the next open task. **Today** and **Next** are also on the keyboard under the message box.
+- **Reminders** come with **Done · Snooze 15 min · Skip**, then **Open** (and **Remove this one** for a repeating task). Pressing one changes the task exactly as the same button in the app does, and the message shows the outcome; a button for a task that's no longer open just says so.
+- **Morning summary** — on `/settings`, under Telegram: Off (default), 07:00, 08:00, 09:00 or 10:00. The `/today` text with a **✓** button per open task (up to 8); pressing one marks it and redraws the summary. Sent once a day by the same 5-minute `send-notifications` run, so up to 5 minutes after the time you picked, and not at all if it couldn't go out within 2 hours or there's nothing planned or overdue.
+
+A chat that isn't connected gets "Connect it from Settings" and nothing else. The bot's messages are in English, like the app.
 
 ## Your patterns
 

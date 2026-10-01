@@ -7,6 +7,7 @@ import { buildReminderEmail } from "@/lib/email/reminder-email";
 import { reminderChannels } from "@/features/notifications/reminder-channels";
 import { isTelegramEnabled } from "@/lib/telegram/telegram.config";
 import { sendTelegramMessage } from "@/lib/telegram/send-telegram-message";
+import { occurrenceButtons } from "@/lib/telegram/bot-messages";
 import { buildReminderTelegramMessage } from "@/lib/telegram/reminder-telegram-message";
 import { notificationRepository } from "@/features/notifications/notification.repository";
 import { occurrenceRepository } from "@/features/scheduling/occurrence.repository";
@@ -215,9 +216,18 @@ export const notificationService = {
             title: task.title,
             timeLabel,
             durationMinutes: task.durationMinutes,
-            taskUrl,
           });
-          await sendTelegramMessage(user.telegramChatId, text);
+          // Done · Snooze 15 min · Skip, then Open (sprint-15-tasks.md
+          // S15-06) — pressed in the chat, handled by the bot's webhook.
+          await sendTelegramMessage(
+            user.telegramChatId,
+            text,
+            occurrenceButtons({
+              id: occurrence.id,
+              taskUrl,
+              recurring: task.recurrenceRule !== null,
+            }),
+          );
         } catch (error) {
           console.error("telegram reminder send failed:", error);
         }

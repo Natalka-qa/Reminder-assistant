@@ -72,7 +72,10 @@ export default async function SettingsPage() {
       />
 
       {isTelegramEnabled() && (
-        <TelegramConnect connected={Boolean(profile?.telegramChatId)} />
+        <TelegramConnect
+          connected={Boolean(profile?.telegramChatId)}
+          summaryMinutes={profile?.telegramSummaryMinutes ?? null}
+        />
       )}
 
       {calendarStatus && <GoogleCalendarConnect status={calendarStatus} />}

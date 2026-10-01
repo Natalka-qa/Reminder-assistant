@@ -351,3 +351,31 @@ export function onlyFreeTimeNotice(
 ): string {
   return `The only free ${durationPhrase(durationMinutes)} ${whenAsked(dates, partOfDay, today)}.`;
 }
+
+/**
+ * sprint-15-tasks.md S15-03 — what a task is saved as, from its title, the
+ * resolved fields and the note: the fields createTaskAction reads. Shared
+ * by the New task form (its hidden inputs) and by a task added from a
+ * Telegram message, so both save exactly the same thing. Repeat days only
+ * for a weekly repeat; overlaps are a notice, never a block (§ 4), so
+ * confirmConflicts is always set.
+ */
+export function taskInput(
+  title: string,
+  fields: ResolvedTaskFields,
+  description = "",
+): CreateTaskInput {
+  return {
+    title,
+    description: description || undefined,
+    date: fields.date,
+    time: fields.time,
+    durationMinutes: fields.durationMinutes,
+    priority: fields.priority,
+    flexibility: fields.flexibility,
+    repeatFrequency: fields.repeat,
+    repeatDaysOfWeek: fields.repeat === "WEEKLY" ? fields.repeatDays : [],
+    reminderOffsetMinutes: fields.reminderOffsetMinutes,
+    confirmConflicts: true,
+  };
+}
