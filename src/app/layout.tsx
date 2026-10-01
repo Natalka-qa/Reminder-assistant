@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Cormorant_Garamond } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -22,6 +22,15 @@ const cormorantGaramond = Cormorant_Garamond({
 export const metadata: Metadata = {
   title: "Reminder",
   description: "Personal scheduling assistant",
+};
+
+// viewport-fit=cover makes env(safe-area-inset-*) report the iPhone's
+// insets instead of 0 — BottomNav pads itself by the bottom one
+// (sprint-16-tasks.md S16-05).
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

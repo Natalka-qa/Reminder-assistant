@@ -19,6 +19,9 @@ const AFTER_CREATE: NavItem[] = [
 
 // design_handoff_reminder_assistant/README.md § BottomNavigation (mobile).
 // Hidden at md and up — Sidebar (sidebar.tsx) covers desktop instead.
+// Bottom padding is at least the iPhone home-indicator inset, so the nav
+// sits above it in Safari and inside Telegram (sprint-16-tasks.md S16-05,
+// "Расхождения" п.11; needs viewportFit "cover" in the root layout).
 export function BottomNav() {
   const pathname = usePathname();
 
@@ -43,7 +46,7 @@ export function BottomNav() {
   }
 
   return (
-    <nav className="border-border bg-surface fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 items-end px-[18px] pt-2.5 pb-6 md:hidden">
+    <nav className="border-border bg-surface fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 items-end px-[18px] pt-2.5 pb-[max(1.5rem,env(safe-area-inset-bottom))] md:hidden">
       {BEFORE_CREATE.map(renderItem)}
       <Link
         href="/tasks/new"

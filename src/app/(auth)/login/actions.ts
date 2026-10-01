@@ -46,6 +46,8 @@ export async function signInWithEmail(
   }
 }
 
+// `signedOut` keeps /login inside the Telegram Mini App from signing
+// straight back in (telegram-login-gate.tsx); a browser ignores it.
 export async function signOutAction() {
-  await signOut({ redirectTo: "/login" });
+  await signOut({ redirectTo: "/login?signedOut=1" });
 }

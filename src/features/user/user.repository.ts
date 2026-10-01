@@ -111,6 +111,14 @@ export const userRepository = {
     });
   },
 
+  // sprint-16-tasks.md S16-02 — the same Session row Auth.js writes after
+  // Google ("Расхождения" п.4), so dal.ts, Sign out and expiry all work as is.
+  createSession(userId: string, sessionToken: string, expires: Date) {
+    return prisma.session.create({
+      data: { userId, sessionToken, expires },
+    });
+  },
+
   unlinkTelegram(id: string) {
     return prisma.user.update({
       where: { id },
