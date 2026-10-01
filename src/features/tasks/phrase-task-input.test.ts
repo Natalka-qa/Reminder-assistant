@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { taskInputFromPhrase } from "./phrase-task-input";
+import { taskInputFromPhrase, taskInputsFromPhrase } from "./phrase-task-input";
 
 // Thursday, 11:20 in the user's zone.
 const context = {
@@ -78,5 +78,38 @@ describe("taskInputFromPhrase", () => {
       status: "empty",
     });
     expect(taskInputFromPhrase("   ", context)).toEqual({ status: "empty" });
+  });
+});
+
+describe("taskInputsFromPhrase", () => {
+  it("makes one task per day when each day has its own time", () => {
+    const parts = taskInputsFromPhrase(
+      "Dance every Mon at 19 and Wed at 20",
+      context,
+    );
+    expect(
+      parts.map((part) => part.status === "ready" && part.input),
+    ).toMatchObject([
+      {
+        title: "Dance",
+        repeatFrequency: "WEEKLY",
+        repeatDaysOfWeek: [1],
+        time: "19:00",
+        flexibility: "FIXED",
+        reminderOffsetMinutes: 30,
+      },
+      {
+        title: "Dance",
+        repeatFrequency: "WEEKLY",
+        repeatDaysOfWeek: [3],
+        time: "20:00",
+      },
+    ]);
+  });
+
+  it("is one task for anything else", () => {
+    expect(taskInputsFromPhrase("Call mom tomorrow at 18", context)).toEqual([
+      taskInputFromPhrase("Call mom tomorrow at 18", context),
+    ]);
   });
 });

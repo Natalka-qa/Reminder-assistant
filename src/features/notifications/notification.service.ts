@@ -205,11 +205,13 @@ export const notificationService = {
         attemptCount: notification.attemptCount,
       });
 
-      // Best-effort second channel, independent of the email path below —
-      // its own try/catch so a failure here never touches this
-      // notification's status/retry count, which describes email delivery
-      // only (sprint-10-tasks.md "Расхождения" п.4). Once per notification,
-      // not again on every email retry (sprint-14-tasks.md S14-07).
+      // With email on, Telegram is a best-effort second channel: its own
+      // try/catch, and a failure never touches this notification's
+      // status/retry count, which then describes email delivery
+      // (sprint-10-tasks.md "Расхождения" п.4); once per notification, not
+      // again on every email retry (sprint-14-tasks.md S14-07). With email
+      // off, Telegram is the delivery, and its outcome is what's retried.
+      let telegramSent = false;
       if (channels.telegram && user.telegramChatId) {
         try {
           const text = buildReminderTelegramMessage({
@@ -228,16 +230,23 @@ export const notificationService = {
               recurring: task.recurrenceRule !== null,
             }),
           );
+          telegramSent = true;
         } catch (error) {
           console.error("telegram reminder send failed:", error);
         }
       }
 
-      // "Email reminders" off (S14-06): nothing to deliver or retry by
-      // email — the reminder is done once Telegram and the toast have had
-      // their go.
-      if (!channels.email) {
-        await notificationRepository.markSent(notification.id, db);
+      // "Email reminders" off (S14-06). With Telegram, the reminder is done
+      // once the message is through, and retried like an email otherwise;
+      // without it there's nothing to deliver — the toast has had its go.
+      if (channels.retryOn !== "email") {
+        await (channels.retryOn === "telegram" && !telegramSent
+          ? notificationRepository.markFailedOrRetry(
+              notification.id,
+              notification.attemptCount,
+              db,
+            )
+          : notificationRepository.markSent(notification.id, db));
         continue;
       }
 

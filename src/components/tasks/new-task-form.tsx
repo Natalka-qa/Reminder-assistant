@@ -11,11 +11,14 @@ import {
 import { Mic } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { formatDuration } from "@/lib/format";
 import { useZonedClock } from "@/lib/date/zoned-clock";
 import { useSpeechDictation } from "@/lib/speech/use-speech-dictation";
 import { parseTask } from "@/lib/parse-task";
+import { splitTaskPhrase } from "@/lib/parse-task/split";
 import {
   createTaskAction,
+  createTasksAction,
   previewOverlapsAction,
   type OverlapPreview,
   type TaskActionState,
@@ -39,6 +42,7 @@ import {
   SEARCH_DEFAULT_DURATION_MINUTES,
   taskInput,
   type FoundSlot,
+  type ResolvedTaskFields,
   type TaskFieldOverrides,
 } from "@/features/tasks/new-task-fields";
 import { RoseNotice } from "@/components/tasks/task-fields/shared";
@@ -71,6 +75,21 @@ const SEARCH_DEBOUNCE_MS = 400;
 
 const initialState: TaskActionState = { status: "idle" };
 
+const WEEKDAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+// One line per task a split sentence adds: "Every Mon · 19:00 · 1h".
+function splitPartLabel(part: ResolvedTaskFields, today: string): string {
+  const when =
+    part.repeat === "WEEKLY"
+      ? `Every ${part.repeatDays.map((day) => WEEKDAY_SHORT[day - 1]).join(", ")}`
+      : formatWhenDate(part.date, today);
+  const duration =
+    part.durationMinutes > 0
+      ? ` · ${formatDuration(part.durationMinutes)}`
+      : "";
+  return `${when} · ${part.time}${duration}`;
+}
+
 // NEW_TASK_V2_UPDATE.md — one form: say the task in a sentence, check what
 // was understood, adjust any field by hand, create. lib/parse-task reads
 // the sentence (English, Russian or Ukrainian) on every change — it's
@@ -96,10 +115,16 @@ export function NewTaskForm({
   /** Settings → Default reminder (S14-06). */
   defaultReminderMinutes: number;
 }) {
-  const [state, formAction, pending] = useActionState(
+  const [state, formAction, pendingOne] = useActionState(
     createTaskAction,
     initialState,
   );
+  // "Dance every Mon at 19 and Wed at 20" — several tasks at once.
+  const [tasksState, tasksAction, pendingMany] = useActionState(
+    createTasksAction,
+    initialState,
+  );
+  const pending = pendingOne || pendingMany;
   const clock = useZonedClock(timezone, { date: today, minutes: nowMinutes });
   const defaults = {
     ...newTaskDefaults(today, nowMinutes),
@@ -192,6 +217,29 @@ export function NewTaskForm({
   // What gets saved — the same mapping a task added from Telegram uses
   // (sprint-15-tasks.md S15-03).
   const input = taskInput(title, fields, noteOpen ? note : "");
+
+  // A repeat with its own time on each day can't be one task (a task has
+  // one time): it's one task per day and time, each read from its own part
+  // of the sentence. The fields below that all of them share — scheduling,
+  // reminder, importance, the note — still apply to every one; their days
+  // and times come from the sentence, so When and Repeat aren't shown.
+  const parts = useMemo(() => {
+    const sentences = splitTaskPhrase(text);
+    if (!sentences) return null;
+    const read = sentences.map((sentence) => parseTask(sentence, clock.date));
+    return read.every((part) => part.title && !part.timeSearch) ? read : null;
+  }, [text, clock.date]);
+  const shared: TaskFieldOverrides = {
+    flexibility: overrides.flexibility,
+    priority: overrides.priority,
+    reminderOffsetMinutes: overrides.reminderOffsetMinutes,
+  };
+  const partFields = parts?.map((part) =>
+    resolveTaskFields(part, shared, defaults),
+  );
+  const partInputs = parts?.map((part, index) =>
+    taskInput(part.title, partFields![index], noteOpen ? note : ""),
+  );
   const hasText = text.trim().length > 0;
   // Not while a search is still looking: the task would save at the
   // default time instead of the free one about to arrive.
@@ -237,6 +285,11 @@ export function NewTaskForm({
       toast.error(state.message);
     }
   }, [state]);
+  useEffect(() => {
+    if (tasksState.status === "error" && tasksState.message) {
+      toast.error(tasksState.message);
+    }
+  }, [tasksState]);
 
   // § 4 — overlaps with existing tasks (and Google Calendar busy times) on
   // the chosen date, for the chosen time and duration. Only once there's
@@ -247,7 +300,10 @@ export function NewTaskForm({
   // workout starts by the user's limit, and only a task that can be done
   // during work may land in work hours.
   const checkOverlaps =
-    (hasText || fields.timeGiven) && fields.date >= today && !searching;
+    (hasText || fields.timeGiven) &&
+    fields.date >= today &&
+    !searching &&
+    !parts;
   const overlapKey = `${fields.date}|${fields.time}|${fields.durationMinutes}|${kind}|${allowDuringWork}`;
   const [preview, setPreview] = useState<{
     key: string;
@@ -323,7 +379,7 @@ export function NewTaskForm({
 
   return (
     <form
-      action={formAction}
+      action={parts ? tasksAction : formAction}
       onSubmit={(event) => {
         if (!canCreate) event.preventDefault();
       }}
@@ -360,6 +416,9 @@ export function NewTaskForm({
         name="confirmConflicts"
         value={String(input.confirmConflicts)}
       />
+      {partInputs && (
+        <input type="hidden" name="tasks" value={JSON.stringify(partInputs)} />
+      )}
 
       <FormHeader label="New task" cancelHref="/dashboard" />
 
@@ -416,20 +475,33 @@ export function NewTaskForm({
           {hasText ? (
             <>
               <p className="text-text-primary text-[17px]/[1.35] font-semibold text-pretty [overflow-wrap:anywhere]">
-                {title}
+                {parts ? parts[0].title : title}
               </p>
-              <p
-                className={cn(
-                  "text-[13px]/[1.5]",
-                  hits.length > 0 ? "text-blue-ink" : "text-newtask-quiet-text",
-                )}
-              >
-                {hits.length > 0
-                  ? `Picked up: ${hits.join(" · ")}`
-                  : title
-                    ? "No date or time found — set them below, or leave it for today."
-                    : "Add what the task is, not only when."}
-              </p>
+              {parts && partFields ? (
+                <div className="text-blue-ink text-[13px]/[1.5]">
+                  <p>Will be added as {parts.length} tasks:</p>
+                  <ul>
+                    {partFields.map((part, index) => (
+                      <li key={index}>{splitPartLabel(part, today)}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p
+                  className={cn(
+                    "text-[13px]/[1.5]",
+                    hits.length > 0
+                      ? "text-blue-ink"
+                      : "text-newtask-quiet-text",
+                  )}
+                >
+                  {hits.length > 0
+                    ? `Picked up: ${hits.join(" · ")}`
+                    : title
+                      ? "No date or time found — set them below, or leave it for today."
+                      : "Add what the task is, not only when."}
+                </p>
+              )}
             </>
           ) : (
             <p className="text-newtask-quiet-text flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[13px]">
@@ -451,91 +523,93 @@ export function NewTaskForm({
         </div>
       </div>
 
-      <WhenGroup
-        labelId={ids.when}
-        today={today}
-        date={fields.date}
-        time={fields.time}
-        durationMinutes={fields.durationMinutes}
-        onDateChange={(value) => setField("date", value)}
-        onTimeChange={(value) => setField("time", value)}
-        onDurationChange={(value) => setField("durationMinutes", value)}
-      >
-        {past && <RoseNotice>{past}</RoseNotice>}
-        {overlap && overlapText && (
-          <OverlapNotice
-            text={overlapText}
-            freeNearby={overlap.freeNearby}
-            currentDate={fields.date}
-            today={today}
-            onChoose={chooseSlot}
-          />
-        )}
-        {timeSearch && (
-          <p className="text-newtask-quiet-text text-[13px]/[1.5] text-pretty">
-            {searching ? (
-              "Finding a free time…"
-            ) : searchAnswer?.result == null ? (
-              "Couldn't look for a free time — set it above."
-            ) : foundSlots.length === 0 ? (
-              <span className="text-rose-tint-text">
-                {noFreeTimeNotice(
+      {!parts && (
+        <WhenGroup
+          labelId={ids.when}
+          today={today}
+          date={fields.date}
+          time={fields.time}
+          durationMinutes={fields.durationMinutes}
+          onDateChange={(value) => setField("date", value)}
+          onTimeChange={(value) => setField("time", value)}
+          onDurationChange={(value) => setField("durationMinutes", value)}
+        >
+          {past && <RoseNotice>{past}</RoseNotice>}
+          {overlap && overlapText && (
+            <OverlapNotice
+              text={overlapText}
+              freeNearby={overlap.freeNearby}
+              currentDate={fields.date}
+              today={today}
+              onChoose={chooseSlot}
+            />
+          )}
+          {timeSearch && (
+            <p className="text-newtask-quiet-text text-[13px]/[1.5] text-pretty">
+              {searching ? (
+                "Finding a free time…"
+              ) : searchAnswer?.result == null ? (
+                "Couldn't look for a free time — set it above."
+              ) : foundSlots.length === 0 ? (
+                <span className="text-rose-tint-text">
+                  {noFreeTimeNotice(
+                    searchRequest!.dates,
+                    timeSearch.partOfDay,
+                    fields.durationMinutes,
+                    clock.date,
+                  )}
+                </span>
+              ) : foundSlots.length === 1 &&
+                foundSlots[0].date === fields.date &&
+                foundSlots[0].time === fields.time ? (
+                // Nothing else to offer, and it's already set above.
+                onlyFreeTimeNotice(
                   searchRequest!.dates,
                   timeSearch.partOfDay,
                   fields.durationMinutes,
                   clock.date,
-                )}
-              </span>
-            ) : foundSlots.length === 1 &&
-              foundSlots[0].date === fields.date &&
-              foundSlots[0].time === fields.time ? (
-              // Nothing else to offer, and it's already set above.
-              onlyFreeTimeNotice(
-                searchRequest!.dates,
-                timeSearch.partOfDay,
-                fields.durationMinutes,
-                clock.date,
-              )
-            ) : (
-              <>
-                Free:{" "}
-                {foundSlots.map((slot, index) => {
-                  const current =
-                    slot.date === fields.date && slot.time === fields.time;
-                  return (
-                    <span key={`${slot.date} ${slot.time}`}>
-                      {index > 0 && " · "}
-                      <button
-                        type="button"
-                        aria-pressed={current}
-                        onClick={() => chooseFoundSlot(slot)}
-                        aria-label={`${formatWhenDate(slot.date, today)}, ${slot.time}`}
-                        className={cn(
-                          "text-burgundy font-semibold",
-                          current
-                            ? "bg-burgundy-tint rounded px-1"
-                            : "decoration-newtask-example-underline hover:decoration-burgundy underline underline-offset-[3px]",
-                        )}
-                      >
-                        {formatNearbySlot(slot, foundSlots[0].date)}
-                      </button>
-                    </span>
-                  );
-                })}
-              </>
-            )}
-            {searchAnswer?.result?.calendar === "unavailable" &&
-              " Google Calendar wasn't checked."}
-          </p>
-        )}
-        {hasWorkHours &&
-          (timeSearch || (overlap?.freeNearby.length ?? 0) > 0) && (
-            <WorkHoursSwitch
-              checked={allowDuringWork}
-              onChange={setWorkOverride}
-            />
+                )
+              ) : (
+                <>
+                  Free:{" "}
+                  {foundSlots.map((slot, index) => {
+                    const current =
+                      slot.date === fields.date && slot.time === fields.time;
+                    return (
+                      <span key={`${slot.date} ${slot.time}`}>
+                        {index > 0 && " · "}
+                        <button
+                          type="button"
+                          aria-pressed={current}
+                          onClick={() => chooseFoundSlot(slot)}
+                          aria-label={`${formatWhenDate(slot.date, today)}, ${slot.time}`}
+                          className={cn(
+                            "text-burgundy font-semibold",
+                            current
+                              ? "bg-burgundy-tint rounded px-1"
+                              : "decoration-newtask-example-underline hover:decoration-burgundy underline underline-offset-[3px]",
+                          )}
+                        >
+                          {formatNearbySlot(slot, foundSlots[0].date)}
+                        </button>
+                      </span>
+                    );
+                  })}
+                </>
+              )}
+              {searchAnswer?.result?.calendar === "unavailable" &&
+                " Google Calendar wasn't checked."}
+            </p>
           )}
-      </WhenGroup>
+          {hasWorkHours &&
+            (timeSearch || (overlap?.freeNearby.length ?? 0) > 0) && (
+              <WorkHoursSwitch
+                checked={allowDuringWork}
+                onChange={setWorkOverride}
+              />
+            )}
+        </WhenGroup>
+      )}
 
       <SchedulingChoice
         labelId={ids.scheduling}
@@ -556,6 +630,7 @@ export function NewTaskForm({
         repeatDays={fields.repeatDays}
         onRepeatDaysChange={(days) => setField("repeatDays", days)}
         repeatHint={hint}
+        hideRepeat={parts !== null}
       />
 
       <NoteField
@@ -567,7 +642,7 @@ export function NewTaskForm({
       />
 
       <FormActions
-        submitLabel="Create task"
+        submitLabel={parts ? `Create ${parts.length} tasks` : "Create task"}
         pendingLabel="Creating…"
         pending={pending}
         canSubmit={canCreate}

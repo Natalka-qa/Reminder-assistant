@@ -44,6 +44,7 @@ export function TaskDetailsFields<P extends string>({
   repeatDays,
   onRepeatDaysChange,
   repeatHint,
+  hideRepeat = false,
 }: {
   ids: { reminder: string; importance: string; repeat: string };
   reminderOffsetMinutes: number;
@@ -58,6 +59,8 @@ export function TaskDetailsFields<P extends string>({
   repeatDays: number[];
   onRepeatDaysChange: (days: number[]) => void;
   repeatHint: string | null;
+  /** New task split into one task per day (split.ts): each has its own. */
+  hideRepeat?: boolean;
 }) {
   function toggleWeekday(day: number) {
     const days = repeatDays.includes(day)
@@ -110,49 +113,51 @@ export function TaskDetailsFields<P extends string>({
           })}
         </div>
       </div>
-      <div className="border-newtask-hairline flex flex-col border-y">
-        <SelectRow
-          id={ids.repeat}
-          label="Repeat"
-          value={repeat}
-          onChange={(value) => onRepeatChange(value as Repeat)}
-          options={repeatChoices}
-          bordered={false}
-        />
-        {repeat === "WEEKLY" && (
-          <div
-            role="group"
-            aria-label="Repeat on"
-            className="flex flex-wrap gap-1.5 pt-0.5 pb-3.5"
-          >
-            {WEEKDAYS.map((weekday) => {
-              const on = repeatDays.includes(weekday.value);
-              return (
-                <button
-                  key={weekday.value}
-                  type="button"
-                  aria-pressed={on}
-                  aria-label={weekday.name}
-                  onClick={() => toggleWeekday(weekday.value)}
-                  className={cn(
-                    "relative size-10 rounded-full border text-[12px] transition-colors after:absolute after:-inset-[2px]",
-                    on
-                      ? "bg-burgundy border-burgundy font-semibold text-white"
-                      : "bg-surface border-border text-text-tertiary font-medium",
-                  )}
-                >
-                  {weekday.label}
-                </button>
-              );
-            })}
-          </div>
-        )}
-        {repeatHint && (
-          <p className="text-newtask-quiet-text pb-3.5 text-[13px]">
-            {repeatHint}
-          </p>
-        )}
-      </div>
+      {!hideRepeat && (
+        <div className="border-newtask-hairline flex flex-col border-y">
+          <SelectRow
+            id={ids.repeat}
+            label="Repeat"
+            value={repeat}
+            onChange={(value) => onRepeatChange(value as Repeat)}
+            options={repeatChoices}
+            bordered={false}
+          />
+          {repeat === "WEEKLY" && (
+            <div
+              role="group"
+              aria-label="Repeat on"
+              className="flex flex-wrap gap-1.5 pt-0.5 pb-3.5"
+            >
+              {WEEKDAYS.map((weekday) => {
+                const on = repeatDays.includes(weekday.value);
+                return (
+                  <button
+                    key={weekday.value}
+                    type="button"
+                    aria-pressed={on}
+                    aria-label={weekday.name}
+                    onClick={() => toggleWeekday(weekday.value)}
+                    className={cn(
+                      "relative size-10 rounded-full border text-[12px] transition-colors after:absolute after:-inset-[2px]",
+                      on
+                        ? "bg-burgundy border-burgundy font-semibold text-white"
+                        : "bg-surface border-border text-text-tertiary font-medium",
+                    )}
+                  >
+                    {weekday.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {repeatHint && (
+            <p className="text-newtask-quiet-text pb-3.5 text-[13px]">
+              {repeatHint}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
