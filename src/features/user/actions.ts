@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth/dal";
 import { userService } from "@/features/user/user.service";
 import {
   InvalidReminderPreferencesError,
+  InvalidTelegramSummaryError,
   InvalidSchedulePreferencesError,
   InvalidTimezoneError,
 } from "@/features/user/user.errors";
@@ -134,6 +135,28 @@ export type DisconnectTelegramState = {
   status: "idle" | "success" | "error";
   message?: string;
 };
+
+// sprint-15-tasks.md S15-10 — "Morning summary": a time from the list, or
+// "off". Saved on change, like the rows above it.
+export async function updateTelegramSummaryAction(
+  value: string,
+): Promise<{ status: "success" | "error"; message?: string }> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { status: "error", message: "Not signed in." };
+  }
+
+  try {
+    await userService.setTelegramSummary(user.id, value);
+  } catch (error) {
+    if (error instanceof InvalidTelegramSummaryError) {
+      return { status: "error", message: error.message };
+    }
+    throw error;
+  }
+  revalidatePath("/settings");
+  return { status: "success" };
+}
 
 export async function disconnectTelegramAction(): Promise<DisconnectTelegramState> {
   const user = await getCurrentUser();

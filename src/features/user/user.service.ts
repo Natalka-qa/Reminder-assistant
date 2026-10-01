@@ -1,5 +1,6 @@
 import {
   reminderPreferencesSchema,
+  telegramSummarySchema,
   schedulePreferencesSchema,
   timezoneSchema,
   type ReminderPreferences,
@@ -8,6 +9,7 @@ import {
 import { userRepository } from "@/features/user/user.repository";
 import {
   InvalidReminderPreferencesError,
+  InvalidTelegramSummaryError,
   InvalidSchedulePreferencesError,
   InvalidTimezoneError,
 } from "@/features/user/user.errors";
@@ -52,6 +54,28 @@ export const userService = {
     return userRepository.updateReminderPreferences(userId, result.data);
   },
 
+  // sprint-15-tasks.md S15-10 — "Morning summary" in the Telegram block.
+  // Disconnecting keeps it: without a chat there's just nowhere to send it.
+  async setTelegramSummary(userId: string, input: unknown) {
+    const result = telegramSummarySchema.safeParse(input);
+    if (!result.success) {
+      throw new InvalidTelegramSummaryError(
+        result.error.issues[0]?.message ?? "Invalid summary time",
+      );
+    }
+    return userRepository.updateTelegramSummary(userId, result.data);
+  },
+
+  /** S15-11 — users with a chat and a summary time. */
+  getSummaryRecipients() {
+    return userRepository.findSummaryRecipients();
+  },
+
+  /** S15-11 — true for the one caller that gets to send today's summary. */
+  claimSummary(userId: string, today: string) {
+    return userRepository.claimSummary(userId, today);
+  },
+
   getReminderPreferences(userId: string): Promise<ReminderPreferences | null> {
     return userRepository.findReminderPreferences(userId);
   },
@@ -74,6 +98,11 @@ export const userService = {
 
   // Explicit boolean, not an exception — an invalid/expired/already-used
   // code from a Telegram webhook call is an expected outcome, not a bug.
+  /** sprint-15-tasks.md S15-05 — the account a Telegram chat belongs to. */
+  getUserByTelegramChat(chatId: string) {
+    return userRepository.findByTelegramChatId(chatId);
+  },
+
   async linkTelegramFromCode(code: string, chatId: string): Promise<boolean> {
     const user = await userRepository.findByTelegramLinkCode(code);
     if (!user || !isTelegramLinkCodeActive(user.telegramLinkCodeExpiresAt)) {

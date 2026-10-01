@@ -37,6 +37,7 @@ import {
   resolveTaskFields,
   searchDates,
   SEARCH_DEFAULT_DURATION_MINUTES,
+  taskInput,
   type FoundSlot,
   type TaskFieldOverrides,
 } from "@/features/tasks/new-task-fields";
@@ -188,6 +189,9 @@ export function NewTaskForm({
     defaults,
     pickedSlot ?? foundSlots[0] ?? null,
   );
+  // What gets saved — the same mapping a task added from Telegram uses
+  // (sprint-15-tasks.md S15-03).
+  const input = taskInput(title, fields, noteOpen ? note : "");
   const hasText = text.trim().length > 0;
   // Not while a search is still looking: the task would save at the
   // default time instead of the free one about to arrive.
@@ -327,28 +331,35 @@ export function NewTaskForm({
       className="flex w-full max-w-[560px] flex-col gap-[30px]"
     >
       {/* What gets saved: the same fields createTaskAction always took. */}
-      <input type="hidden" name="title" value={title} />
-      <input type="hidden" name="date" value={fields.date} />
-      <input type="hidden" name="time" value={fields.time} />
+      <input type="hidden" name="title" value={input.title} />
+      <input type="hidden" name="date" value={input.date} />
+      <input type="hidden" name="time" value={input.time} />
       <input
         type="hidden"
         name="durationMinutes"
-        value={fields.durationMinutes}
+        value={input.durationMinutes}
       />
-      <input type="hidden" name="priority" value={fields.priority} />
-      <input type="hidden" name="flexibility" value={fields.flexibility} />
-      <input type="hidden" name="repeatFrequency" value={fields.repeat} />
-      {fields.repeat === "WEEKLY" &&
-        fields.repeatDays.map((day) => (
-          <input key={day} type="hidden" name="repeatDaysOfWeek" value={day} />
-        ))}
+      <input type="hidden" name="priority" value={input.priority} />
+      <input type="hidden" name="flexibility" value={input.flexibility} />
+      <input
+        type="hidden"
+        name="repeatFrequency"
+        value={input.repeatFrequency}
+      />
+      {input.repeatDaysOfWeek.map((day) => (
+        <input key={day} type="hidden" name="repeatDaysOfWeek" value={day} />
+      ))}
       <input
         type="hidden"
         name="reminderOffsetMinutes"
-        value={fields.reminderOffsetMinutes}
+        value={input.reminderOffsetMinutes}
       />
-      <input type="hidden" name="description" value={noteOpen ? note : ""} />
-      <input type="hidden" name="confirmConflicts" value="true" />
+      <input type="hidden" name="description" value={input.description ?? ""} />
+      <input
+        type="hidden"
+        name="confirmConflicts"
+        value={String(input.confirmConflicts)}
+      />
 
       <FormHeader label="New task" cancelHref="/dashboard" />
 

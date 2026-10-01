@@ -12,6 +12,13 @@ export class InvalidSchedulePreferencesError extends Error {
   }
 }
 
+export class InvalidTelegramSummaryError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidTelegramSummaryError";
+  }
+}
+
 export class InvalidReminderPreferencesError extends Error {
   constructor(message: string) {
     super(message);
