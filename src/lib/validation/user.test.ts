@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { schedulePreferencesSchema, reminderPreferencesSchema } from "./user";
+import {
+  schedulePreferencesSchema,
+  reminderPreferencesSchema,
+  telegramSummarySchema,
+} from "./user";
 
 const defaults = {
   dayStartMinutes: 480,
@@ -104,5 +108,19 @@ describe("reminderPreferencesSchema (S14-06)", () => {
     expect(result.error?.issues[0]?.message).toBe(
       "Pick one of the reminder times offered.",
     );
+  });
+});
+
+describe("telegramSummarySchema", () => {
+  it("takes Off or one of the offered times", () => {
+    expect(telegramSummarySchema.parse("off")).toBeNull();
+    expect(telegramSummarySchema.parse(null)).toBeNull();
+    expect(telegramSummarySchema.parse("480")).toBe(480);
+    expect(telegramSummarySchema.parse(600)).toBe(600);
+  });
+
+  it("rejects any other time", () => {
+    expect(telegramSummarySchema.safeParse("450").success).toBe(false);
+    expect(telegramSummarySchema.safeParse("soon").success).toBe(false);
   });
 });

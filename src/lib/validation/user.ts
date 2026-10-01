@@ -63,6 +63,22 @@ export const DEFAULT_SCHEDULE_PREFERENCES: SchedulePreferences = {
 // 1 hour, 1 day before. The default reminder has to be one of them.
 export const REMINDER_OFFSET_MINUTES = [0, 5, 10, 15, 30, 60, 1440] as const;
 
+// sprint-15-tasks.md S15-10, п.17 — when the morning summary goes out:
+// minutes after the user's midnight, or off (null).
+export const SUMMARY_MINUTES = [7 * 60, 8 * 60, 9 * 60, 10 * 60] as const;
+
+export const telegramSummarySchema = z.preprocess(
+  (value) => (value === "off" || value === null ? null : Number(value)),
+  z
+    .number()
+    .int()
+    .refine(
+      (minutes) => (SUMMARY_MINUTES as readonly number[]).includes(minutes),
+      { message: "Pick one of the times offered." },
+    )
+    .nullable(),
+);
+
 export const reminderPreferencesSchema = z.object({
   defaultReminderMinutes: z.coerce
     .number()

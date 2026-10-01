@@ -1,14 +1,18 @@
 import { endOfDayInZone, startOfDayInZone } from "@/lib/date";
 import { occurrenceRepository } from "@/features/scheduling/occurrence.repository";
+import { withoutRemoved } from "@/features/scheduling/home-view";
 
 const UPCOMING_LIMIT = 10;
 
 export const dashboardService = {
-  getTodayTasks(userId: string, timezone: string, now = new Date()) {
-    return occurrenceRepository.findForUserBetween(
-      userId,
-      startOfDayInZone(now, timezone),
-      endOfDayInZone(now, timezone),
+  // Home, the bot's /today and /next, the morning summary.
+  async getTodayTasks(userId: string, timezone: string, now = new Date()) {
+    return withoutRemoved(
+      await occurrenceRepository.findForUserBetween(
+        userId,
+        startOfDayInZone(now, timezone),
+        endOfDayInZone(now, timezone),
+      ),
     );
   },
 

@@ -34,6 +34,18 @@ export type HomeOccurrence = {
   };
 };
 
+/**
+ * A day of a repeating task taken out with "Remove this one"
+ * (sprint-14-tasks.md S14-10) isn't part of the day — the same rule
+ * Calendar (calendar-view.ts) and Tasks (task-list-view.ts) apply. Found
+ * in sprint-15-tasks.md S15-08: Home still listed a day removed today.
+ */
+export function withoutRemoved<T extends { status: OccurrenceStatus }>(
+  occurrences: T[],
+): T[] {
+  return occurrences.filter((occurrence) => occurrence.status !== "CANCELLED");
+}
+
 export type UpNextSelection<T extends HomeOccurrence> = {
   primary: T;
   /** Other open occurrences at the exact same time as `primary`. */
