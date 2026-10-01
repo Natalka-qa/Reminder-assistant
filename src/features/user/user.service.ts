@@ -13,10 +13,15 @@ import {
   InvalidSchedulePreferencesError,
   InvalidTimezoneError,
 } from "@/features/user/user.errors";
+import { randomBytes } from "node:crypto";
 import {
   createTelegramLinkCode,
   isTelegramLinkCodeActive,
 } from "@/features/user/telegram-link-code";
+
+// Auth.js's own default session.maxAge — the same 30 days as after Google
+// ("Расхождения" п.4).
+const TELEGRAM_SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 export const userService = {
   async setTimezone(userId: string, timezone: string) {
@@ -101,6 +106,26 @@ export const userService = {
   /** sprint-15-tasks.md S15-05 — the account a Telegram chat belongs to. */
   getUserByTelegramChat(chatId: string) {
     return userRepository.findByTelegramChatId(chatId);
+  },
+
+  /**
+   * sprint-16-tasks.md S16-02 — a sign-in from the Mini App, for a chat
+   * already linked on /settings ("Расхождения" п.2). Null: nobody has this
+   * Telegram account, and no session is created. In a private chat the
+   * chat id is the Telegram user id, so `telegramChatId` finds them.
+   */
+  async startTelegramSession(
+    telegramUserId: number,
+    now: Date = new Date(),
+  ): Promise<{ sessionToken: string; expires: Date } | null> {
+    const user = await userRepository.findByTelegramChatId(
+      String(telegramUserId),
+    );
+    if (!user) return null;
+    const sessionToken = randomBytes(32).toString("hex");
+    const expires = new Date(now.getTime() + TELEGRAM_SESSION_MAX_AGE_MS);
+    await userRepository.createSession(user.id, sessionToken, expires);
+    return { sessionToken, expires };
   },
 
   async linkTelegramFromCode(code: string, chatId: string): Promise<boolean> {

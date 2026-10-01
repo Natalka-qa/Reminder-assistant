@@ -226,7 +226,8 @@ export const notificationService = {
             text,
             occurrenceButtons({
               id: occurrence.id,
-              taskUrl,
+              taskId: task.id,
+              appUrl: env.AUTH_URL,
               recurring: task.recurrenceRule !== null,
             }),
           );

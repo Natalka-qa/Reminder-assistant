@@ -10,6 +10,7 @@ import {
   todayMessage,
   type DayItem,
   type InlineKeyboard,
+  openAppButton,
 } from "./bot-messages";
 import { CALLBACK_DATA_MAX_BYTES, parseButtonData } from "./button-data";
 
@@ -112,9 +113,51 @@ describe("buttonResultMessage", () => {
   });
 });
 
+describe("openAppButton", () => {
+  it("opens the path as the Mini App, signed in through /telegram", () => {
+    expect(
+      openAppButton("Open", "https://reminder.example", "/tasks/abc"),
+    ).toEqual({
+      text: "Open",
+      web_app: {
+        url: "https://reminder.example/telegram?callbackUrl=%2Ftasks%2Fabc",
+      },
+    });
+  });
+
+  it("keeps a query in the path inside callbackUrl", () => {
+    const button = openAppButton(
+      "Open New task",
+      "https://reminder.example",
+      "/tasks/new?date=2026-10-02",
+    );
+    if (!("web_app" in button)) throw new Error("expected a web_app button");
+    const url = new URL(button.web_app.url);
+    expect(url.pathname).toBe("/telegram");
+    expect(url.searchParams.get("callbackUrl")).toBe(
+      "/tasks/new?date=2026-10-02",
+    );
+  });
+
+  it("stays a plain link on http — Telegram rejects non-https Mini Apps", () => {
+    expect(
+      openAppButton("Open", "http://localhost:3000", "/tasks/abc"),
+    ).toEqual({ text: "Open", url: "http://localhost:3000/tasks/abc" });
+  });
+});
+
 describe("buttons", () => {
   const id = "cmu8a559u0027bo9cfuks9po3";
-  const taskUrl = "https://example.test/tasks/task1";
+  const appUrl = "https://example.test";
+  const taskId = "task1";
+  const open = {
+    text: "Open",
+    web_app: { url: `${appUrl}/telegram?callbackUrl=%2Ftasks%2Ftask1` },
+  };
+  const openCreated = {
+    text: "Open",
+    web_app: { url: `${appUrl}/telegram?callbackUrl=%2Ftasks%2F${id}` },
+  };
   const callbackData = (keyboard: InlineKeyboard) =>
     keyboard.inline_keyboard
       .flat()
@@ -123,34 +166,42 @@ describe("buttons", () => {
       );
 
   it("puts Done, Snooze 15 min and Skip on one row, Open below", () => {
-    const keyboard = occurrenceButtons({ id, taskUrl, recurring: false });
+    const keyboard = occurrenceButtons({
+      id,
+      taskId,
+      appUrl,
+      recurring: false,
+    });
     expect(keyboard.inline_keyboard).toEqual([
       [
         { text: "Done", callback_data: `done:${id}` },
         { text: "Snooze 15 min", callback_data: `snooze15:${id}` },
         { text: "Skip", callback_data: `skip:${id}` },
       ],
-      [{ text: "Open", url: taskUrl }],
+      [open],
     ]);
   });
 
   it("offers Remove this one for a repeating task", () => {
     const [, second] = occurrenceButtons({
       id,
-      taskUrl,
+      taskId,
+      appUrl,
       recurring: true,
     }).inline_keyboard;
     expect(second).toEqual([
       { text: "Remove this one", callback_data: `remove:${id}` },
-      { text: "Open", url: taskUrl },
+      open,
     ]);
   });
 
   it("keeps every button's data readable and under Telegram's limit", () => {
     const all = [
-      ...callbackData(occurrenceButtons({ id, taskUrl, recurring: true })),
       ...callbackData(
-        createdButtons({ id, taskUrl, time: "18:00", recurring: false }),
+        occurrenceButtons({ id, taskId, appUrl, recurring: true }),
+      ),
+      ...callbackData(
+        createdButtons({ id, appUrl, time: "18:00", recurring: false }),
       ),
     ];
     expect(all).toHaveLength(7);
@@ -164,23 +215,20 @@ describe("buttons", () => {
 
   it("offers +1 h and Tomorrow, then Undo and Open, under a new task", () => {
     expect(
-      createdButtons({ id, taskUrl, time: "18:00", recurring: false })
+      createdButtons({ id, appUrl, time: "18:00", recurring: false })
         .inline_keyboard,
     ).toEqual([
       [
         { text: "+1 h", callback_data: `later1h:${id}` },
         { text: "Tomorrow", callback_data: `tomorrow:${id}` },
       ],
-      [
-        { text: "Undo", callback_data: `undo:${id}` },
-        { text: "Open", url: taskUrl },
-      ],
+      [{ text: "Undo", callback_data: `undo:${id}` }, openCreated],
     ]);
   });
 
   it("leaves out the fixes that don't apply", () => {
     const labels = (time: string | null, recurring: boolean) =>
-      createdButtons({ id, taskUrl, time, recurring })
+      createdButtons({ id, appUrl, time, recurring })
         .inline_keyboard.flat()
         .map((button) => button.text);
     // No time of its own, or an hour later is tomorrow: no +1 h.

@@ -9,7 +9,9 @@ import { buttonData } from "./button-data";
 export type InlineButton =
   | { text: string; callback_data: string }
   // Opens the task in the app (п.12) — no round trip through the webhook.
-  | { text: string; url: string };
+  | { text: string; url: string }
+  // The same, inside Telegram as the Mini App (sprint-16-tasks.md S16-06).
+  | { text: string; web_app: { url: string } };
 
 export type InlineKeyboard = { inline_keyboard: InlineButton[][] };
 
@@ -163,19 +165,41 @@ export const EMPTY_PHRASE_MESSAGE =
 export const BUTTON_FAILED_MESSAGE = "Something went wrong — try again.";
 
 /**
+ * sprint-16-tasks.md S16-06 ("Расхождения" п.8) — a button that opens
+ * `path` of the app: inside Telegram as the Mini App, through /telegram so
+ * it's already signed in. Telegram only takes https Mini App URLs, so with
+ * an http `appUrl` (local `next dev`) it stays a plain link.
+ */
+export function openAppButton(
+  text: string,
+  appUrl: string,
+  path: string,
+): InlineButton {
+  if (!appUrl.startsWith("https://")) return { text, url: `${appUrl}${path}` };
+  return {
+    text,
+    web_app: {
+      url: `${appUrl}/telegram?callbackUrl=${encodeURIComponent(path)}`,
+    },
+  };
+}
+
+/**
  * Under a reminder and under `/next`: Done · Snooze 15 min · Skip, then
  * Open — with "Remove this one" in front of it for a repeating task.
  */
 export function occurrenceButtons(occurrence: {
   id: string;
-  taskUrl: string;
+  taskId: string;
+  /** `AUTH_URL` — where the app is (openAppButton). */
+  appUrl: string;
   recurring: boolean;
 }): InlineKeyboard {
-  const { id, taskUrl, recurring } = occurrence;
+  const { id, taskId, appUrl, recurring } = occurrence;
   const second: InlineButton[] = recurring
     ? [{ text: "Remove this one", callback_data: buttonData("remove", id) }]
     : [];
-  second.push({ text: "Open", url: taskUrl });
+  second.push(openAppButton("Open", appUrl, `/tasks/${taskId}`));
   return {
     inline_keyboard: [
       [
@@ -196,7 +220,8 @@ export function occurrenceButtons(occurrence: {
  */
 export function createdButtons(task: {
   id: string;
-  taskUrl: string;
+  /** `AUTH_URL` — where the app is (openAppButton). */
+  appUrl: string;
   time: string | null;
   recurring: boolean;
 }): InlineKeyboard {
@@ -213,7 +238,7 @@ export function createdButtons(task: {
   const rows: InlineButton[][] = fix.length > 0 ? [fix] : [];
   rows.push([
     { text: "Undo", callback_data: buttonData("undo", task.id) },
-    { text: "Open", url: task.taskUrl },
+    openAppButton("Open", task.appUrl, `/tasks/${task.id}`),
   ]);
   return { inline_keyboard: rows };
 }

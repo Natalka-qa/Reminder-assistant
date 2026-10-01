@@ -99,7 +99,17 @@ Skip this entirely if you don't want the Telegram notification channel — the t
      -d '{"commands": [{"command": "today", "description": "What is planned for today"}, {"command": "next", "description": "The next task"}, {"command": "help", "description": "What I can do"}]}'
    ```
 
-6. On `/settings`, click "Connect" and open the resulting `t.me/...` link — Telegram sends the bot `/start <code>`, which the webhook uses to link your account.
+6. Register the Mini App menu button once (the button left of the message box that opens the app inside Telegram):
+
+   ```bash
+   curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setChatMenuButton" \
+     -H "Content-Type: application/json" \
+     -d "{\"menu_button\": {\"type\": \"web_app\", \"text\": \"Open app\", \"web_app\": {\"url\": \"$AUTH_URL/telegram\"}}}"
+   ```
+
+   `$AUTH_URL` must be the public `https` URL. To take it back: the same call with `{"menu_button": {"type": "default"}}`.
+
+7. On `/settings`, click "Connect" and open the resulting `t.me/...` link — Telegram sends the bot `/start <code>`, which the webhook uses to link your account.
 
 If `/start` gets no answer, check `getWebhookInfo` first (`curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/getWebhookInfo"`): an empty `url` means step 4 hasn't been run for this bot.
 
@@ -207,6 +217,18 @@ Once a chat is connected (see "Telegram setup"), it works as a second way in, on
 - **Morning summary** — on `/settings`, under Telegram: Off (default), 07:00, 08:00, 09:00 or 10:00. The `/today` text with a **✓** button per open task (up to 8); pressing one marks it and redraws the summary. Sent once a day by the same 5-minute `send-notifications` run, so up to 5 minutes after the time you picked, and not at all if it couldn't go out within 2 hours or there's nothing planned or overdue.
 
 A chat that isn't connected gets "Connect it from Settings" and nothing else. The bot's messages are in English, like the app.
+
+### Mini App
+
+The same app opens inside Telegram — from the **Open app** menu button (setup step 6), or from **Open** under a reminder, `/next` or a new task, and **Open New task**, which go straight to that page.
+
+- **Sign-in** is automatic: Telegram hands the page signed data about who opened it (`initData`), `/telegram` sends it to `POST /api/telegram/session`, and the server checks the signature with the bot token and that it's under an hour old, then creates an ordinary 30-day session — the same as after Google. A forged, stale or other bot's string gets a 401 and no session.
+- **Only a chat already connected on `/settings`** can sign in. Any other Telegram account sees "Connect this Telegram account first" with a button that opens Settings in the browser; no account is created from Telegram.
+- Inside Telegram `/login` doesn't offer Google or email (neither works in Telegram's built-in browser) — it signs in through Telegram. **Sign out** works as usual; afterwards the page offers "Sign in with Telegram" instead of signing straight back in.
+- Telegram's **Back** button shows on a task, its edit page, New task and Progress, and goes back — or, opened straight on a page from a button, to its parent (task → Tasks). Telegram's header and background take the app's light colours; Telegram's own theme isn't used.
+- `/telegram` opened in a normal browser doesn't sign in and points to the usual sign-in.
+- Telegram's apps (iOS, Android, desktop) are supported. **Telegram Web** (web.telegram.org) runs the Mini App in an iframe, where browsers may block its cookie — it may not stay signed in there.
+- Open buttons become Mini App buttons only when `AUTH_URL` is `https` (Telegram rejects anything else); with a local `http://localhost` they stay plain links. The Mini App itself only opens from a public `https` URL, so locally `/telegram` can be tried by adding signed data to the hash — `#tgWebAppData=<initData>` — the way Telegram passes it.
 
 ## Your patterns
 

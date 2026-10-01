@@ -3,13 +3,14 @@ import { auth } from "@/lib/auth/config";
 import CloudClearing from "@/components/CloudClearing";
 import { LoginForm } from "./login-form";
 import { LegalLinks } from "@/components/legal-links";
+import { TelegramLoginGate } from "./telegram-login-gate";
 
 // design_handoff_reminder_assistant/README.md § Login. The one screen with a
 // choreographed entrance (see globals.css's --animate-veil-in/wipe-in/
 // rise-*/sparkle-breathe and the reduced-motion override next to them).
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const session = await auth();
-  const { callbackUrl } = await searchParams;
+  const { callbackUrl, signedOut } = await searchParams;
   const destination =
     typeof callbackUrl === "string" ? callbackUrl : "/dashboard";
 
@@ -38,16 +39,22 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           <h1 className="font-display animate-wipe-in text-[54px] leading-[1.05] font-light">
             A calmer way to remember.
           </h1>
-          <p className="text-text-secondary animate-rise-420 text-[15px] leading-[1.65]">
-            Sign in with a link — no password to keep.
-          </p>
         </div>
 
-        <LoginForm callbackUrl={destination} />
+        <TelegramLoginGate
+          callbackUrl={destination}
+          signedOut={signedOut === "1"}
+        >
+          <p className="text-text-secondary animate-rise-420 -mt-[10px] text-[15px] leading-[1.65]">
+            Sign in with a link — no password to keep.
+          </p>
 
-        <p className="text-text-secondary animate-rise-820 text-xs leading-[1.6]">
-          We&apos;ll only use your email to send you a sign-in link.
-        </p>
+          <LoginForm callbackUrl={destination} />
+
+          <p className="text-text-secondary animate-rise-820 text-xs leading-[1.6]">
+            We&apos;ll only use your email to send you a sign-in link.
+          </p>
+        </TelegramLoginGate>
 
         <LegalLinks className="animate-rise-820" />
       </div>

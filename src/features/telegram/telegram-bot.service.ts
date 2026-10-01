@@ -18,6 +18,7 @@ import {
   nextMessage,
   notLinkedMessage,
   occurrenceButtons,
+  openAppButton,
   replyKeyboard,
   todayMessage,
   TOO_LATE_TO_CHANGE_MESSAGE,
@@ -68,10 +69,6 @@ import type { CreateTaskInput } from "@/lib/validation/task";
 type Button = Extract<ParsedUpdate, { kind: "button" }>;
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-function taskUrl(taskId: string): string {
-  return `${env.AUTH_URL}/tasks/${taskId}`;
-}
 
 // The same pages the web actions revalidate after a change, so Home, Tasks
 // and Calendar show what the chat just did.
@@ -190,7 +187,8 @@ async function showNext(user: User, chatId: string, now: Date) {
     nextMessage(dayItem(next, user.timezone)),
     occurrenceButtons({
       id: next.id,
-      taskUrl: taskUrl(next.taskId),
+      taskId: next.taskId,
+      appUrl: env.AUTH_URL,
       recurring: next.task.recurrenceRule !== null,
     }),
   );
@@ -213,7 +211,7 @@ async function addTask(user: User, chatId: string, text: string, now: Date) {
   if (first.status === "needs-search") {
     await sendTelegramMessage(chatId, NEEDS_SEARCH_MESSAGE, {
       inline_keyboard: [
-        [{ text: "Open New task", url: `${env.AUTH_URL}/tasks/new` }],
+        [openAppButton("Open New task", env.AUTH_URL, "/tasks/new")],
       ],
     });
     return;
@@ -297,7 +295,7 @@ async function createdReply(
     ),
     buttons: createdButtons({
       id: taskId,
-      taskUrl: taskUrl(taskId),
+      appUrl: env.AUTH_URL,
       time: saved.time,
       recurring: saved.repeatFrequency !== "NONE",
     }),
