@@ -14,6 +14,52 @@ function ready(text: string) {
   return result.input;
 }
 
+describe("NEW_TASK_V2_UPDATE.md § 11 examples without a time (sprint-18)", () => {
+  it("1. Buy groceries → today, Any time, Flexible, no reminder", () => {
+    const input = ready("Buy groceries");
+    expect(input).toMatchObject({
+      title: "Buy groceries",
+      date: "2026-10-01",
+      flexibility: "FLEXIBLE",
+      reminderKind: "NONE",
+    });
+    expect(input.time).toBeUndefined();
+  });
+
+  it("3. Pay rent on October 1 → Oct 1, Any time, Flexible", () => {
+    const input = ready("Pay rent on October 1");
+    expect(input).toMatchObject({
+      title: "Pay rent",
+      date: "2026-10-01",
+      flexibility: "FLEXIBLE",
+    });
+    expect(input.time).toBeUndefined();
+  });
+
+  it("5. Take vitamins every morning → every day, no time", () => {
+    const input = ready("Take vitamins every morning");
+    expect(input).toMatchObject({
+      title: "Take vitamins",
+      repeatFrequency: "DAILY",
+      flexibility: "FLEXIBLE",
+    });
+    expect(input.time).toBeUndefined();
+  });
+
+  it("2. a phrase with a time is still Fixed with the default reminder", () => {
+    expect(
+      ready("Call the dentist tomorrow at 9 for 30 minutes"),
+    ).toMatchObject({
+      date: "2026-10-02",
+      time: "09:00",
+      durationMinutes: 30,
+      flexibility: "FIXED",
+      reminderKind: "OFFSET",
+      reminderOffsetMinutes: 30,
+    });
+  });
+});
+
 describe("taskInputFromPhrase", () => {
   it("reads a date and a time as a fixed task", () => {
     expect(ready("Call mom tomorrow at 18")).toEqual({
@@ -26,19 +72,22 @@ describe("taskInputFromPhrase", () => {
       flexibility: "FIXED",
       repeatFrequency: "NONE",
       repeatDaysOfWeek: [],
+      reminderKind: "OFFSET",
       reminderOffsetMinutes: 30,
       confirmConflicts: true,
     });
   });
 
-  it("starts a task with no time today at the next hour, flexible", () => {
-    expect(ready("Read 30 min")).toMatchObject({
+  it("keeps a task with no time without one, flexible (sprint-18 п.6, п.20)", () => {
+    const input = ready("Read 30 min");
+    expect(input).toMatchObject({
       title: "Read",
       date: "2026-10-01",
-      time: "12:00",
       durationMinutes: 30,
       flexibility: "FLEXIBLE",
+      reminderKind: "NONE",
     });
+    expect(input.time).toBeUndefined();
   });
 
   it("reads Russian", () => {

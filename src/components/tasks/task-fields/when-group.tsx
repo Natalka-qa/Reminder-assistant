@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   durationChoices,
@@ -20,6 +21,7 @@ export function WhenGroup({
   durationMinutes,
   onDateChange,
   onTimeChange,
+  onTimeRemove,
   onDurationChange,
   dateReadOnly,
   children,
@@ -27,10 +29,13 @@ export function WhenGroup({
   labelId: string;
   today: string;
   date: string;
-  time: string;
+  /** Null — no time: "Any time" (NEW_TASK_V2_UPDATE.md § 4). */
+  time: string | null;
   durationMinutes: number;
   onDateChange: (date: string) => void;
   onTimeChange: (time: string) => void;
+  /** § 4 — the × beside a set time; without it the time can't be removed. */
+  onTimeRemove?: () => void;
   onDurationChange: (minutes: number) => void;
   /** A recurring task's start date (S14-04). */
   dateReadOnly?: boolean;
@@ -59,17 +64,35 @@ export function WhenGroup({
         >
           {formatWhenDate(date, today)}
         </PickerField>
-        {/* Always a time: a task can't be "any time" yet (decision A),
-            so there's no remove-time button. */}
-        <PickerField
-          type="time"
-          value={time}
-          ariaLabel={`Time: ${time}. Change time`}
-          onChange={onTimeChange}
-          className="tabular-nums"
-        >
-          {time}
-        </PickerField>
+        {/* § 4 — "09:00" or "Any time"; × clears it (sprint-18 п.7). */}
+        <div className="flex items-center">
+          <PickerField
+            type="time"
+            value={time ?? ""}
+            ariaLabel={
+              time === null
+                ? "Time: any time. Set a time"
+                : `Time: ${time}. Change time`
+            }
+            onChange={onTimeChange}
+            className={cn(
+              "tabular-nums",
+              time === null && "text-newtask-quiet-text",
+            )}
+          >
+            {time ?? "Any time"}
+          </PickerField>
+          {time !== null && onTimeRemove && (
+            <button
+              type="button"
+              onClick={onTimeRemove}
+              aria-label="Remove time"
+              className="text-newtask-quiet-text hover:bg-newtask-control-hover hover:text-text-primary -ml-1.5 flex size-8 items-center justify-center rounded-full transition-colors"
+            >
+              <X aria-hidden className="size-4" strokeWidth={1.8} />
+            </button>
+          )}
+        </div>
         <div className="relative">
           <select
             aria-label="Duration"

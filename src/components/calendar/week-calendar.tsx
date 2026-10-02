@@ -9,10 +9,14 @@ import { BusyLine } from "@/components/calendar/busy-line";
 import { CalendarHeader } from "@/components/calendar/calendar-header";
 import {
   GoogleAllDayLine,
-  GoogleAllDayRow,
   GoogleBusyBlocks,
   GoogleBusyNote,
 } from "@/components/calendar/google-busy";
+import {
+  AnyTimeBlock,
+  AnyTimeRow,
+  AnyTimeRowWithBusy,
+} from "@/components/calendar/any-time-row";
 import { WeekEventBlock } from "@/components/calendar/week-event-block";
 import {
   formatMinutes,
@@ -196,14 +200,25 @@ function DesktopWeek({
         ))}
       </div>
 
-      {/* § 2.3's "Any time" row isn't here: every task has a time
-          (decision A, review of 2026-09-25), so it would never render. */}
-
-      <Suspense fallback={null}>
-        <GoogleAllDayRow
+      {/* § 2.3 — the "Any time" row: tasks without a time and whole-day
+          Google busy time (sprint-18-tasks.md п.19). Without waiting for
+          Google: the row with tasks only, then with the busy days too. */}
+      <Suspense
+        fallback={
+          <AnyTimeRow
+            days={days}
+            columns={columns}
+            selected={selected}
+            range={range}
+            busyAllDay={new Set()}
+          />
+        }
+      >
+        <AnyTimeRowWithBusy
           busy={busy}
-          dates={days.map((day) => day.date)}
+          days={days}
           columns={columns}
+          selected={selected}
           range={range}
         />
       </Suspense>
@@ -316,6 +331,8 @@ function MobileWeek({
           <GoogleAllDayLine busy={busy} date={selectedDay.date} range={range} />
         </Suspense>
       </div>
+
+      <AnyTimeBlock day={selectedDay} />
 
       <div
         className="flex pt-2"

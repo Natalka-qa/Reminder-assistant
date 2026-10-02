@@ -24,10 +24,12 @@ import {
   findMoveTime,
   formatRelativeTimeLabel,
   groupRemainingByTime,
+  hasTime,
   latestOccurrenceEnd,
   mergeTimeline,
   patternInsight,
   selectUpNext,
+  untimedRemaining,
   type HomeOccurrence,
 } from "@/features/scheduling/home-view";
 import { AssistantInsight } from "@/components/dashboard/assistant-insight";
@@ -45,8 +47,12 @@ const FLEXIBILITY_LABELS: Record<Flexibility, string> = {
   FLEXIBLE: "Flexible",
 };
 
+// No "0 min" for a task without a duration (most tasks without a time).
 function metaLabel(occurrence: HomeOccurrence): string {
-  return `${formatDuration(occurrence.task.durationMinutes)} · ${FLEXIBILITY_LABELS[occurrence.task.flexibility]}`;
+  const flexibility = FLEXIBILITY_LABELS[occurrence.task.flexibility];
+  return occurrence.task.durationMinutes > 0
+    ? `${formatDuration(occurrence.task.durationMinutes)} · ${flexibility}`
+    : flexibility;
 }
 
 function emphasisFor(occurrence: HomeOccurrence): "normal" | "important" {
@@ -125,6 +131,7 @@ export function HomeDay({
     upNext ? [upNext.primary.id, ...upNext.alsoNow.map((o) => o.id)] : [],
   );
   const laterGroups = groupRemainingByTime(todayTasks, excludeIds);
+  const anyTime = untimedRemaining(todayTasks, excludeIds);
   const overlapCount = countOverlappingToday(upNext, laterGroups);
   const dayEnd = latestOccurrenceEnd(todayTasks, busyRows);
   const eveningFreeLabel = dayEnd ? formatTimeInZone(dayEnd, timezone) : null;
@@ -161,14 +168,24 @@ export function HomeDay({
       metaLabel: metaLabel(o),
       emphasis: emphasisFor(o),
     })) ?? [];
-  const alsoNowLabel = upNext
-    ? `Also at ${formatTimeInZone(upNext.primary.scheduledStart, timezone)} — I put ${
-        upNext.primary.task.flexibility === "FIXED"
-          ? "the fixed one"
-          : "this one"
-      } first.`
-    : undefined;
+  const alsoNowLabel =
+    upNext && upNext.alsoNow.length > 0
+      ? `Also at ${formatTimeInZone(upNext.primary.scheduledStart, timezone)} — I put ${
+          upNext.primary.task.flexibility === "FIXED"
+            ? "the fixed one"
+            : "this one"
+        } first.`
+      : undefined;
 
+  const timelineItem = (o: HomeOccurrence & { id: string }): TimelineItem => ({
+    occurrenceId: o.id,
+    taskId: o.task.id,
+    title: o.task.title,
+    status: o.status,
+    metaLabel: metaLabel(o),
+    statusNote: getOccurrenceStatusNote(o.status, nextReminderLabels.get(o.id)),
+    emphasis: emphasisFor(o),
+  });
   const timelineGroups: TimelineGroupData[] = mergeTimeline(
     laterGroups,
     busyRows,
@@ -184,18 +201,7 @@ export function HomeDay({
           };
     }
     const { group } = entry;
-    const items: TimelineItem[] = group.items.map((o) => ({
-      occurrenceId: o.id,
-      taskId: o.task.id,
-      title: o.task.title,
-      status: o.status,
-      metaLabel: metaLabel(o),
-      statusNote: getOccurrenceStatusNote(
-        o.status,
-        nextReminderLabels.get(o.id),
-      ),
-      emphasis: emphasisFor(o),
-    }));
+    const items: TimelineItem[] = group.items.map(timelineItem);
     return {
       timeLabel: formatTimeInZone(group.when, timezone),
       items,
@@ -207,6 +213,14 @@ export function HomeDay({
         : undefined,
     };
   });
+  // sprint-18-tasks.md п.17 — tasks without a time: one "Any time" block
+  // after the timed ones.
+  if (anyTime.length > 0) {
+    timelineGroups.push({
+      timeLabel: "Any time",
+      items: anyTime.map(timelineItem),
+    });
+  }
 
   return (
     <>
@@ -223,11 +237,19 @@ export function HomeDay({
           status={upNext.primary.status}
           taskId={upNext.primary.task.id}
           title={upNext.primary.task.title}
-          timeLabel={formatTimeInZone(upNext.primary.scheduledStart, timezone)}
-          relativeLabel={formatRelativeTimeLabel(
-            upNext.primary.scheduledStart,
-            now.toJSDate(),
-          )}
+          timeLabel={
+            hasTime(upNext.primary)
+              ? formatTimeInZone(upNext.primary.scheduledStart, timezone)
+              : "Any time"
+          }
+          relativeLabel={
+            hasTime(upNext.primary)
+              ? formatRelativeTimeLabel(
+                  upNext.primary.scheduledStart,
+                  now.toJSDate(),
+                )
+              : "today"
+          }
           metaLabel={metaLabel(upNext.primary)}
           alsoNowLabel={alsoNowLabel}
           alsoNow={alsoNowItems}
@@ -247,7 +269,11 @@ export function HomeDay({
                 occurrence.scheduledStart,
                 timezone,
                 "LLL d",
-              )}, ${formatTimeInZone(occurrence.scheduledStart, timezone)}`}
+              )}${
+                occurrence.task.hasTime
+                  ? `, ${formatTimeInZone(occurrence.scheduledStart, timezone)}`
+                  : ""
+              }`}
             />
           ))}
         </div>
@@ -255,11 +281,13 @@ export function HomeDay({
 
       {todayTasks.length > 0 && <GoogleStatusLine busy={busy} />}
 
-      {timelineGroups.length > 0 && eveningFreeLabel && (
+      {timelineGroups.length > 0 && (
         <DayTimeline
           groups={timelineGroups}
-          freeLine={`Free after ${eveningFreeLabel}`}
-          endOfDayLabel={eveningFreeLabel}
+          freeLine={
+            eveningFreeLabel ? `Free after ${eveningFreeLabel}` : undefined
+          }
+          endOfDayLabel={eveningFreeLabel ?? undefined}
         />
       )}
 

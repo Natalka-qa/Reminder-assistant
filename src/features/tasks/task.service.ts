@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { addMinutes, zonedDateTimeToUtc } from "@/lib/date";
+
 import { runInTransaction } from "@/lib/db/transaction";
 import { taskRepository } from "@/features/tasks/task.repository";
 import {
@@ -12,7 +12,11 @@ import {
   conflictService,
   EXTERNAL_BUSY_NOT_CHECKED,
 } from "@/features/scheduling/conflict.service";
-import { initialRecurringIntervals } from "@/features/scheduling/occurrence-candidates";
+import {
+  buildCandidateIntervals,
+  initialRecurringIntervals,
+  type CandidateInterval,
+} from "@/features/scheduling/occurrence-candidates";
 import {
   recurringOverlapDays,
   type RecurringOverlapDay,
@@ -26,12 +30,44 @@ import {
   type ScheduleChangePlan,
 } from "@/features/scheduling/schedule-change";
 import { notificationService } from "@/features/notifications/notification.service";
+import {
+  defaultReminderKind,
+  isReminderAllowed,
+  type ReminderRule,
+} from "@/features/notifications/reminder-rule";
 import { ScheduleConflictError } from "@/features/scheduling/conflict.errors";
 import { createTaskSchema, updateTaskSchema } from "@/lib/validation/task";
 import {
   serializeRecurrenceRule,
   type RecurrenceRule,
 } from "@/features/recurrence/recurrence-rule";
+
+// A candidate with an interval — a day with a time (sprint-18-tasks.md п.3).
+function hasEnd(
+  candidate: CandidateInterval,
+): candidate is CandidateInterval & { scheduledEnd: Date } {
+  return candidate.scheduledEnd !== null;
+}
+
+// sprint-18-tasks.md п.11–12 — the reminder a save asks for, checked
+// against whether the task has a time.
+function reminderRuleFor(
+  data: {
+    reminderKind?: ReminderRule["kind"];
+    reminderOffsetMinutes: number;
+  },
+  hasTime: boolean,
+): ReminderRule {
+  const kind = data.reminderKind ?? defaultReminderKind(hasTime);
+  if (!isReminderAllowed(kind, hasTime)) {
+    throw new TaskValidationError(
+      hasTime
+        ? "A task with a time is reminded minutes before it."
+        : "A task without a time is reminded that morning or the evening before.",
+    );
+  }
+  return { kind, offsetMinutes: data.reminderOffsetMinutes };
+}
 
 function parseOrThrow<T>(schema: z.ZodType<T>, input: unknown): T {
   const result = schema.safeParse(input);
@@ -65,10 +101,15 @@ function buildRecurrenceRule(data: {
 // schedule is as it was. A repeating task can't be turned into a one-off —
 // deactivating it is how it stops.
 function recurringSchedulePlan(
-  task: { recurrenceRule: string | null; occurrences: ExistingOccurrence[] },
+  task: {
+    recurrenceRule: string | null;
+    hasTime: boolean;
+    occurrences: ExistingOccurrence[];
+  },
   data: {
     date: string;
-    time: string;
+    /** Missing — the series has no time (sprint-18-tasks.md п.10). */
+    time?: string;
     durationMinutes: number;
     repeatFrequency: "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
     repeatDaysOfWeek: number[];
@@ -82,22 +123,24 @@ function recurringSchedulePlan(
       "A repeating task can't stop repeating — deactivate it instead.",
     );
   }
+  const time = data.time ?? null;
   const current = {
     rule: task.recurrenceRule,
-    time: currentTimeOfDay(task.occurrences, timezone),
+    time: task.hasTime ? currentTimeOfDay(task.occurrences, timezone) : null,
   };
-  if (!isScheduleChange(current, { rule, time: data.time })) {
+  if (!isScheduleChange(current, { rule, time })) {
     return null;
   }
   return {
     rule,
     ...planScheduleChange({
       occurrences: task.occurrences,
+      hadTime: task.hasTime,
       rule,
       // The start date isn't editable: the first occurrence stays the
       // anchor, as it is for the daily window extension.
       anchorDate: anchorDateOf(task.occurrences, timezone) ?? data.date,
-      time: data.time,
+      time,
       durationMinutes: data.durationMinutes,
       timezone,
       now,
@@ -124,7 +167,7 @@ export const taskService = {
     timezone: string,
     input: {
       date: string;
-      time: string;
+      time?: string;
       durationMinutes: number;
       repeatFrequency: "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
       repeatDaysOfWeek: number[];
@@ -140,9 +183,11 @@ export const taskService = {
       if (error instanceof TaskValidationError) return [];
       throw error;
     }
-    if (!plan || plan.candidates.length === 0) return [];
+    // Days without a time overlap nothing (sprint-18-tasks.md п.16).
+    const timed = plan?.candidates.filter(hasEnd) ?? [];
+    if (timed.length === 0) return [];
 
-    const intervals = plan.candidates.map((candidate) => ({
+    const intervals = timed.map((candidate) => ({
       start: candidate.scheduledStart,
       end: candidate.scheduledEnd,
     }));
@@ -159,7 +204,7 @@ export const taskService = {
       conflictService.findExternalBusy(userId, () => intervals),
     ]);
     return recurringOverlapDays(
-      plan.candidates,
+      timed,
       others.map((occurrence) => ({
         title: occurrence.task.title,
         start: occurrence.scheduledStart,
@@ -177,29 +222,38 @@ export const taskService = {
   async createTask(userId: string, timezone: string, rawInput: unknown) {
     const data = parseOrThrow(createTaskSchema, rawInput);
     const rule = buildRecurrenceRule(data);
-    const scheduledStart = zonedDateTimeToUtc(data.date, data.time, timezone);
-    const scheduledEnd = addMinutes(scheduledStart, data.durationMinutes);
+    const time = data.time ?? null;
+    const reminder = reminderRuleFor(data, time !== null);
+    const [{ scheduledStart, scheduledEnd }] = buildCandidateIntervals(
+      [data.date],
+      time,
+      data.durationMinutes,
+      timezone,
+    );
 
     // Google Calendar is asked before the transaction opens, never inside
     // it (sprint-11-tasks.md "Расхождения" п.6) — for a recurring task, one
     // request covering its whole first window ("Расхождения" п.7). "Create
-    // anyway" (confirmConflicts) skips it like it skips the DB check.
-    const calendar = data.confirmConflicts
-      ? EXTERNAL_BUSY_NOT_CHECKED
-      : await conflictService.findExternalBusy(userId, () =>
-          rule === null
-            ? [{ start: scheduledStart, end: scheduledEnd }]
-            : initialRecurringIntervals(
-                rule,
-                data.date,
-                data.time,
-                data.durationMinutes,
-                timezone,
-              ).map((interval) => ({
+    // anyway" (confirmConflicts) skips it like it skips the DB check, and
+    // so does a task without a time: it overlaps nothing (sprint-18 п.16).
+    const calendar =
+      data.confirmConflicts || time === null
+        ? EXTERNAL_BUSY_NOT_CHECKED
+        : await conflictService.findExternalBusy(userId, () =>
+            initialRecurringIntervals(
+              rule ?? { frequency: "DAILY" },
+              data.date,
+              time,
+              data.durationMinutes,
+              timezone,
+            )
+              .slice(0, rule === null ? 1 : undefined)
+              .filter(hasEnd)
+              .map((interval) => ({
                 start: interval.scheduledStart,
                 end: interval.scheduledEnd,
               })),
-        );
+          );
     const externalBusy = calendar.status === "checked" ? calendar.overlaps : [];
 
     const created = await runInTransaction(async (tx) => {
@@ -208,7 +262,7 @@ export const taskService = {
       // candidates aren't known until generation, so its check happens
       // inside createOccurrencesForTask instead (after the Task row exists,
       // still inside this same transaction — a conflict rolls both back).
-      if (rule === null && !data.confirmConflicts) {
+      if (rule === null && !data.confirmConflicts && scheduledEnd !== null) {
         const conflicts = await conflictService.findConflicts(
           userId,
           scheduledStart,
@@ -227,10 +281,13 @@ export const taskService = {
           title: data.title,
           description: data.description,
           priority: data.priority,
-          flexibility: data.flexibility,
+          // sprint-18-tasks.md п.8 — without a time, always Flexible.
+          flexibility: time === null ? "FLEXIBLE" : data.flexibility,
           durationMinutes: data.durationMinutes,
           reminderOffsetMinutes: data.reminderOffsetMinutes,
+          reminderKind: reminder.kind,
           recurrenceRule: serializeRecurrenceRule(rule),
+          hasTime: time !== null,
         },
         tx,
       );
@@ -238,7 +295,7 @@ export const taskService = {
       if (rule === null) {
         const occurrence = await occurrenceService.createForTask(
           task,
-          data,
+          { ...data, time, reminder },
           timezone,
           tx,
         );
@@ -248,7 +305,7 @@ export const taskService = {
       const occurrences = await occurrenceService.createOccurrencesForTask(
         task,
         rule,
-        { ...data, externalBusy },
+        { ...data, time, reminder, externalBusy },
         timezone,
         tx,
       );
@@ -268,8 +325,16 @@ export const taskService = {
     rawInput: unknown,
   ) {
     const data = parseOrThrow(updateTaskSchema, rawInput);
-    const scheduledStart = zonedDateTimeToUtc(data.date, data.time, timezone);
-    const scheduledEnd = addMinutes(scheduledStart, data.durationMinutes);
+    const time = data.time ?? null;
+    const [{ scheduledStart, scheduledEnd }] = buildCandidateIntervals(
+      [data.date],
+      time,
+      data.durationMinutes,
+      timezone,
+    );
+    // sprint-18-tasks.md п.8 — without a time, always Flexible.
+    const flexibility = time === null ? "FLEXIBLE" : data.flexibility;
+    const reminder = reminderRuleFor(data, time !== null);
 
     const now = new Date();
 
@@ -285,10 +350,12 @@ export const taskService = {
           );
           if (!task) return [];
           if (task.recurrenceRule === null) {
-            return [{ start: scheduledStart, end: scheduledEnd }];
+            return scheduledEnd === null
+              ? []
+              : [{ start: scheduledStart, end: scheduledEnd }];
           }
           const plan = recurringSchedulePlan(task, data, timezone, now);
-          return (plan?.candidates ?? []).map((candidate) => ({
+          return (plan?.candidates ?? []).filter(hasEnd).map((candidate) => ({
             start: candidate.scheduledStart,
             end: candidate.scheduledEnd,
           }));
@@ -314,7 +381,11 @@ export const taskService = {
           tx,
         );
         const plan = recurringSchedulePlan(
-          { recurrenceRule: existing.recurrenceRule, occurrences },
+          {
+            recurrenceRule: existing.recurrenceRule,
+            hasTime: existing.hasTime,
+            occurrences,
+          },
           data,
           timezone,
           now,
@@ -328,11 +399,17 @@ export const taskService = {
             // cleared note is cleared (S14-04), not kept as it was.
             description: data.description ?? null,
             priority: data.priority,
-            flexibility: data.flexibility,
+            flexibility,
             durationMinutes: data.durationMinutes,
             reminderOffsetMinutes: data.reminderOffsetMinutes,
+            reminderKind: reminder.kind,
+            // A time added or removed is a schedule change (п.10), so
+            // hasTime only moves together with a plan.
             ...(plan
-              ? { recurrenceRule: serializeRecurrenceRule(plan.rule) }
+              ? {
+                  recurrenceRule: serializeRecurrenceRule(plan.rule),
+                  hasTime: time !== null,
+                }
               : {}),
             ...(data.active !== undefined ? { active: data.active } : {}),
           },
@@ -346,16 +423,21 @@ export const taskService = {
             task,
             plan,
             {
-              reminderOffsetMinutes: data.reminderOffsetMinutes,
+              reminder,
               confirmConflicts: data.confirmConflicts,
               externalBusy,
+              timezone,
             },
             tx,
           );
           return task;
         }
 
-        if (data.durationMinutes !== existing.durationMinutes) {
+        // A task without a time has no end to keep in sync (п.3).
+        if (
+          existing.hasTime &&
+          data.durationMinutes !== existing.durationMinutes
+        ) {
           await occurrenceService.cascadeDurationChange(
             taskId,
             userId,
@@ -364,11 +446,14 @@ export const taskService = {
           );
         }
 
-        if (data.reminderOffsetMinutes !== existing.reminderOffsetMinutes) {
+        if (
+          reminder.kind !== existing.reminderKind ||
+          data.reminderOffsetMinutes !== existing.reminderOffsetMinutes
+        ) {
           await notificationService.rescheduleForTask(
-            taskId,
-            userId,
-            data.reminderOffsetMinutes,
+            task,
+            reminder,
+            timezone,
             tx,
           );
         }
@@ -383,7 +468,7 @@ export const taskService = {
       );
       const occurrence = occurrences[0];
 
-      if (!data.confirmConflicts) {
+      if (!data.confirmConflicts && scheduledEnd !== null) {
         const conflicts = await conflictService.findConflicts(
           userId,
           scheduledStart,
@@ -403,9 +488,11 @@ export const taskService = {
           title: data.title,
           description: data.description ?? null,
           priority: data.priority,
-          flexibility: data.flexibility,
+          flexibility,
           durationMinutes: data.durationMinutes,
           reminderOffsetMinutes: data.reminderOffsetMinutes,
+          reminderKind: reminder.kind,
+          hasTime: time !== null,
           ...(data.active !== undefined ? { active: data.active } : {}),
         },
         tx,
@@ -423,11 +510,18 @@ export const taskService = {
         // pass — unconditional, like the occurrence resync above, since a
         // non-recurring task's date/time isn't locked the way a recurring
         // one's is.
+        // Recomputes the reminder from the occurrence's (possibly just
+        // changed) start and the (possibly just changed) rule in one pass —
+        // unconditional, like the occurrence resync above, since a
+        // non-recurring task's date/time isn't locked the way a recurring
+        // one's is. Creates one where there's none yet (a time just added),
+        // cancels it where the rule now gives none.
         await notificationService.rescheduleForTask(
-          taskId,
-          userId,
-          data.reminderOffsetMinutes,
+          task,
+          reminder,
+          timezone,
           tx,
+          now,
         );
       }
 
@@ -445,7 +539,7 @@ export const taskService = {
     await taskRepository.delete(taskId, userId);
   },
 
-  async deactivateTask(userId: string, taskId: string) {
+  async deactivateTask(userId: string, taskId: string, timezone: string) {
     const existing = await taskRepository.findById(taskId, userId);
     if (!existing) {
       throw new TaskNotFoundError(taskId);
@@ -458,9 +552,9 @@ export const taskService = {
       // occurrences (DONE/SKIPPED/etc.) are history and untouched.
       const deactivatedAt = new Date();
       await occurrenceService.cancelFutureOccurrences(
-        taskId,
-        userId,
+        task,
         deactivatedAt,
+        timezone,
         tx,
       );
       await notificationService.cancelForTaskAfter(

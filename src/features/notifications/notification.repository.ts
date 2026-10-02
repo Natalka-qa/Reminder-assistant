@@ -25,6 +25,18 @@ export const notificationRepository = {
     });
   },
 
+  // Whether this occurrence's reminder already went out (or is going out,
+  // or gave up retrying) — rescheduleForTask never sends it again.
+  async hasGoneOut(occurrenceId: string, db: Db = prisma) {
+    const count = await db.notification.count({
+      where: {
+        occurrenceId,
+        status: { in: ["PROCESSING", "SENT", "FAILED"] },
+      },
+    });
+    return count > 0;
+  },
+
   updateSendAt(id: string, sendAt: Date, db: Db = prisma) {
     return db.notification.update({ where: { id }, data: { sendAt } });
   },

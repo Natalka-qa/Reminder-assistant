@@ -35,8 +35,18 @@ export type HomeOccurrence = {
     flexibility: Flexibility;
     priority: Priority;
     durationMinutes: number;
+    /**
+     * sprint-18-tasks.md — false for a task without a time; such a day sits
+     * at its local midnight and holds no time. Missing means it has one.
+     */
+    hasTime?: boolean;
   };
 };
+
+/** Whether the occurrence's task has a time (sprint-18-tasks.md). */
+export function hasTime(o: HomeOccurrence): boolean {
+  return o.task.hasTime !== false;
+}
 
 /**
  * A day of a repeating task taken out with "Remove this one"
@@ -74,18 +84,24 @@ export function selectUpNext<T extends HomeOccurrence>(
   const actionable = occurrences.filter((o) =>
     isActionableOccurrenceStatus(o.status),
   );
-  const ordered = orderByTimeThenFixedFirst(actionable);
+  // sprint-18-tasks.md п.17 — tasks with a time first; a task without one
+  // only once none with a time is left open ("Any time today").
+  const timed = actionable.filter(hasTime);
+  const ordered = orderByTimeThenFixedFirst(timed);
 
   const primary =
     ordered.find((o) => o.scheduledStart >= nineAmUtc) ??
     ordered[0] ??
+    actionable.find((o) => !hasTime(o)) ??
     occurrences[occurrences.length - 1];
 
-  const alsoNow = actionable.filter(
-    (o) =>
-      o.id !== primary.id &&
-      o.scheduledStart.getTime() === primary.scheduledStart.getTime(),
-  );
+  const alsoNow = hasTime(primary)
+    ? timed.filter(
+        (o) =>
+          o.id !== primary.id &&
+          o.scheduledStart.getTime() === primary.scheduledStart.getTime(),
+      )
+    : [];
 
   return { primary, alsoNow };
 }
@@ -119,7 +135,11 @@ export function groupRemainingByTime<T extends HomeOccurrence>(
   allOccurrencesToday: T[],
   excludeIds: ReadonlySet<string>,
 ): TimelineGroup<T>[] {
-  const remaining = allOccurrencesToday.filter((o) => !excludeIds.has(o.id));
+  // Tasks without a time aren't at a time: they're the "Any time" block
+  // (untimedRemaining), never "N at the same time" (sprint-18 п.17).
+  const remaining = allOccurrencesToday.filter(
+    (o) => !excludeIds.has(o.id) && hasTime(o),
+  );
   const byTime = new Map<number, T[]>();
   for (const occurrence of remaining) {
     const key = occurrence.scheduledStart.getTime();
@@ -138,6 +158,19 @@ export function groupRemainingByTime<T extends HomeOccurrence>(
       hasActiveOverlap:
         items.filter((o) => isActionableOccurrenceStatus(o.status)).length >= 2,
     }));
+}
+
+/**
+ * sprint-18-tasks.md п.17 — the day's tasks without a time, for the "Any
+ * time" block after the timed ones; `excludeIds` is the Up next spotlight.
+ */
+export function untimedRemaining<T extends HomeOccurrence>(
+  allOccurrencesToday: T[],
+  excludeIds: ReadonlySet<string>,
+): T[] {
+  return allOccurrencesToday.filter(
+    (o) => !excludeIds.has(o.id) && !hasTime(o),
+  );
 }
 
 /** "in 20 minutes" / "in 2 hours" / "now" — HOME_V2_UPDATE.md § 2's `nextIn`. */
@@ -236,6 +269,8 @@ export function patternInsight(
   const count = occurrences.filter(
     (o) =>
       isActionableOccurrenceStatus(o.status) &&
+      // A task without a time isn't in a part of the day (sprint-18 п.21).
+      hasTime(o) &&
       partOfDayOf(o.scheduledStart, timezone) === weakest.part,
   ).length;
   if (count === 0) return null;
@@ -254,8 +289,10 @@ export function latestOccurrenceEnd(
   occurrences: HomeOccurrence[],
   busyRows: BusyRow[] = [],
 ): Date | null {
-  if (occurrences.length === 0) return null;
-  const taskEnd = occurrences.reduce<Date>((latest, o) => {
+  // Tasks without a time end nowhere (sprint-18-tasks.md п.17).
+  const timed = occurrences.filter(hasTime);
+  if (timed.length === 0) return null;
+  const taskEnd = timed.reduce<Date>((latest, o) => {
     const end = new Date(
       o.scheduledStart.getTime() + o.task.durationMinutes * 60_000,
     );
@@ -416,7 +453,10 @@ export function findMoveTime<T extends HomeOccurrence>(
   );
   const busy = todayTasks
     .filter(
-      (o) => o.id !== movable.id && isActionableOccurrenceStatus(o.status),
+      (o) =>
+        o.id !== movable.id &&
+        isActionableOccurrenceStatus(o.status) &&
+        hasTime(o),
     )
     .map((o) => ({ start: o.scheduledStart, end: occurrenceEnd(o) }));
   const anchorEnd = occurrenceEnd(anchor);

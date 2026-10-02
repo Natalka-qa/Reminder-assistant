@@ -1,4 +1,4 @@
-import { startOfDayInZone, utcToZoned, zonedDateTimeToUtc } from "@/lib/date";
+import { startOfLocalDate, utcToZoned } from "@/lib/date";
 import { shiftDate } from "@/lib/date/calendar-date";
 import {
   mergeIntervals,
@@ -26,8 +26,8 @@ export function busyByDay(
   const merged = mergeIntervals(busy);
   const byDay: Record<string, BusySegment[]> = {};
   for (const date of dates) {
-    const dayStart = startOfLocalDay(date, timezone);
-    const dayEnd = startOfLocalDay(shiftDate(date, 1), timezone);
+    const dayStart = startOfLocalDate(date, timezone);
+    const dayEnd = startOfLocalDate(shiftDate(date, 1), timezone);
     const segments: BusySegment[] = [];
     for (const { start, end } of merged) {
       if (end <= dayStart || start >= dayEnd) {
@@ -47,15 +47,6 @@ export function busyByDay(
     byDay[date] = segments;
   }
   return byDay;
-}
-
-// Through startOfDayInZone, so a zone whose clocks skip midnight itself
-// still gets the day's real first instant.
-function startOfLocalDay(date: string, timezone: string): Date {
-  return startOfDayInZone(
-    zonedDateTimeToUtc(date, "00:00", timezone),
-    timezone,
-  );
 }
 
 function wallClockMinutes(instant: Date, timezone: string): number {

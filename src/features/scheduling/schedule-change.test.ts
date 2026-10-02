@@ -42,6 +42,103 @@ const localTimes = (candidates: { scheduledStart: Date }[]) => [
   ),
 ];
 
+// The same daily task without a time: each day at local midnight.
+function dailyUntimed(
+  statuses: Record<string, ExistingOccurrence["status"]> = {},
+): ExistingOccurrence[] {
+  return dailyAtNine(statuses).map((o) => ({
+    ...o,
+    scheduledStart: at(o.id, "00:00"),
+  }));
+}
+
+describe("isScheduleChange without a time", () => {
+  const daily = { frequency: "DAILY" as const };
+  const stored = JSON.stringify(daily);
+
+  it("counts adding or removing the time as a change", () => {
+    expect(
+      isScheduleChange(
+        { rule: stored, time: null },
+        { rule: daily, time: "09:00" },
+      ),
+    ).toBe(true);
+    expect(
+      isScheduleChange(
+        { rule: stored, time: "09:00" },
+        { rule: daily, time: null },
+      ),
+    ).toBe(true);
+    expect(
+      isScheduleChange(
+        { rule: stored, time: null },
+        { rule: daily, time: null },
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("planScheduleChange without a time", () => {
+  const noon = at("2026-09-28", "12:00");
+
+  it("replaces today's untimed day too and creates it anew", () => {
+    // Every day → Mondays and Wednesdays, at noon on Monday, Sep 28.
+    const plan = planScheduleChange({
+      occurrences: dailyUntimed({ "2026-09-27": "DONE" }),
+      hadTime: false,
+      rule: { frequency: "WEEKLY", daysOfWeek: [1, 3] },
+      anchorDate: "2026-09-21",
+      time: null,
+      durationMinutes: 0,
+      timezone: TZ,
+      now: noon,
+    });
+    expect(plan.replaceIds[0]).toBe("2026-09-28");
+    expect(plan.replaceIds).not.toContain("2026-09-27");
+    expect(localDates(plan.candidates).slice(0, 3)).toEqual([
+      "2026-09-28",
+      "2026-09-30",
+      "2026-10-05",
+    ]);
+    expect(localTimes(plan.candidates)).toEqual(["00:00"]);
+    expect(plan.candidates.every((c) => c.scheduledEnd === null)).toBe(true);
+  });
+
+  it("removing the time keeps a day whose time has passed, and moves the rest", () => {
+    // 09:00 today is over at noon: it stays, so no untimed day today.
+    const plan = planScheduleChange({
+      occurrences: dailyAtNine(),
+      hadTime: true,
+      rule: { frequency: "DAILY" },
+      anchorDate: "2026-09-21",
+      time: null,
+      durationMinutes: 30,
+      timezone: TZ,
+      now: noon,
+    });
+    expect(plan.replaceIds[0]).toBe("2026-09-29");
+    expect(localDates(plan.candidates)[0]).toBe("2026-09-29");
+    expect(localTimes(plan.candidates)).toEqual(["00:00"]);
+  });
+
+  it("adding a time to today's untimed day replaces it, from now on", () => {
+    // Untimed → 18:00 at noon: today's day is replaced by 18:00 today.
+    const plan = planScheduleChange({
+      occurrences: dailyUntimed(),
+      hadTime: false,
+      rule: { frequency: "DAILY" },
+      anchorDate: "2026-09-21",
+      time: "18:00",
+      durationMinutes: 30,
+      timezone: TZ,
+      now: noon,
+    });
+    expect(plan.replaceIds[0]).toBe("2026-09-28");
+    expect(localDates(plan.candidates)[0]).toBe("2026-09-28");
+    expect(localTimes(plan.candidates)).toEqual(["18:00"]);
+  });
+});
+
 describe("planScheduleChange", () => {
   it("replaces only open occurrences still ahead of now", () => {
     const occurrences = dailyAtNine({
@@ -51,6 +148,7 @@ describe("planScheduleChange", () => {
     });
     // Monday, Sep 28, 12:00 — today's 09:00 has passed.
     const plan = planScheduleChange({
+      hadTime: true,
       occurrences,
       rule: { frequency: "DAILY" },
       anchorDate: "2026-09-21",
@@ -67,6 +165,7 @@ describe("planScheduleChange", () => {
 
   it("doesn't add a second occurrence today once today's has passed", () => {
     const plan = planScheduleChange({
+      hadTime: true,
       occurrences: dailyAtNine(),
       rule: { frequency: "DAILY" },
       anchorDate: "2026-09-21",
@@ -81,6 +180,7 @@ describe("planScheduleChange", () => {
 
   it("moves today's occurrence too while it's still ahead", () => {
     const plan = planScheduleChange({
+      hadTime: true,
       occurrences: dailyAtNine(),
       rule: { frequency: "DAILY" },
       anchorDate: "2026-09-21",
@@ -96,6 +196,7 @@ describe("planScheduleChange", () => {
   it("never creates an occurrence in the past", () => {
     // Moved earlier than now, today: today is simply skipped.
     const plan = planScheduleChange({
+      hadTime: true,
       occurrences: dailyAtNine().filter((o) => o.id >= "2026-09-29"),
       rule: { frequency: "DAILY" },
       anchorDate: "2026-09-21",
@@ -109,6 +210,7 @@ describe("planScheduleChange", () => {
 
   it("changes the repeat days", () => {
     const plan = planScheduleChange({
+      hadTime: true,
       occurrences: dailyAtNine(),
       rule: { frequency: "WEEKLY", daysOfWeek: [2, 4] },
       anchorDate: "2026-09-21",
@@ -127,6 +229,7 @@ describe("planScheduleChange", () => {
 
   it("keeps an occurrence resolved ahead of time, and its date", () => {
     const plan = planScheduleChange({
+      hadTime: true,
       occurrences: dailyAtNine({ "2026-09-30": "DONE" }),
       rule: { frequency: "DAILY" },
       anchorDate: "2026-09-21",
@@ -141,6 +244,7 @@ describe("planScheduleChange", () => {
 
   it("fills the window to 30 days ahead, keeping the wall-clock time across DST", () => {
     const plan = planScheduleChange({
+      hadTime: true,
       occurrences: dailyAtNine(),
       rule: { frequency: "DAILY" },
       anchorDate: "2026-09-21",
@@ -155,13 +259,15 @@ describe("planScheduleChange", () => {
     expect(
       plan.candidates.every(
         (c) =>
-          c.scheduledEnd.getTime() - c.scheduledStart.getTime() === 30 * 60_000,
+          c.scheduledEnd!.getTime() - c.scheduledStart.getTime() ===
+          30 * 60_000,
       ),
     ).toBe(true);
   });
 
   it("keeps a monthly repeat on its anchor's day of the month", () => {
     const plan = planScheduleChange({
+      hadTime: true,
       occurrences: dailyAtNine(),
       rule: { frequency: "MONTHLY" },
       anchorDate: "2026-09-21",

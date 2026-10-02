@@ -31,7 +31,10 @@ export default async function EditTaskPage({
     notFound();
   }
 
-  const occurrence = pickCurrentOccurrence(task.occurrences);
+  const occurrence = pickCurrentOccurrence(task.occurrences, new Date(), {
+    hasTime: task.hasTime,
+    timezone: user.timezone,
+  });
   const scheduledStart = occurrence?.scheduledStart ?? new Date();
   const now = zonedNow(user.timezone);
 

@@ -18,10 +18,16 @@ export function SchedulingChoice({
   labelId,
   value,
   onChange,
+  fixedUnavailable = false,
 }: {
   labelId: string;
   value: Flexibility;
   onChange: (value: Flexibility) => void;
+  /**
+   * sprint-18-tasks.md п.8 — a task without a time is always Flexible:
+   * Fixed can't be picked, and a line under the cards says why.
+   */
+  fixedUnavailable?: boolean;
 }) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -33,7 +39,7 @@ export function SchedulingChoice({
         : event.key === "ArrowLeft" || event.key === "ArrowUp"
           ? -1
           : 0;
-    if (step === 0) return;
+    if (step === 0 || fixedUnavailable) return;
     event.preventDefault();
     const next =
       (index + step + FLEXIBILITY_CHOICES.length) % FLEXIBILITY_CHOICES.length;
@@ -53,6 +59,7 @@ export function SchedulingChoice({
       <div className="grid grid-cols-2 gap-2.5">
         {FLEXIBILITY_CHOICES.map((choice, index) => {
           const on = choice.value === value;
+          const unavailable = fixedUnavailable && choice.value === "FIXED";
           return (
             <button
               key={choice.value}
@@ -62,20 +69,29 @@ export function SchedulingChoice({
               type="button"
               role="radio"
               aria-checked={on}
+              aria-disabled={unavailable || undefined}
               tabIndex={on ? 0 : -1}
-              onClick={() => onChange(choice.value)}
+              onClick={() => {
+                if (!unavailable) onChange(choice.value);
+              }}
               onKeyDown={handleKeyDown}
               className={cn(
                 "flex min-h-16 flex-col gap-[3px] rounded-[14px] border px-4 py-3.5 text-left transition-colors",
                 on
                   ? "bg-newtask-choice-selected border-burgundy"
-                  : "bg-surface border-border hover:border-newtask-muted-burgundy",
+                  : unavailable
+                    ? "border-border cursor-not-allowed bg-transparent"
+                    : "bg-surface border-border hover:border-newtask-muted-burgundy",
               )}
             >
               <span
                 className={cn(
                   "flex items-center justify-between gap-2 text-[15px] font-semibold",
-                  on ? "text-burgundy" : "text-text-primary",
+                  on
+                    ? "text-burgundy"
+                    : unavailable
+                      ? "text-newtask-quiet-text"
+                      : "text-text-primary",
                 )}
               >
                 {choice.label}
@@ -92,6 +108,11 @@ export function SchedulingChoice({
           );
         })}
       </div>
+      {fixedUnavailable && (
+        <p className="text-newtask-quiet-text text-[13px]">
+          Tasks without a time are flexible.
+        </p>
+      )}
     </div>
   );
 }

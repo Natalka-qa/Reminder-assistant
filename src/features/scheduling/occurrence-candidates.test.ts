@@ -8,6 +8,21 @@ import { busyQueryWindow } from "./external-busy";
 const at = (iso: string) => new Date(iso);
 
 describe("buildCandidateIntervals", () => {
+  it("starts a day without a time at local midnight, with no end", () => {
+    expect(
+      buildCandidateIntervals(
+        ["2026-10-24", "2026-10-26"],
+        null,
+        90,
+        "Europe/Madrid",
+      ),
+    ).toEqual([
+      // Summer time (UTC+2), then winter time (UTC+1) after Oct 25.
+      { scheduledStart: at("2026-10-23T22:00:00Z"), scheduledEnd: null },
+      { scheduledStart: at("2026-10-25T23:00:00Z"), scheduledEnd: null },
+    ]);
+  });
+
   it("puts each date's wall-clock time in the user's zone, plus the duration", () => {
     expect(
       buildCandidateIntervals(
@@ -61,7 +76,7 @@ describe("initialRecurringIntervals", () => {
       busyQueryWindow(
         daily.map(({ scheduledStart, scheduledEnd }) => ({
           start: scheduledStart,
-          end: scheduledEnd,
+          end: scheduledEnd!,
         })),
       ),
     ).toEqual({

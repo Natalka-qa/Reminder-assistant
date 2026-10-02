@@ -8,6 +8,27 @@ export function formatDuration(minutes: number): string {
   return rest === 0 ? `${hours}h` : `${hours}h ${rest}min`;
 }
 
+/**
+ * sprint-18-tasks.md п.13 — a task's reminder as the task page shows it:
+ * "No reminder", "That morning, 09:00", "Evening before, 19:00", or the
+ * minutes before (formatReminderOffset).
+ */
+export function formatReminder(
+  kind: "NONE" | "OFFSET" | "MORNING_OF" | "EVENING_BEFORE",
+  offsetMinutes: number,
+): string {
+  switch (kind) {
+    case "NONE":
+      return "No reminder";
+    case "MORNING_OF":
+      return "That morning, 09:00";
+    case "EVENING_BEFORE":
+      return "Evening before, 19:00";
+    case "OFFSET":
+      return formatReminderOffset(offsetMinutes);
+  }
+}
+
 export function formatReminderOffset(minutes: number): string {
   if (minutes <= 0) return "At time of task";
   if (minutes < 60) return `${minutes} minutes before`;

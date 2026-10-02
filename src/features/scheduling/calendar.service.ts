@@ -2,7 +2,7 @@ import {
   addDaysInZone,
   endOfDayInZone,
   endOfMonthInZone,
-  startOfDayInZone,
+  startOfLocalDate,
   zonedDateTimeToUtc,
 } from "@/lib/date";
 import { shiftDate } from "@/lib/date/calendar-date";
@@ -55,8 +55,8 @@ export const calendarService = {
     try {
       const result = await calendarService.getBusyBetween(
         userId,
-        startOfLocalDay(dates[0], timezone),
-        startOfLocalDay(shiftDate(dates.at(-1)!, 1), timezone),
+        startOfLocalDate(dates[0], timezone),
+        startOfLocalDate(shiftDate(dates.at(-1)!, 1), timezone),
       );
       return result.status === "ok"
         ? { status: "ok", byDay: busyByDay(result.busy, dates, timezone) }
@@ -101,10 +101,3 @@ export const calendarService = {
 
 export type BusyBetween =
   { status: "ok"; busy: Interval[] } | Exclude<CalendarBusy, { status: "ok" }>;
-
-function startOfLocalDay(date: string, timezone: string): Date {
-  return startOfDayInZone(
-    zonedDateTimeToUtc(date, "00:00", timezone),
-    timezone,
-  );
-}

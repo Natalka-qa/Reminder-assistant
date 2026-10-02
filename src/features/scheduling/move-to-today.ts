@@ -3,6 +3,7 @@ import {
   formatDateInZone,
   formatTimeInZone,
   startOfDayInZone,
+  startOfLocalDate,
   zonedDateTimeToUtc,
 } from "@/lib/date";
 
@@ -12,12 +13,14 @@ type MovableOccurrence = {
     recurrenceRule: string | null;
     durationMinutes: number;
     reminderOffsetMinutes: number;
+    hasTime: boolean;
   };
 };
 
 export type MoveToTodayPlan = {
   scheduledStart: Date;
-  scheduledEnd: Date;
+  /** Null — a task without a time stays without one (sprint-18 п.18). */
+  scheduledEnd: Date | null;
   /** null when the reminder moment has already passed today. */
   reminderAt: Date | null;
 };
@@ -48,8 +51,17 @@ export function planMoveToToday(
     return null;
   }
 
+  const today = formatDateInZone(now, timezone, "yyyy-LL-dd");
+  if (!occurrence.task.hasTime) {
+    // Its reminder (a fixed hour, or none) is the task's rule's to give.
+    return {
+      scheduledStart: startOfLocalDate(today, timezone),
+      scheduledEnd: null,
+      reminderAt: null,
+    };
+  }
   const scheduledStart = zonedDateTimeToUtc(
-    formatDateInZone(now, timezone, "yyyy-LL-dd"),
+    today,
     formatTimeInZone(occurrence.scheduledStart, timezone, "HH:mm"),
     timezone,
   );

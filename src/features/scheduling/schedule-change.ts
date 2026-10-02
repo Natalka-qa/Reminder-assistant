@@ -17,6 +17,7 @@ import {
   buildCandidateIntervals,
   type CandidateInterval,
 } from "@/features/scheduling/occurrence-candidates";
+import { isAhead } from "@/features/scheduling/untimed";
 
 // Editing a recurring task's time or repeat (lifting the Sprint 5 lock,
 // sprint-5-tasks.md "Расхождения" п.5). Only what hasn't happened yet
@@ -72,10 +73,13 @@ function normalizedRule(rule: RecurrenceRule | null): string | null {
   });
 }
 
-/** Whether the time of day or the repeat actually changed. */
+/**
+ * Whether the time of day or the repeat actually changed. A null time is
+ * "no time" (sprint-18-tasks.md п.10): adding or removing one is a change.
+ */
 export function isScheduleChange(
   current: { rule: string | null; time: string | null },
-  next: { rule: RecurrenceRule; time: string },
+  next: { rule: RecurrenceRule; time: string | null },
 ): boolean {
   return (
     normalizedRule(parseRecurrenceRule(current.rule)) !==
@@ -99,6 +103,7 @@ export type ScheduleChangePlan = {
  */
 export function planScheduleChange({
   occurrences,
+  hadTime,
   rule,
   anchorDate,
   time,
@@ -107,15 +112,22 @@ export function planScheduleChange({
   now,
 }: {
   occurrences: ExistingOccurrence[];
+  /** Whether the occurrences so far have a time (sprint-18-tasks.md п.4). */
+  hadTime: boolean;
   rule: RecurrenceRule;
   anchorDate: string;
-  time: string;
+  /** The new time of day; null — the series has no time from now on. */
+  time: string | null;
   durationMinutes: number;
   timezone: string;
   now: Date;
 }): ScheduleChangePlan {
+  // "Ahead" by the old kind for what's replaced, by the new kind for
+  // what's created: today's untimed day is still ahead all day (п.4).
   const replaced = occurrences.filter(
-    (o) => isActionableOccurrenceStatus(o.status) && o.scheduledStart > now,
+    (o) =>
+      isActionableOccurrenceStatus(o.status) &&
+      isAhead(o, hadTime, now, timezone),
   );
   const replacedIds = new Set(replaced.map((o) => o.id));
   const keptDates = new Set(
@@ -146,6 +158,6 @@ export function planScheduleChange({
       time,
       durationMinutes,
       timezone,
-    ).filter((candidate) => candidate.scheduledStart > now),
+    ).filter((candidate) => isAhead(candidate, time !== null, now, timezone)),
   };
 }

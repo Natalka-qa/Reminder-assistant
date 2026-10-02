@@ -125,6 +125,16 @@ model Task {
   // task, same as durationMinutes/priority.
   reminderOffsetMinutes Int @default(0)
 
+  // sprint-18-tasks.md п.1 — false for a task without a time ("Any time"):
+  // its occurrences start at local midnight of their day and have no end.
+  // On the task, not the occurrence: a series' days are all one kind.
+  hasTime Boolean @default(true)
+
+  // п.11 — OFFSET uses reminderOffsetMinutes; MORNING_OF / EVENING_BEFORE
+  // are 09:00 that day / 19:00 the day before, local time; NONE — no
+  // reminder at all.
+  reminderKind ReminderKind @default(OFFSET)
+
   user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   occurrences TaskOccurrence[]
 
@@ -187,6 +197,13 @@ enum Priority {
 enum Flexibility {
   FIXED
   FLEXIBLE
+}
+
+enum ReminderKind {
+  NONE
+  OFFSET
+  MORNING_OF
+  EVENING_BEFORE
 }
 
 enum OccurrenceStatus {

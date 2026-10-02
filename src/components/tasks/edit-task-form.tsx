@@ -17,14 +17,19 @@ import {
   type TaskActionState,
 } from "@/features/tasks/actions";
 import {
+  DEFAULT_REMINDER_MINUTES,
+  fittingReminder,
   overlapNotice,
+  parseReminderValue,
   pastNotice,
+  reminderOptions,
+  reminderPastNotice,
+  reminderValue,
   repeatHint,
 } from "@/features/tasks/new-task-fields";
 import {
   importanceChoicesFor,
   recurringOverlapNotice,
-  reminderChoicesFor,
   type EditTaskValues,
 } from "@/features/tasks/edit-task-fields";
 import { RoseNotice } from "@/components/tasks/task-fields/shared";
@@ -112,7 +117,9 @@ export function EditTaskForm({
   const [workOverride, setWorkOverride] = useState<boolean | null>(null);
   const allowDuringWork = workOverride ?? kind === "remote";
 
-  const checkOverlaps = fields.recurring || fields.date >= today;
+  // A task without a time overlaps nothing (sprint-18-tasks.md п.16).
+  const checkOverlaps =
+    fields.time !== null && (fields.recurring || fields.date >= today);
   const overlapRequest = {
     taskId,
     date: fields.date,
@@ -158,6 +165,30 @@ export function EditTaskForm({
   const past = fields.recurring
     ? null
     : pastNotice(fields.date, fields.time, clock.date, clock.minutes);
+  const reminderPast = fields.recurring
+    ? null
+    : reminderPastNotice(
+        fields.date,
+        fields.reminder,
+        clock.date,
+        clock.minutes,
+      );
+
+  // sprint-18-tasks.md п.12 — adding or removing the time keeps the
+  // reminder if it still fits, else minutes before / none.
+  function changeTime(time: string | null) {
+    setFields((current) => ({
+      ...current,
+      time,
+      reminder: fittingReminder(
+        current.reminder,
+        time !== null,
+        values.reminder.kind === "OFFSET"
+          ? values.reminder.offsetMinutes
+          : DEFAULT_REMINDER_MINUTES,
+      ),
+    }));
+  }
   const hint = repeatHint(fields.repeat, fields.date, today, fields.time);
 
   function handleTitleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -186,7 +217,7 @@ export function EditTaskForm({
       {/* The whole task, as updateTaskAction has always taken it. */}
       <input type="hidden" name="title" value={title} />
       <input type="hidden" name="date" value={fields.date} />
-      <input type="hidden" name="time" value={fields.time} />
+      <input type="hidden" name="time" value={fields.time ?? ""} />
       <input
         type="hidden"
         name="durationMinutes"
@@ -199,10 +230,11 @@ export function EditTaskForm({
         fields.repeatDays.map((day) => (
           <input key={day} type="hidden" name="repeatDaysOfWeek" value={day} />
         ))}
+      <input type="hidden" name="reminderKind" value={fields.reminder.kind} />
       <input
         type="hidden"
         name="reminderOffsetMinutes"
-        value={fields.reminderOffsetMinutes}
+        value={fields.reminder.offsetMinutes}
       />
       <input
         type="hidden"
@@ -236,11 +268,13 @@ export function EditTaskForm({
         time={fields.time}
         durationMinutes={fields.durationMinutes}
         onDateChange={(value) => setField("date", value)}
-        onTimeChange={(value) => setField("time", value)}
+        onTimeChange={changeTime}
+        onTimeRemove={() => changeTime(null)}
         onDurationChange={(value) => setField("durationMinutes", value)}
         dateReadOnly={values.recurring}
       >
         {past && <RoseNotice>{past}</RoseNotice>}
+        {reminderPast && <RoseNotice>{reminderPast}</RoseNotice>}
         {overlapText && (
           <OverlapNotice
             text={overlapText}
@@ -266,15 +300,18 @@ export function EditTaskForm({
 
       <SchedulingChoice
         labelId={ids.scheduling}
-        value={fields.flexibility}
+        value={fields.time === null ? "FLEXIBLE" : fields.flexibility}
         onChange={(value) => setField("flexibility", value)}
+        fixedUnavailable={fields.time === null}
       />
 
       <TaskDetailsFields
         ids={ids}
-        reminderOffsetMinutes={fields.reminderOffsetMinutes}
-        reminderChoices={reminderChoicesFor(values.reminderOffsetMinutes)}
-        onReminderChange={(value) => setField("reminderOffsetMinutes", value)}
+        reminder={reminderValue(fields.reminder)}
+        reminderChoices={reminderOptions(fields.time !== null, values.reminder)}
+        onReminderChange={(value) =>
+          setField("reminder", parseReminderValue(value))
+        }
         priority={fields.priority}
         importanceChoices={importanceChoicesFor(values.priority)}
         onPriorityChange={(value) => setField("priority", value)}

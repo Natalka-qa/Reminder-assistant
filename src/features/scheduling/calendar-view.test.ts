@@ -31,6 +31,7 @@ function occurrence(
     priority: "NORMAL",
     recurrenceLabel: null,
     daily: false,
+    hasTime: true,
     ...overrides,
   };
 }
@@ -197,5 +198,28 @@ describe("month dates", () => {
       title: "September",
       subtitle: "2026",
     });
+  });
+});
+
+describe("tasks without a time (sprint-18-tasks.md п.19)", () => {
+  it("keeps them off the timeline, in the day's Any time list, and counts them", () => {
+    const [day] = buildCalendarDays(["2026-09-25"], "2026-09-25", [
+      occurrence("a", "2026-09-25", { startMinutes: 10 * 60 }),
+      occurrence("b", "2026-09-25", {
+        hasTime: false,
+        startMinutes: 0,
+        durationMinutes: 0,
+        flexibility: "FLEXIBLE",
+      }),
+    ]);
+    expect(day.events.map((e) => e.occurrenceId)).toEqual(["a"]);
+    expect(day.anyTime.map((e) => e.occurrenceId)).toEqual(["b"]);
+    expect(day.anyTime[0]).toMatchObject({
+      timeLabel: "Any time",
+      rangeLabel: "Any time",
+      hasTime: false,
+    });
+    expect(day.countsLabel).toBe("2 tasks · 1 fixed · 1 flexible");
+    expect(day.busyLevel).toBe(2);
   });
 });

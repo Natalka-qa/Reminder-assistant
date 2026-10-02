@@ -251,13 +251,14 @@ export const SUMMARY_BUTTONS_MAX = 8;
  * redraws the summary rather than adding a line, as a reminder does.
  */
 export function summaryButtons(
-  open: { id: string; time: string; title: string }[],
+  open: { id: string; time: string | null; title: string }[],
 ): InlineKeyboard | undefined {
   if (open.length === 0) return undefined;
   return {
     inline_keyboard: open.slice(0, SUMMARY_BUTTONS_MAX).map((item) => [
       {
-        text: `✓ ${item.time} ${item.title}`,
+        // "✓ Buy groceries" for a task without a time (sprint-18 п.20).
+        text: item.time ? `✓ ${item.time} ${item.title}` : `✓ ${item.title}`,
         callback_data: buttonData("sdone", item.id),
       },
     ]),

@@ -53,6 +53,7 @@ function toCalendarInput(
     priority: occurrence.task.priority,
     recurrenceLabel: rule ? describeRecurrenceRule(rule) : null,
     daily: rule?.frequency === "DAILY",
+    hasTime: occurrence.task.hasTime,
   };
 }
 

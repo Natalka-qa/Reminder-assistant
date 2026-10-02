@@ -155,3 +155,15 @@ describe("slotNote", () => {
     );
   });
 });
+
+describe("usualWorkoutTime without a time (sprint-18-tasks.md п.21)", () => {
+  it("doesn't learn from workouts without a time", () => {
+    const untimed = (day: number) => ({
+      ...done(day, 0),
+      task: { title: "Gym", hasTime: false },
+    });
+    expect(
+      usualWorkoutTime([untimed(1), untimed(2), untimed(3), untimed(4)], TZ),
+    ).toBeNull();
+  });
+});

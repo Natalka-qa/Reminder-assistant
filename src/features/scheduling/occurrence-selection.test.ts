@@ -11,6 +11,23 @@ function occurrence(id: string, status: OccurrenceStatus, iso: string) {
 describe("pickCurrentOccurrence", () => {
   const now = at("2026-09-10T12:00:00Z");
 
+  it("keeps today's day of a task without a time current all day", () => {
+    // Midnight of Sep 10 in UTC — behind now, but the day isn't over.
+    const occurrences = [
+      occurrence("yesterday", "SCHEDULED", "2026-09-09T00:00:00Z"),
+      occurrence("today", "SCHEDULED", "2026-09-10T00:00:00Z"),
+      occurrence("tomorrow", "SCHEDULED", "2026-09-11T00:00:00Z"),
+    ];
+    expect(
+      pickCurrentOccurrence(occurrences, now, {
+        hasTime: false,
+        timezone: "UTC",
+      })?.id,
+    ).toBe("today");
+    // With a time, a start behind now has happened.
+    expect(pickCurrentOccurrence(occurrences, now)?.id).toBe("tomorrow");
+  });
+
   it("picks the soonest future SCHEDULED occurrence, not the first one ever created", () => {
     const occurrences = [
       occurrence("past", "DONE", "2026-09-01T09:00:00Z"),
