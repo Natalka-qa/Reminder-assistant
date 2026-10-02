@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCollisionSuggestion,
+  busyRowsForToday,
   buildInsightBody,
   countOverlappingToday,
   findMoveTime,
   formatRelativeTimeLabel,
   groupRemainingByTime,
   latestOccurrenceEnd,
+  mergeTimeline,
   patternInsight,
   selectUpNext,
   withoutRemoved,
@@ -282,6 +284,111 @@ describe("latestOccurrenceEnd", () => {
   it("returns null for no occurrences", () => {
     expect(latestOccurrenceEnd([])).toBeNull();
   });
+
+  const at = (hour: number, minute = 0) =>
+    new Date(Date.UTC(2026, 3, 26, hour, minute));
+
+  it("ends after Google busy time that runs later than the tasks", () => {
+    expect(
+      latestOccurrenceEnd(
+        [occurrence("a", 9, 0)],
+        [{ start: at(18), end: at(20), allDay: false }],
+      ),
+    ).toEqual(at(20));
+  });
+
+  it("keeps the tasks' end when busy time is earlier or all day", () => {
+    expect(
+      latestOccurrenceEnd(
+        [occurrence("a", 9, 0)],
+        [
+          { start: at(7), end: at(8), allDay: false },
+          { start: at(0), end: at(24), allDay: true },
+        ],
+      ),
+    ).toEqual(at(9, 30));
+  });
+});
+
+describe("busyRowsForToday", () => {
+  const at = (day: number, hour: number, minute = 0) =>
+    new Date(Date.UTC(2026, 9, day, hour, minute));
+  const DAY = { dayStart: at(2, 0), dayEnd: at(3, 0), now: at(2, 11) };
+
+  it("keeps what isn't over yet, merged and in order", () => {
+    expect(
+      busyRowsForToday(
+        [
+          { start: at(2, 15), end: at(2, 16) },
+          { start: at(2, 9), end: at(2, 10) }, // over
+          { start: at(2, 10, 30), end: at(2, 11, 30) }, // still on
+          { start: at(2, 15, 30), end: at(2, 17) },
+        ],
+        DAY,
+      ),
+    ).toEqual([
+      { start: at(2, 10, 30), end: at(2, 11, 30), allDay: false },
+      { start: at(2, 15), end: at(2, 17), allDay: false },
+    ]);
+  });
+
+  it("cuts intervals to today and drops other days", () => {
+    expect(
+      busyRowsForToday(
+        [
+          { start: at(2, 22), end: at(3, 1) },
+          { start: at(3, 9), end: at(3, 10) },
+          { start: at(1, 9), end: at(1, 10) },
+        ],
+        DAY,
+      ),
+    ).toEqual([{ start: at(2, 22), end: at(3, 0), allDay: false }]);
+  });
+
+  it("is a single all-day row when the whole day is busy", () => {
+    expect(
+      busyRowsForToday(
+        [
+          { start: at(2, 15), end: at(2, 16) },
+          { start: at(1, 0), end: at(4, 0) },
+        ],
+        DAY,
+      ),
+    ).toEqual([{ start: at(2, 0), end: at(3, 0), allDay: true }]);
+  });
+});
+
+describe("mergeTimeline", () => {
+  const at = (hour: number) => new Date(Date.UTC(2026, 9, 2, hour));
+  const group = (hour: number) => ({
+    when: at(hour),
+    items: [hour],
+    hasActiveOverlap: false,
+  });
+  const busy = (from: number, to: number, allDay = false) => ({
+    start: at(from),
+    end: at(to),
+    allDay,
+  });
+
+  it("orders groups and busy rows by start, busy first on a tie", () => {
+    const entries = mergeTimeline(
+      [group(14), group(10)],
+      [busy(14, 15), busy(12, 13)],
+    );
+    expect(
+      entries.map((e) =>
+        e.kind === "busy"
+          ? `busy ${e.row.start.getUTCHours()}`
+          : `tasks ${e.group.when.getUTCHours()}`,
+      ),
+    ).toEqual(["tasks 10", "busy 12", "busy 14", "tasks 14"]);
+  });
+
+  it("puts busy all day first", () => {
+    const [first] = mergeTimeline([group(7)], [busy(0, 24, true)]);
+    expect(first.kind).toBe("busy");
+  });
 });
 
 describe("buildCollisionSuggestion", () => {
@@ -398,13 +505,18 @@ describe("findMoveTime", () => {
     anchor: HomeOccurrence,
     movable: HomeOccurrence,
     others: HomeOccurrence[] = [],
-    { now = EARLY, preferences = NO_WORK } = {},
+    {
+      now = EARLY,
+      preferences = NO_WORK,
+      externalBusy = [] as { start: Date; end: Date }[],
+    } = {},
   ) {
     return findMoveTime({ anchor, movable }, [anchor, movable, ...others], {
       today: TUESDAY,
       now,
       timezone: TZ,
       preferences,
+      externalBusy,
     });
   }
 
@@ -449,6 +561,23 @@ describe("findMoveTime", () => {
       at(17),
     );
     expect(moveTime(fixedAt(10), call, [], { preferences })).toEqual(at(11));
+  });
+
+  it("doesn't move a task into Google busy time", () => {
+    // Meeting 14:00–15:30 in Google: the first free hour is 15:30.
+    expect(
+      moveTime(fixedAt(13), task("movable", 13), [], {
+        externalBusy: [{ start: at(14), end: at(15, 30) }],
+      }),
+    ).toEqual(at(15, 30));
+  });
+
+  it("gives up on a day busy all day in Google", () => {
+    expect(
+      moveTime(fixedAt(13), task("movable", 13), [], {
+        externalBusy: [{ start: at(0), end: at(24) }],
+      }),
+    ).toBeNull();
   });
 
   it("starts a workout by the user's limit", () => {

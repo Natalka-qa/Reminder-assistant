@@ -164,6 +164,8 @@
   --color-calendar-accent-fixed: var(--calendar-accent-fixed);
   --color-calendar-accent-closed: var(--calendar-accent-closed);
   --color-calendar-critical-bg: var(--calendar-critical-bg);
+  --color-calendar-google-busy: var(--calendar-google-busy);
+  --color-calendar-google-busy-hatch: var(--calendar-google-busy-hatch);
   --shadow-calendar-block: var(--calendar-block-shadow);
   --color-newtask-quiet-text: var(--newtask-quiet-text);
   --color-newtask-hairline: var(--newtask-hairline);
@@ -468,6 +470,11 @@
   --calendar-accent-closed: var(--tasks-marker-normal);
   --calendar-critical-bg: var(--tasks-critical-row);
   --calendar-block-shadow: 0 2px 10px rgba(36, 35, 38, 0.07);
+  /* Busy time from Google Calendar (sprint-17-tasks.md п.2) — a hatched
+     backdrop under the tasks, not in the handoff. Its "Busy" label sits on
+     the plain --calendar-google-busy, where --text-secondary is 4.65:1. */
+  --calendar-google-busy: var(--border-soft);
+  --calendar-google-busy-hatch: #e2ddd6;
 
   /* --- New task v2 tokens -------------------------------------------------
      NEW_TASK_V2_UPDATE.md. #743447/#5C2837/#E4E1DC/#F3EEEF/#315766/#6F5758

@@ -149,6 +149,13 @@ function partExtremes(
     : null;
 }
 
+/** The part of the day tasks get done in, if it stands out (sprint-17 п.9). */
+export function strongestPart(
+  patterns: BehaviorPatterns,
+): AnalyticsPart | null {
+  return partExtremes(patterns)?.best.part ?? null;
+}
+
 /** The part of the day tasks get dropped in, if it stands out (for Home). */
 export function weakestPart(patterns: BehaviorPatterns): PartPercent | null {
   return partExtremes(patterns)?.worst ?? null;

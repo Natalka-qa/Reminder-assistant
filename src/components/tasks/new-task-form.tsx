@@ -30,6 +30,7 @@ import {
 import {
   REMINDER_CHOICES,
   formatNearbySlot,
+  slotNoteLine,
   formatWhenDate,
   newTaskDefaults,
   noFreeTimeNotice,
@@ -197,6 +198,8 @@ export function NewTaskForm({
     searchKey !== null && search?.key === searchKey ? search : null;
   const searching = searchKey !== null && searchAnswer === null;
   const foundSlots = searchAnswer?.result?.slots ?? [];
+  const foundSlotNote =
+    foundSlots.length > 0 ? slotNoteLine(foundSlots, foundSlots[0].date) : null;
 
   // A "Free:" slot picked instead of the first one. It's still the app's
   // suggestion, not a time the user set — the task stays Flexible
@@ -582,7 +585,7 @@ export function NewTaskForm({
                           type="button"
                           aria-pressed={current}
                           onClick={() => chooseFoundSlot(slot)}
-                          aria-label={`${formatWhenDate(slot.date, today)}, ${slot.time}`}
+                          aria-label={`${formatWhenDate(slot.date, today)}, ${slot.time}${slot.note ? ` — ${slot.note}` : ""}`}
                           className={cn(
                             "text-burgundy font-semibold",
                             current
@@ -599,6 +602,9 @@ export function NewTaskForm({
               )}
               {searchAnswer?.result?.calendar === "unavailable" &&
                 " Google Calendar wasn't checked."}
+              {!searching && foundSlotNote && (
+                <span className="block">{foundSlotNote}</span>
+              )}
             </p>
           )}
           {hasWorkHours &&

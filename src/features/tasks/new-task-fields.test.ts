@@ -3,6 +3,7 @@ import {
   durationChoices,
   formatDurationChoice,
   formatNearbySlot,
+  slotNoteLine,
   formatWhenDate,
   noFreeTimeNotice,
   onlyFreeTimeNotice,
@@ -181,6 +182,35 @@ describe("notices", () => {
     expect(overlapNotice([], 1)).toBe(
       "Overlaps with a busy time in your Google Calendar.",
     );
+  });
+});
+
+describe("slotNoteLine", () => {
+  it("names the first slot with a note", () => {
+    expect(
+      slotNoteLine(
+        [
+          { date: TODAY, time: "17:30" },
+          {
+            date: TODAY,
+            time: "19:00",
+            note: "matches your usual workout time",
+          },
+          {
+            date: TODAY,
+            time: "20:00",
+            note: "you usually finish evening tasks",
+          },
+        ],
+        TODAY,
+      ),
+    ).toBe("19:00 — matches your usual workout time");
+  });
+
+  it("is null when no slot has a note", () => {
+    expect(
+      slotNoteLine([{ date: TODAY, time: "17:30", note: null }], TODAY),
+    ).toBeNull();
   });
 });
 

@@ -4,6 +4,7 @@ import {
   durationChoices,
   formatDurationChoice,
   formatNearbySlot,
+  slotNoteLine,
   formatWhenDate,
 } from "@/features/tasks/new-task-fields";
 import { SwitchTrack } from "@/components/ui/switch-track";
@@ -105,7 +106,7 @@ export function OverlapNotice({
   onChoose,
 }: {
   text: string;
-  freeNearby: { date: string; time: string }[];
+  freeNearby: { date: string; time: string; note?: string | null }[];
   currentDate: string;
   today: string;
   onChoose: (slot: { date: string; time: string }) => void;
@@ -123,13 +124,18 @@ export function OverlapNotice({
               <button
                 type="button"
                 onClick={() => onChoose(slot)}
-                aria-label={`Move to ${formatWhenDate(slot.date, today)}, ${slot.time}`}
+                aria-label={`Move to ${formatWhenDate(slot.date, today)}, ${slot.time}${slot.note ? ` — ${slot.note}` : ""}`}
                 className="text-burgundy decoration-newtask-example-underline hover:decoration-burgundy font-semibold underline underline-offset-[3px]"
               >
                 {formatNearbySlot(slot, currentDate)}
               </button>
             </span>
           ))}
+          {slotNoteLine(freeNearby, currentDate) && (
+            <span className="block">
+              {slotNoteLine(freeNearby, currentDate)}
+            </span>
+          )}
         </>
       )}
     </RoseNotice>

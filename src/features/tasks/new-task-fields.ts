@@ -35,7 +35,12 @@ export type ParsedTaskFields = {
 export type PartOfDay = "morning" | "afternoon" | "evening" | "any";
 
 /** A free slot the search found, in the user's local date and time. */
-export type FoundSlot = { date: string; time: string };
+export type FoundSlot = {
+  date: string;
+  time: string;
+  /** sprint-17-tasks.md п.12 — why the slot fits the user's habits. */
+  note?: string | null;
+};
 
 // S12-05 — a search needs a length to look for; "find me some time" with
 // none named looks for half an hour.
@@ -281,6 +286,21 @@ export function formatNearbySlot(
   return slot.date === chosenDate
     ? slot.time
     : `${format(slot.date, { weekday: "short" })} ${slot.time}`;
+}
+
+/**
+ * sprint-17-tasks.md п.12 — one line under the slots for the first one
+ * with a note: "19:00 — matches your usual workout time". Null when none
+ * has one.
+ */
+export function slotNoteLine(
+  slots: FoundSlot[],
+  chosenDate: string,
+): string | null {
+  const noted = slots.find((slot) => slot.note);
+  return noted
+    ? `${formatNearbySlot(noted, chosenDate)} — ${noted.note}`
+    : null;
 }
 
 /**
