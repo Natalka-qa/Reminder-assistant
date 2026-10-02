@@ -1,6 +1,9 @@
 export type ReminderEmailInput = {
   title: string;
+  /** "18:00" — or, for a task without a time, "today" / "tomorrow". */
   timeLabel: string;
+  /** sprint-18-tasks.md п.14 — `timeLabel` is a day, not a time. */
+  untimed?: boolean;
   durationMinutes: number;
   taskUrl: string;
 };
@@ -23,10 +26,13 @@ function escapeHtml(value: string): string {
 export function buildReminderEmail({
   title,
   timeLabel,
+  untimed = false,
   durationMinutes,
   taskUrl,
 }: ReminderEmailInput): ReminderEmailContent {
-  const subject = `Reminder: ${title} at ${timeLabel}`;
+  const subject = untimed
+    ? `Reminder: ${title} — ${timeLabel}`
+    : `Reminder: ${title} at ${timeLabel}`;
   const durationLabel = durationMinutes > 0 ? ` (${durationMinutes} min)` : "";
 
   const text = `${title} is scheduled for ${timeLabel}${durationLabel}.\n\n${taskUrl}`;

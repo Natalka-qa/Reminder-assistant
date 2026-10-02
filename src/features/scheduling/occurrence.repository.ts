@@ -114,6 +114,19 @@ export const occurrenceRepository = {
   // sprint-13-tasks.md S13-02 — only what the outcome counts need, without
   // the task: patterns read up to 30 days, on every Home render too.
   // `end` is exclusive, unlike findForUserBetween.
+  // sprint-18-tasks.md п.5 — every day of the user's tasks without a time
+  // still open, for moving them to a new timezone.
+  findUntimedForUser(userId: string, db: Db = prisma) {
+    return db.taskOccurrence.findMany({
+      where: {
+        userId,
+        task: { hasTime: false },
+        status: { in: ["SCHEDULED", "SNOOZED"] },
+      },
+      select: { id: true, scheduledStart: true },
+    });
+  },
+
   findOutcomesBetween(userId: string, start: Date, end: Date, db: Db = prisma) {
     return db.taskOccurrence.findMany({
       where: { userId, scheduledStart: { gte: start, lt: end } },
@@ -121,7 +134,7 @@ export const occurrenceRepository = {
       select: {
         status: true,
         scheduledStart: true,
-        task: { select: { title: true } },
+        task: { select: { title: true, hasTime: true } },
       },
     });
   },
@@ -173,6 +186,8 @@ export const occurrenceRepository = {
     return db.taskOccurrence.findMany({
       where: {
         userId,
+        // sprint-18-tasks.md п.16 — a task without a time occupies no time.
+        task: { hasTime: true },
         status: { in: ["SCHEDULED", "SNOOZED"] },
         scheduledStart: { lt: end },
         scheduledEnd: { gt: start },

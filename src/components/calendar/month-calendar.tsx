@@ -151,8 +151,10 @@ function MonthCell({
 // § 4 — the previewed (or selected) day: label, counts, its first tasks by
 // time, and a way into its week.
 function DaySummary({ day }: { day: CalendarDay }) {
-  const shown = day.events.slice(0, SUMMARY_LIMIT);
-  const more = day.events.length - shown.length;
+  // Tasks without a time last, as "Any time" (sprint-18-tasks.md п.19).
+  const all = [...day.events, ...day.anyTime];
+  const shown = all.slice(0, SUMMARY_LIMIT);
+  const more = all.length - shown.length;
   return (
     <div className="flex min-w-0 flex-[1_1_220px] flex-col gap-3.5 @min-[656px]:pt-[26px]">
       <div className="flex flex-col gap-1">
@@ -177,7 +179,7 @@ function DaySummary({ day }: { day: CalendarDay }) {
               >
                 <span
                   className={cn(
-                    "w-[42px] flex-none text-[12px] tabular-nums",
+                    "w-[54px] flex-none text-[12px] tabular-nums",
                     event.flexibility === "FIXED"
                       ? "text-text-primary font-semibold"
                       : "text-calendar-quiet-text",
@@ -197,7 +199,7 @@ function DaySummary({ day }: { day: CalendarDay }) {
             );
           })}
           {more > 0 && (
-            <li className="text-calendar-quiet-text pl-[54px] text-[12px]">
+            <li className="text-calendar-quiet-text pl-[66px] text-[12px]">
               +{more} more
             </li>
           )}

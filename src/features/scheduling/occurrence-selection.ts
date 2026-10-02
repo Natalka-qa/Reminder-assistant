@@ -1,5 +1,6 @@
 import type { OccurrenceStatus } from "@/lib/db/types";
 import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-status";
+import { isAhead } from "@/features/scheduling/untimed";
 
 type Selectable = {
   status: OccurrenceStatus;
@@ -15,10 +16,18 @@ type Selectable = {
 export function pickCurrentOccurrence<T extends Selectable>(
   occurrences: T[],
   now = new Date(),
+  // sprint-18-tasks.md п.4 — a task without a time: today's day is still
+  // "not yet happened" all day.
+  {
+    hasTime = true,
+    timezone = "UTC",
+  }: { hasTime?: boolean; timezone?: string } = {},
 ): T | undefined {
   const upcoming = occurrences
     .filter(
-      (o) => isActionableOccurrenceStatus(o.status) && o.scheduledStart >= now,
+      (o) =>
+        isActionableOccurrenceStatus(o.status) &&
+        (o.scheduledStart >= now || isAhead(o, hasTime, now, timezone)),
     )
     .sort((a, b) => a.scheduledStart.getTime() - b.scheduledStart.getTime());
   if (upcoming.length > 0) {

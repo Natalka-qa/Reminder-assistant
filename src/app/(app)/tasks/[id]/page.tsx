@@ -10,7 +10,7 @@ import {
 import { pickCurrentOccurrence } from "@/features/scheduling/occurrence-selection";
 import { notificationService } from "@/features/notifications/notification.service";
 import { formatDateInZone, formatTimeInZone } from "@/lib/date";
-import { formatDuration, formatReminderOffset } from "@/lib/format";
+import { formatDuration, formatReminder } from "@/lib/format";
 import {
   describeRecurrenceRule,
   parseRecurrenceRule,
@@ -59,7 +59,10 @@ export default async function TaskDetailPage({
   }
 
   const rule = parseRecurrenceRule(task.recurrenceRule);
-  const heroOccurrence = pickCurrentOccurrence(task.occurrences);
+  const heroOccurrence = pickCurrentOccurrence(task.occurrences, new Date(), {
+    hasTime: task.hasTime,
+    timezone: user.timezone,
+  });
 
   // task.occurrences is already ordered by scheduledStart ascending
   // (taskRepository.findByIdWithOccurrences), so filtering preserves order.
@@ -167,7 +170,7 @@ export default async function TaskDetailPage({
         />
         <GroupedRow
           label="Reminder"
-          value={formatReminderOffset(task.reminderOffsetMinutes)}
+          value={formatReminder(task.reminderKind, task.reminderOffsetMinutes)}
         />
         {task.description && (
           <GroupedRow label="Notes" value={task.description} />

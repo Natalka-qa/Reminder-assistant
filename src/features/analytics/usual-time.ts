@@ -23,7 +23,7 @@ export const USUAL_MATCH_MINUTES = 30;
 export type UsualTimeSource = {
   status: OccurrenceStatus;
   scheduledStart: Date;
-  task: { title: string };
+  task: { title: string; hasTime?: boolean };
 };
 
 export type UsualTime = {
@@ -54,6 +54,8 @@ export function usualWorkoutTime(
     .filter(
       (o) =>
         (o.status === "DONE" || o.status === "PARTIALLY_DONE") &&
+        // No start time to learn from without a time (sprint-18 п.21).
+        o.task.hasTime !== false &&
         taskKindOf(o.task.title) === "workout",
     )
     .map((o) => localMinutes(o.scheduledStart, timezone))

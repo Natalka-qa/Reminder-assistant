@@ -43,7 +43,7 @@ export function taskInputFromPhrase(
     parsed,
     {},
     {
-      ...newTaskDefaults(context.today, context.nowMinutes),
+      ...newTaskDefaults(context.today),
       reminderOffsetMinutes: context.defaultReminderMinutes,
     },
   );

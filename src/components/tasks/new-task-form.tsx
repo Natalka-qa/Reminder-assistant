@@ -28,7 +28,6 @@ import {
   type FreeSlotsResult,
 } from "@/features/scheduling/actions";
 import {
-  REMINDER_CHOICES,
   formatNearbySlot,
   slotNoteLine,
   formatWhenDate,
@@ -36,7 +35,11 @@ import {
   noFreeTimeNotice,
   onlyFreeTimeNotice,
   overlapNotice,
+  parseReminderValue,
   pastNotice,
+  reminderOptions,
+  reminderPastNotice,
+  reminderValue,
   repeatHint,
   resolveTaskFields,
   searchDates,
@@ -88,7 +91,7 @@ function splitPartLabel(part: ResolvedTaskFields, today: string): string {
     part.durationMinutes > 0
       ? ` · ${formatDuration(part.durationMinutes)}`
       : "";
-  return `${when} · ${part.time}${duration}`;
+  return `${when} · ${part.time ?? "Any time"}${duration}`;
 }
 
 // NEW_TASK_V2_UPDATE.md — one form: say the task in a sentence, check what
@@ -128,7 +131,7 @@ export function NewTaskForm({
   const pending = pendingOne || pendingMany;
   const clock = useZonedClock(timezone, { date: today, minutes: nowMinutes });
   const defaults = {
-    ...newTaskDefaults(today, nowMinutes),
+    ...newTaskDefaults(today),
     reminderOffsetMinutes: defaultReminderMinutes,
   };
   const [text, setText] = useState("");
@@ -235,7 +238,7 @@ export function NewTaskForm({
   const shared: TaskFieldOverrides = {
     flexibility: overrides.flexibility,
     priority: overrides.priority,
-    reminderOffsetMinutes: overrides.reminderOffsetMinutes,
+    reminder: overrides.reminder,
   };
   const partFields = parts?.map((part) =>
     resolveTaskFields(part, shared, defaults),
@@ -304,6 +307,8 @@ export function NewTaskForm({
   // during work may land in work hours.
   const checkOverlaps =
     (hasText || fields.timeGiven) &&
+    // A task without a time overlaps nothing (sprint-18-tasks.md п.16).
+    fields.time !== null &&
     fields.date >= today &&
     !searching &&
     !parts;
@@ -335,6 +340,12 @@ export function NewTaskForm({
   }, [checkOverlaps, overlapKey, kind, allowDuringWork]);
 
   const past = pastNotice(fields.date, fields.time, clock.date, clock.minutes);
+  const reminderPast = reminderPastNotice(
+    fields.date,
+    fields.reminder,
+    clock.date,
+    clock.minutes,
+  );
   const overlap =
     checkOverlaps && preview?.key === overlapKey ? preview.result : null;
   const overlapText = overlap
@@ -392,7 +403,7 @@ export function NewTaskForm({
       {/* What gets saved: the same fields createTaskAction always took. */}
       <input type="hidden" name="title" value={input.title} />
       <input type="hidden" name="date" value={input.date} />
-      <input type="hidden" name="time" value={input.time} />
+      <input type="hidden" name="time" value={input.time ?? ""} />
       <input
         type="hidden"
         name="durationMinutes"
@@ -408,6 +419,7 @@ export function NewTaskForm({
       {input.repeatDaysOfWeek.map((day) => (
         <input key={day} type="hidden" name="repeatDaysOfWeek" value={day} />
       ))}
+      <input type="hidden" name="reminderKind" value={input.reminderKind} />
       <input
         type="hidden"
         name="reminderOffsetMinutes"
@@ -535,9 +547,11 @@ export function NewTaskForm({
           durationMinutes={fields.durationMinutes}
           onDateChange={(value) => setField("date", value)}
           onTimeChange={(value) => setField("time", value)}
+          onTimeRemove={() => setField("time", null)}
           onDurationChange={(value) => setField("durationMinutes", value)}
         >
           {past && <RoseNotice>{past}</RoseNotice>}
+          {reminderPast && <RoseNotice>{reminderPast}</RoseNotice>}
           {overlap && overlapText && (
             <OverlapNotice
               text={overlapText}
@@ -621,13 +635,16 @@ export function NewTaskForm({
         labelId={ids.scheduling}
         value={fields.flexibility}
         onChange={(value) => setField("flexibility", value)}
+        fixedUnavailable={fields.time === null}
       />
 
       <TaskDetailsFields
         ids={ids}
-        reminderOffsetMinutes={fields.reminderOffsetMinutes}
-        reminderChoices={REMINDER_CHOICES}
-        onReminderChange={(value) => setField("reminderOffsetMinutes", value)}
+        reminder={reminderValue(fields.reminder)}
+        reminderChoices={reminderOptions(fields.time !== null)}
+        onReminderChange={(value) =>
+          setField("reminder", parseReminderValue(value))
+        }
         priority={fields.priority}
         importanceChoices={IMPORTANCE_CHOICES}
         onPriorityChange={(value) => setField("priority", value)}

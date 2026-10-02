@@ -11,6 +11,7 @@ import {
   mergeTimeline,
   patternInsight,
   selectUpNext,
+  untimedRemaining,
   withoutRemoved,
   type HomeOccurrence,
 } from "./home-view";
@@ -602,5 +603,61 @@ describe("withoutRemoved", () => {
         day("d", "SKIPPED"),
       ]).map((o) => o.id),
     ).toEqual(["a", "c", "d"]);
+  });
+});
+
+describe("tasks without a time (sprint-18-tasks.md п.17)", () => {
+  const untimed = (id: string) =>
+    occurrence(id, 0, 0, {
+      task: {
+        id: `task-${id}`,
+        title: `Task ${id}`,
+        flexibility: "FLEXIBLE",
+        priority: "NORMAL",
+        durationMinutes: 0,
+        hasTime: false,
+      },
+    });
+  const nine = new Date(Date.UTC(2026, 3, 26, 9, 0));
+
+  it("puts a timed task in Up next before any untimed one", () => {
+    const upNext = selectUpNext(
+      [untimed("milk"), untimed("plan"), occurrence("gym", 18, 0)],
+      nine,
+    );
+    expect(upNext?.primary.id).toBe("gym");
+    expect(upNext?.alsoNow).toEqual([]);
+  });
+
+  it("falls back to an untimed task once nothing timed is left open", () => {
+    const upNext = selectUpNext(
+      [
+        untimed("milk"),
+        untimed("plan"),
+        occurrence("gym", 18, 0, { status: "DONE" }),
+      ],
+      nine,
+    );
+    expect(upNext?.primary.id).toBe("milk");
+    // Other untimed tasks share its midnight but aren't "also now".
+    expect(upNext?.alsoNow).toEqual([]);
+  });
+
+  it("keeps untimed tasks out of the time groups, in their own block", () => {
+    const all = [untimed("milk"), untimed("plan"), occurrence("gym", 18, 0)];
+    const groups = groupRemainingByTime(all, new Set(["gym"]));
+    expect(groups).toEqual([]);
+    expect(untimedRemaining(all, new Set(["gym"])).map((o) => o.id)).toEqual([
+      "milk",
+      "plan",
+    ]);
+    expect(countOverlappingToday(null, groups)).toBe(0);
+  });
+
+  it("has no evening-free time with only untimed tasks", () => {
+    expect(latestOccurrenceEnd([untimed("milk")])).toBeNull();
+    expect(
+      latestOccurrenceEnd([untimed("milk"), occurrence("gym", 18, 0)]),
+    ).toEqual(new Date(Date.UTC(2026, 3, 26, 18, 30)));
   });
 });

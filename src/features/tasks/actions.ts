@@ -63,6 +63,8 @@ function readTaskForm(formData: FormData) {
     repeatFrequency: formData.get("repeatFrequency") || undefined,
     repeatDaysOfWeek: formData.getAll("repeatDaysOfWeek"),
     reminderOffsetMinutes: formData.get("reminderOffsetMinutes") || undefined,
+    // sprint-18-tasks.md п.11 — none, minutes before or a fixed hour.
+    reminderKind: formData.get("reminderKind") || undefined,
     confirmConflicts: formData.get("confirmConflicts") === "true",
   };
 }
@@ -230,7 +232,7 @@ export async function deactivateTaskAction(
   }
 
   try {
-    await taskService.deactivateTask(user.id, taskId);
+    await taskService.deactivateTask(user.id, taskId, user.timezone);
   } catch (error) {
     if (error instanceof TaskNotFoundError) {
       return { status: "error", message: error.message };

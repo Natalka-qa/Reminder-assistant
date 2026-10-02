@@ -1,9 +1,10 @@
 import type { CreateTaskInput } from "@/lib/validation/task";
 import { parseRecurrenceRule } from "@/features/recurrence/recurrence-rule";
 import { formatCalendarDate, isoWeekday } from "@/lib/date/calendar-date";
-import {
-  REMINDER_CHOICES,
-  type Flexibility,
+import type {
+  Flexibility,
+  ReminderChoice,
+  ReminderKind,
 } from "@/features/tasks/new-task-fields";
 
 // sprint-14-tasks.md S14-01 — the edit form's starting values and the
@@ -20,13 +21,14 @@ export type EditTaskValues = {
   title: string;
   description: string;
   date: string;
-  time: string;
+  /** Null — a task without a time (sprint-18-tasks.md). */
+  time: string | null;
   durationMinutes: number;
   flexibility: Flexibility;
   priority: Priority;
   repeat: RepeatFrequency;
   repeatDays: number[];
-  reminderOffsetMinutes: number;
+  reminder: ReminderChoice;
   /** Date read-only, no "Does not repeat" (PR #20, schedule-change.ts). */
   recurring: boolean;
 };
@@ -39,11 +41,14 @@ export type EditableTask = {
   priority: Priority;
   recurrenceRule: string | null;
   reminderOffsetMinutes: number;
+  reminderKind: ReminderKind;
+  hasTime: boolean;
 };
 
 /**
  * The form's values for `task`, shown at `local` — the local date and time
- * of the occurrence the page picked (pickCurrentOccurrence). A weekly
+ * of the occurrence the page picked (pickCurrentOccurrence); a task without
+ * a time shows none, whatever its stored midnight says. A weekly
  * repeat keeps its days; any other repeat offers the date's weekday, as
  * the New task form does, in case the user switches to weekly.
  */
@@ -56,14 +61,17 @@ export function editTaskValues(
     title: task.title,
     description: task.description ?? "",
     date: local.date,
-    time: local.time,
+    time: task.hasTime ? local.time : null,
     durationMinutes: task.durationMinutes,
     flexibility: task.flexibility,
     priority: task.priority,
     repeat: rule?.frequency ?? "NONE",
     repeatDays:
       rule?.frequency === "WEEKLY" ? rule.daysOfWeek : [isoWeekday(local.date)],
-    reminderOffsetMinutes: task.reminderOffsetMinutes,
+    reminder: {
+      kind: task.reminderKind,
+      offsetMinutes: task.reminderOffsetMinutes,
+    },
     recurring: rule !== null,
   };
 }
@@ -81,33 +89,6 @@ export function importanceChoicesFor(
   return priority === "CRITICAL"
     ? [...IMPORTANCE, { value: "CRITICAL", label: "Critical" }]
     : IMPORTANCE;
-}
-
-/** "45 min before", "1 h 30 min before", "2 hours before". */
-export function reminderLabel(minutes: number): string {
-  const listed = REMINDER_CHOICES.find((choice) => choice.value === minutes);
-  if (listed) return listed.label;
-  if (minutes < 60) return `${minutes} min before`;
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  if (rest > 0) return `${hours} h ${rest} min before`;
-  return `${hours} hour${hours === 1 ? "" : "s"} before`;
-}
-
-/**
- * "Расхождения" п.7 — REMINDER_CHOICES, plus the task's own offset in its
- * place by length when it isn't one of them (the old form's "Custom…").
- */
-export function reminderChoicesFor(
-  offsetMinutes: number,
-): { value: number; label: string }[] {
-  if (REMINDER_CHOICES.some((choice) => choice.value === offsetMinutes)) {
-    return REMINDER_CHOICES;
-  }
-  return [
-    ...REMINDER_CHOICES,
-    { value: offsetMinutes, label: reminderLabel(offsetMinutes) },
-  ].sort((a, b) => a.value - b.value);
 }
 
 /** What overlaps a recurring task on one of its new days (S14-02). */

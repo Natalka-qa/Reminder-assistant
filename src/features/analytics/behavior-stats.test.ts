@@ -237,3 +237,22 @@ describe("weekSentence", () => {
     ).toBeNull();
   });
 });
+
+describe("tasks without a time (sprint-18-tasks.md п.21)", () => {
+  it("count overall and by weekday, but not in a part of the day", () => {
+    const untimed = (status: OccurrenceStatus) => ({
+      ...at("2026-09-22", "00:00", status),
+      task: { hasTime: false },
+    });
+    const result = patterns([
+      at("2026-09-22", "09:00"),
+      untimed("DONE"),
+      untimed("SKIPPED"),
+    ]);
+    expect(result.overall.total).toBe(3);
+    expect(result.weekdays.total).toBe(3);
+    // Their stored midnight would read as "late".
+    expect(result.byPart.late.total).toBe(0);
+    expect(result.byPart.morning.total).toBe(1);
+  });
+});

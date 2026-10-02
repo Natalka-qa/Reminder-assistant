@@ -263,17 +263,22 @@ async function createdReply(
   now: Date,
 ) {
   const { today, nowMinutes } = localNow(now, user.timezone);
-  const preview = await slotService
-    .previewOverlaps(user.id, user.timezone, {
-      date: saved.date,
-      time: saved.time,
-      durationMinutes: saved.durationMinutes,
-      excludeTaskId: taskId,
-    })
-    .catch(() => null);
+  // A task without a time overlaps nothing and is never "already past"
+  // today (sprint-18-tasks.md); the chat's own handling of it is S18-08.
+  const time = saved.time;
+  const preview = time
+    ? await slotService
+        .previewOverlaps(user.id, user.timezone, {
+          date: saved.date,
+          time,
+          durationMinutes: saved.durationMinutes,
+          excludeTaskId: taskId,
+        })
+        .catch(() => null)
+    : null;
   const notices = [
     preview ? overlapNotice(preview.tasks, preview.busyCount) : null,
-    pastNotice(saved.date, saved.time, today, nowMinutes),
+    time ? pastNotice(saved.date, time, today, nowMinutes) : null,
   ].filter((notice): notice is string => notice !== null);
   return {
     text: createdMessage(
@@ -281,14 +286,14 @@ async function createdReply(
         title: saved.title,
         // "Tomorrow · Oct 2" reads as two parts of the line's own "·" list.
         dateLabel: formatWhenDate(saved.date, today).replace(" · ", ", "),
-        time: saved.time,
+        time: time ?? null,
         durationMinutes: saved.durationMinutes,
         repeatLabel: repeatLabel(
           saved.repeatFrequency,
           saved.repeatDaysOfWeek,
           saved.date,
           today,
-          saved.time,
+          time ?? null,
         ),
       },
       notices,
@@ -296,7 +301,7 @@ async function createdReply(
     buttons: createdButtons({
       id: taskId,
       appUrl: env.AUTH_URL,
-      time: saved.time,
+      time: time ?? null,
       recurring: saved.repeatFrequency !== "NONE",
     }),
   };
@@ -307,7 +312,7 @@ function repeatLabel(
   repeatDays: number[],
   date: string,
   today: string,
-  time: string,
+  time: string | null,
 ): string | null {
   if (repeat === "NONE") return null;
   if (repeat === "WEEKLY") {

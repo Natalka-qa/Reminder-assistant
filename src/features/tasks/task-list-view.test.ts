@@ -48,6 +48,7 @@ function item(
     priority: "NORMAL",
     flexibility: "FLEXIBLE",
     durationMinutes: 0,
+    hasTime: true,
     recurrence,
     status: "SCHEDULED",
     scheduledStart,
@@ -297,6 +298,7 @@ describe("buildTaskListItems", () => {
     flexibility: "FLEXIBLE",
     durationMinutes: 30,
     recurrenceRule: null,
+    hasTime: true,
     occurrences: [],
     ...overrides,
   });
@@ -755,5 +757,68 @@ describe("taskSummary", () => {
     expect(formatTaskSummary({ active: 2, recurring: 0, overdue: 0 })).toBe(
       "2 active · 0 recurring",
     );
+  });
+});
+
+describe("tasks without a time (sprint-18-tasks.md п.18)", () => {
+  const untimed = (title: string, date: string, overrides = {}) =>
+    item(title, date, "00:00", { hasTime: false, ...overrides });
+
+  it("puts them last in their day", () => {
+    const groups = groupTasks(
+      [
+        untimed("Buy milk", "2026-04-26"),
+        item("Gym", "2026-04-26", "18:00"),
+        item("Standup", "2026-04-26", "09:00"),
+        untimed("Plan trip", "2026-04-27"),
+        item("Call", "2026-04-27", "08:00"),
+      ],
+      "time",
+      "all",
+      { now: NOW, timezone: TZ },
+    );
+    expect(groups.flatMap((g) => g.items.map((i) => i.title))).toEqual([
+      "Standup",
+      "Gym",
+      "Buy milk",
+      "Call",
+      "Plan trip",
+    ]);
+  });
+
+  it("says Flexible instead of the time on another day", () => {
+    expect(
+      buildMeta(untimed("Plan trip", "2026-04-28"), {
+        timeInColumn: false,
+        now: NOW,
+        timezone: TZ,
+      }),
+    ).toContain("Flexible");
+    expect(
+      buildMeta(untimed("Plan trip", "2026-04-28"), {
+        timeInColumn: false,
+        now: NOW,
+        timezone: TZ,
+      }),
+    ).not.toContain("00:00");
+  });
+
+  it("never shows 00:00 on today's row", () => {
+    expect(
+      buildMeta(untimed("Buy milk", "2026-04-26"), {
+        timeInColumn: false,
+        now: NOW,
+        timezone: TZ,
+      }),
+    ).toEqual(["Flexible"]);
+  });
+
+  it("isn't a same-time conflict or a repeated time", () => {
+    const items = [
+      untimed("Buy milk", "2026-04-26"),
+      untimed("Plan", "2026-04-26"),
+    ];
+    expect(findConflicts(items).size).toBe(0);
+    expect(findRepeatedTimes(items).size).toBe(0);
   });
 });

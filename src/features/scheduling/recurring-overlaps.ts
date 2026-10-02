@@ -21,7 +21,8 @@ export type RecurringOverlapDay = {
 
 /** One entry per new occurrence that overlaps something, in date order. */
 export function recurringOverlapDays(
-  candidates: CandidateInterval[],
+  // Days with a time only — one without has no interval to overlap.
+  candidates: (CandidateInterval & { scheduledEnd: Date })[],
   tasks: BusyTask[],
   busy: Interval[],
   timezone: string,

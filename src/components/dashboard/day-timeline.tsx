@@ -49,7 +49,8 @@ export function DayTimeline({
 }: {
   groups: TimelineGroupData[];
   freeLine?: string;
-  endOfDayLabel: string;
+  /** No tasks with a time today (sprint-18) — no "evening is free" end. */
+  endOfDayLabel?: string;
 }) {
   const [pending, startTransition] = useTransition();
 
@@ -176,18 +177,20 @@ export function DayTimeline({
           </div>
         ))}
 
-        <div className="relative flex items-center gap-4 pt-[11px]">
-          <span className="text-text-secondary w-[46px] shrink-0 text-[13px] font-medium">
-            {endOfDayLabel}
-          </span>
-          <span
-            className="border-home-timeline-end-dot-border bg-background rounded-pill size-[9px] shrink-0 border"
-            style={{ boxShadow: "0 0 0 4px var(--background)" }}
-          />
-          <span className="font-display text-text-tertiary text-[20px] font-light">
-            Your evening is free
-          </span>
-        </div>
+        {endOfDayLabel && (
+          <div className="relative flex items-center gap-4 pt-[11px]">
+            <span className="text-text-secondary w-[46px] shrink-0 text-[13px] font-medium">
+              {endOfDayLabel}
+            </span>
+            <span
+              className="border-home-timeline-end-dot-border bg-background rounded-pill size-[9px] shrink-0 border"
+              style={{ boxShadow: "0 0 0 4px var(--background)" }}
+            />
+            <span className="font-display text-text-tertiary text-[20px] font-light">
+              Your evening is free
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -77,6 +77,16 @@ export function zonedDateTimeToUtc(
   return dt.toUTC().toJSDate();
 }
 
+/**
+ * The first instant of a local date ("YYYY-MM-DD") in `zone` — where a task
+ * without a time sits (sprint-18-tasks.md п.1–2). Through startOfDayInZone,
+ * so a zone whose clocks skip midnight itself still gets the day's real
+ * first instant.
+ */
+export function startOfLocalDate(dateStr: string, zone: string): Date {
+  return startOfDayInZone(zonedDateTimeToUtc(dateStr, "00:00", zone), zone);
+}
+
 /** Pure duration arithmetic (e.g. task endAt = startAt + duration) — not calendar math. */
 export function addMinutes(date: Date, minutes: number): Date {
   return DateTime.fromJSDate(date, { zone: "utc" })

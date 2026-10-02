@@ -249,6 +249,13 @@ describe("buttons", () => {
 });
 
 describe("summaryButtons", () => {
+  it("leaves the time out for a task without one (sprint-18 п.20)", () => {
+    expect(
+      summaryButtons([{ id: "o1", time: null, title: "Buy milk" }])
+        ?.inline_keyboard[0][0].text,
+    ).toBe("✓ Buy milk");
+  });
+
   const item = (n: number) => ({
     id: `cmu8a559u0027bo9cfuks9p${String(n).padStart(2, "0")}`,
     time: "18:00",

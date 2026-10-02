@@ -17,7 +17,7 @@ import {
 
 type Range = { startHour: number; endHour: number };
 
-const HATCH =
+export const HATCH =
   "repeating-linear-gradient(135deg, var(--calendar-google-busy-hatch) 0 2px, transparent 2px 7px)";
 
 /** п.2 — a day's busy blocks, under that day's tasks on the timeline. */
@@ -58,60 +58,14 @@ export function GoogleBusyBlocks({
   ));
 }
 
-function allDayDates(result: CalendarBusy, dates: string[], range: Range) {
+export function allDayDates(
+  result: CalendarBusy,
+  dates: string[],
+  range: Range,
+) {
   if (result.status !== "ok") return new Set<string>();
   return new Set(
     dates.filter((date) => busyInRange(result.byDay[date] ?? [], range).allDay),
-  );
-}
-
-/**
- * п.3, desktop — a row between the day strip and the timeline, only when
- * some day of the week is busy all day: "Busy" under each such day.
- */
-export function GoogleAllDayRow({
-  busy,
-  dates,
-  columns,
-  range,
-}: {
-  busy: Promise<CalendarBusy>;
-  dates: string[];
-  columns: string;
-  range: Range;
-}) {
-  const allDay = allDayDates(use(busy), dates, range);
-  if (allDay.size === 0) return null;
-  return (
-    <div className="border-border-soft flex border-b">
-      <span
-        aria-hidden
-        className="text-calendar-quiet-text w-12 flex-none self-center text-[10px] font-semibold tracking-[0.08em] uppercase"
-      >
-        All day
-      </span>
-      <div
-        className="grid min-w-0 flex-1"
-        style={{ gridTemplateColumns: columns }}
-      >
-        {dates.map((date) => (
-          <div key={date} className="min-w-0 px-1.5 py-1.5">
-            {allDay.has(date) && (
-              <span
-                role="img"
-                aria-label="Busy all day, Google Calendar"
-                className="bg-calendar-google-busy text-text-secondary block truncate rounded-[6px] px-1.5 py-0.5 text-[11px] font-medium"
-                style={{ backgroundImage: HATCH }}
-              >
-                <span className="bg-calendar-google-busy rounded-[3px] px-0.5">
-                  Busy
-                </span>
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }
 

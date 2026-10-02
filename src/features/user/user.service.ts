@@ -7,6 +7,8 @@ import {
   type SchedulePreferences,
 } from "@/lib/validation/user";
 import { userRepository } from "@/features/user/user.repository";
+import { runInTransaction } from "@/lib/db/transaction";
+import { occurrenceService } from "@/features/scheduling/occurrence.service";
 import {
   InvalidReminderPreferencesError,
   InvalidTelegramSummaryError,
@@ -24,12 +26,27 @@ import {
 const TELEGRAM_SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 export const userService = {
-  async setTimezone(userId: string, timezone: string) {
+  // sprint-18-tasks.md п.5 — tasks without a time move with the zone, so
+  // they stay on their day; in one transaction with the zone itself.
+  async setTimezone(userId: string, timezone: string, now = new Date()) {
     const result = timezoneSchema.safeParse(timezone);
     if (!result.success) {
       throw new InvalidTimezoneError(timezone);
     }
-    return userRepository.updateTimezone(userId, result.data);
+    return runInTransaction(async (tx) => {
+      const before = await userRepository.findById(userId, tx);
+      const user = await userRepository.updateTimezone(userId, result.data, tx);
+      if (before) {
+        await occurrenceService.reanchorUntimedOccurrences(
+          userId,
+          before.timezone,
+          result.data,
+          now,
+          tx,
+        );
+      }
+      return user;
+    });
   },
 
   // sprint-12-tasks.md S12-09 — the searchable day and work hours.
