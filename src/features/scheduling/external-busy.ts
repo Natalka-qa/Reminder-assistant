@@ -70,3 +70,24 @@ export function busyQueryWindow(
     timeMax: new Date(timeMax.getTime() + BUSY_QUERY_PADDING_MS),
   };
 }
+
+/**
+ * Busy intervals sorted, with overlapping and touching ones joined into
+ * one; empty and inverted intervals are dropped. New objects — the input
+ * is left as it was.
+ */
+export function mergeIntervals(busy: Interval[]): Interval[] {
+  const sorted = busy
+    .filter(({ start, end }) => end > start)
+    .sort((a, b) => a.start.getTime() - b.start.getTime());
+  const merged: Interval[] = [];
+  for (const { start, end } of sorted) {
+    const last = merged.at(-1);
+    if (last && start <= last.end) {
+      if (end > last.end) last.end = end;
+    } else {
+      merged.push({ start, end });
+    }
+  }
+  return merged;
+}

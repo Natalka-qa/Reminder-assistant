@@ -117,7 +117,12 @@ export const occurrenceRepository = {
   findOutcomesBetween(userId: string, start: Date, end: Date, db: Db = prisma) {
     return db.taskOccurrence.findMany({
       where: { userId, scheduledStart: { gte: start, lt: end } },
-      select: { status: true, scheduledStart: true },
+      // The title tells a workout apart (sprint-17-tasks.md S17-05).
+      select: {
+        status: true,
+        scheduledStart: true,
+        task: { select: { title: true } },
+      },
     });
   },
 

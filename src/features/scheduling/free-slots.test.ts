@@ -241,6 +241,37 @@ describe("findFreeSlots", () => {
     expect(times(slots)).toEqual(["18:00", "19:00"]);
   });
 
+  it("starts from a time of day, closest first, and keeps that order", () => {
+    // The usual workout time is 19:00; 18:30–19:30 is taken.
+    const slots = findFreeSlots({
+      windows: searchWindows([DAY], "any", WIDE),
+      busy: [busyAt("18:30", "19:30")],
+      durationMinutes: 60,
+      notBefore: EARLY,
+      limit: 3,
+      order: { nearestMinutes: 19 * 60 },
+      timezone: TZ,
+    });
+    expect(times(slots)).toEqual(["19:30", "17:30", "20:30"]);
+  });
+
+  it("goes day by day from a time of day", () => {
+    const slots = findFreeSlots({
+      // Tuesday is full, so both come from Wednesday — 18:00 before 20:00
+      // on the tie.
+      windows: searchWindows([DAY, "2026-09-30"], "any", WIDE),
+      busy: [busyAt("07:00", "22:00")],
+      durationMinutes: 60,
+      notBefore: EARLY,
+      limit: 2,
+      order: { nearestMinutes: 19 * 60 },
+      timezone: TZ,
+    });
+    expect(
+      slots.map((slot) => formatDateInZone(slot.start, TZ, "LLL d HH:mm")),
+    ).toEqual(["Sep 30 19:00", "Sep 30 18:00"]);
+  });
+
   it("offers real alternatives when there's room on one side only", () => {
     // Seen live on 2026-09-29: a 3-hour task at 09:23 over "Release"
     // 09:00–10:00, late in the evening before. Nothing fits before it that

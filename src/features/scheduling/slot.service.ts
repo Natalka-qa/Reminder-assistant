@@ -21,6 +21,9 @@ import {
   type SearchFor,
 } from "@/features/scheduling/free-slots";
 import { userService } from "@/features/user/user.service";
+import { analyticsService } from "@/features/analytics/analytics.service";
+import { strongestPart } from "@/features/analytics/behavior-stats";
+import { slotNote } from "@/features/analytics/usual-time";
 import { DEFAULT_SCHEDULE_PREFERENCES } from "@/lib/validation/user";
 
 // sprint-12-tasks.md S12-02/S12-03 — free time, from the user's tasks and
@@ -32,7 +35,12 @@ import { DEFAULT_SCHEDULE_PREFERENCES } from "@/lib/validation/user";
 export type CalendarCheck = "checked" | "not-checked" | "unavailable";
 
 /** A slot as the form sets it: the user's local date and time. */
-export type LocalSlot = { date: string; time: string };
+export type LocalSlot = {
+  date: string;
+  time: string;
+  /** sprint-17-tasks.md п.12 — why this slot fits the user's habits. */
+  note?: string | null;
+};
 
 export type OverlapPreview = {
   tasks: { title: string; time: string }[];
@@ -47,10 +55,29 @@ export type OverlapPreview = {
 const THE_BEGINNING = new Date(0);
 const THE_END = new Date(8.64e15);
 
-function toLocalSlot(slot: Interval, timezone: string): LocalSlot {
+function toLocalSlot(
+  slot: Interval,
+  timezone: string,
+  note: string | null = null,
+): LocalSlot {
   return {
     date: formatDateInZone(slot.start, timezone, "yyyy-LL-dd"),
     time: formatTimeInZone(slot.start, timezone),
+    note,
+  };
+}
+
+// S17-05/S17-06 — the habits a slot can match: the usual workout time and
+// the part of the day the user finishes the most in (last 30 days).
+async function slotHabits(userId: string, timezone: string, now: Date) {
+  const patterns = await analyticsService.getBehaviorPatterns(
+    userId,
+    timezone,
+    now,
+  );
+  return {
+    usualWorkout: patterns.usualWorkout,
+    strongPart: strongestPart(patterns),
   };
 }
 
@@ -124,11 +151,12 @@ export const slotService = {
       return { slots: [], calendar: "not-checked" };
     }
     const span = windowsSpan(windows, timezone);
-    const [tasks, google] = await Promise.all([
+    const [tasks, google, habits] = await Promise.all([
       busyTasks(userId, span, excludeOccurrenceId),
       isGoogleCalendarEnabled()
         ? googleCalendarService.getBusyIntervals(userId, span.start, span.end)
         : null,
+      slotHabits(userId, timezone, now),
     ]);
     const calendar: CalendarCheck =
       google?.status === "ok"
@@ -147,11 +175,19 @@ export const slotService = {
       durationMinutes,
       notBefore: now,
       limit,
-      order: "earliest",
+      // п.11 — a workout with a usual time starts from it; everything else
+      // keeps the predictable earliest-first order (Sprint 13).
+      order:
+        searchFor.kind === "workout" && habits.usualWorkout
+          ? { nearestMinutes: habits.usualWorkout.minutes }
+          : "earliest",
       timezone,
     });
+    const noteContext = { ...habits, kind: searchFor.kind, timezone };
     return {
-      slots: slots.map((slot) => toLocalSlot(slot, timezone)),
+      slots: slots.map((slot) =>
+        toLocalSlot(slot, timezone, slotNote(slot.start, noteContext)),
+      ),
       calendar,
     };
   },
@@ -225,7 +261,7 @@ export const slotService = {
         { start: external.window.timeMax, end: THE_END },
       );
     }
-    preview.freeNearby = findFreeSlots({
+    const nearby = findFreeSlots({
       windows,
       busy,
       durationMinutes,
@@ -233,7 +269,23 @@ export const slotService = {
       limit: 2,
       order: { nearestTo: start },
       timezone,
-    }).map((slot) => toLocalSlot(slot, timezone));
+    });
+    // п.11 — "Free nearby" keeps its order (around the time the user
+    // chose); the habits only add notes.
+    const noteContext = nearby.length
+      ? {
+          ...(await slotHabits(userId, timezone, now)),
+          kind: searchFor.kind,
+          timezone,
+        }
+      : null;
+    preview.freeNearby = nearby.map((slot) =>
+      toLocalSlot(
+        slot,
+        timezone,
+        noteContext && slotNote(slot.start, noteContext),
+      ),
+    );
     return preview;
   },
 };

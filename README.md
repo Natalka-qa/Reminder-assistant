@@ -119,7 +119,12 @@ The webhook only reaches a public URL, so a local `next dev` never gets updates 
 
 Skip this if you don't need it — without `GOOGLE_CALENDAR_ENABLED=true` there's no "Google Calendar" section on `/settings`, no request ever goes to Google, and conflict checks and free-time suggestions only look at your own tasks.
 
-With it, a connected user's **primary** calendar is checked for busy times whenever they create or edit a task, and an overlap shows up the same way an overlapping task does — in the overlap notice of the New task and Edit task forms; either way the task can still be saved. Free-time suggestions skip those busy times too (see "Finding free time"). Only free/busy is read — scope `calendar.freebusy`, never event titles or details — and the busy times aren't stored. The connection is a second Auth.js provider, `google-calendar`, on the same OAuth client as "Sign in with Google"; its tokens live in the `Account` row with `provider = "google-calendar"`. Connecting writes real OAuth tokens, so test it locally against a Neon dev branch, not production.
+With it, a connected user's **primary** calendar is checked for busy times whenever they create or edit a task, and an overlap shows up the same way an overlapping task does — in the overlap notice of the New task and Edit task forms; either way the task can still be saved. Free-time suggestions skip those busy times too (see "Finding free time"), and the busy times are drawn where the day is planned:
+
+- **Calendar, Week** — grey hatched "Busy" blocks under the tasks, at their hours (on a phone, in the selected day). A day busy from start to end (an all-day event) gets "Busy" in an "All day" row under the day strip instead of a block over the whole grid; on a phone, "Busy all day · Google Calendar" under the day's heading. Busy time is cut to the hours the grid shows and never widens it. A legend "Busy — from your Google Calendar" appears when there's busy time on screen. Month shows no busy time.
+- **Home, "The rest of your day"** — "16:00 Busy until 17:30 · Google Calendar" rows between the tasks (busy time already over isn't shown; a day busy all day is one "Busy all day" row). "Free after" and "Your evening is free after…" come after the busy time, and "A small suggestion" never moves a task into it.
+
+Both pages render the tasks first and fill the busy time in when Google answers — Google is never waited for, one free/busy request per page (the visible week, or today). If Google doesn't answer, there's one line, "Google Calendar didn't respond — busy time isn't shown."; if the connection can no longer be used, "Reconnect Google Calendar in Settings". With the flag off or nothing connected, both pages look as they did and ask Google nothing. There are no titles anywhere, because free/busy has none. Only free/busy is read — scope `calendar.freebusy`, never event titles or details — and the busy times aren't stored. The connection is a second Auth.js provider, `google-calendar`, on the same OAuth client as "Sign in with Google"; its tokens live in the `Account` row with `provider = "google-calendar"`. Connecting writes real OAuth tokens, so test it locally against a Neon dev branch, not production.
 
 In the Google Cloud project that owns `GOOGLE_CLIENT_ID`:
 
@@ -150,7 +155,7 @@ The app suggests free times in three places. It only fills in a date and time �
 **What counts as busy:**
 
 - Your open tasks (Scheduled or Snoozed), checked the same way the overlap notice checks them — touching isn't overlapping. A slot you're offered never shows up as an overlap.
-- Your Google Calendar's busy times, if `GOOGLE_CALENDAR_ENABLED=true` and you've connected it: **one** free/busy request per search, however many days it covers. "Free nearby" asks nothing extra — it reuses the overlap check's request. Home never asks Google.
+- Your Google Calendar's busy times, if `GOOGLE_CALENDAR_ENABLED=true` and you've connected it: **one** free/busy request per search, however many days it covers. "Free nearby" asks nothing extra — it reuses the overlap check's request. Home's suggestion uses the request Home already makes for its busy rows (see "Google Calendar setup").
 - Work hours, unless "Can do during work hours" is on. The switch appears under When during a search or with "Free nearby", and starts on for tasks whose title reads as remote.
 
 **What a task is** comes from words in its title, in all three languages — nothing is stored:
@@ -176,6 +181,11 @@ A title with both reads as a workout ("Pay for the gym"); the switch is there to
 - The rest is the title, in the case it was written in: «для тренировки» → «Тренировки». The parser is rules, not a model — it doesn't change word forms.
 
 Suggested times start on :00, :15, :30 or :45 of your local time, never in the past, and the ones offered never overlap each other.
+
+**Your habits** (from "Your patterns", the last 30 days) shape suggestions in two small ways:
+
+- **Usual workout time.** With at least **4** workouts done (or partly done) in the 30 days and at least half of them within an hour of their median start, that median — rounded to 15 minutes — is your usual workout time (shown on `/progress`). A search for a workout then starts from it: day by day, the free slots closest to it first, so the one filled in is the one that fits. Other tasks, "Free nearby" and Home keep their order.
+- **Notes.** A workout slot within 30 minutes of the usual time says "19:00 — matches your usual workout time"; otherwise a slot in the part of the day you finish the most in (when it stands out — see "Your patterns") says "09:00 — you usually finish morning tasks". One line under the slots for the first one with a note; every slot's button carries its note for screen readers.
 
 ## Editing a task
 
@@ -251,7 +261,8 @@ The app counts what happened to your past tasks and shows it back to you. It's p
 - **`/progress`, "How it's going"** — reached from a row on `/settings` and from Home's sentence. Two blocks:
   - **"Last 7 days"** — today and the six days before: Completed, Partial, Skipped, Missed and the completion rate. Missed only counts days that are over.
   - **"Last 30 days"** — the 30 whole days before today, so the numbers don't change during the day. The share done in each part of the day, by the task's planned local start: morning 05–12, afternoon 12–18, evening 18–20, after 20:00 20–05. Then weekdays against Saturday and Sunday.
-- **Home, "Assistant insight"** — one sentence, only when it's about today: "You finish 33% of tasks after 20:00 — two of today's are that late.", with a "How it's going →" link. One small extra database query per Home render, none to Google.
+- **Home, "Assistant insight"** — one sentence, only when it's about today: "You finish 33% of tasks after 20:00 — two of today's are that late.", with a "How it's going →" link. One small extra database query per Home render.
+- **`/progress`, "Usual workout time: around 19:00 (6 of 8 workouts)."** — under "Last 30 days", with its own threshold (see "Finding free time" → "Your habits"), so it can show before the rest does. Free-time suggestions use it too.
 
 **When there's a sentence:**
 

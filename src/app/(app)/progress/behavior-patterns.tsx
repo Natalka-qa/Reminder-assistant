@@ -9,6 +9,8 @@ import {
   type BehaviorPatterns,
   type Tally,
 } from "@/features/analytics/behavior-stats";
+import type { UsualTime } from "@/features/analytics/usual-time";
+import { formatMinutes } from "@/features/scheduling/calendar-layout";
 
 // sprint-13-tasks.md S13-04 — what the last 30 days say about when tasks get
 // done, on /progress ("How it's going"). No handoff design: built from the
@@ -34,7 +36,7 @@ const PART_HOURS: Record<AnalyticsPart, string> = {
 export function BehaviorPatternsSection({
   patterns,
 }: {
-  patterns: BehaviorPatterns;
+  patterns: BehaviorPatterns & { usualWorkout?: UsualTime | null };
 }) {
   const sentences = [patternSentence(patterns), weekSentence(patterns)].filter(
     (sentence): sentence is string => sentence !== null,
@@ -69,6 +71,16 @@ export function BehaviorPatternsSection({
         <p className="text-tasks-meta text-sm leading-[1.5]">
           Not enough history yet — patterns show up once you&apos;ve marked a
           few weeks of tasks ({patterns.overall.total} of {MIN_TOTAL} so far).
+        </p>
+      )}
+      {/* sprint-17-tasks.md п.13 — its own threshold (USUAL_MIN_DONE), so it
+          can show before the rest does. */}
+      {patterns.usualWorkout && (
+        <p className="text-[15px] leading-[1.5]">
+          Usual workout time: around{" "}
+          {formatMinutes(patterns.usualWorkout.minutes)} (
+          {patterns.usualWorkout.matching} of {patterns.usualWorkout.done}{" "}
+          workouts).
         </p>
       )}
     </div>

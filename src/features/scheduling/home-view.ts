@@ -2,6 +2,10 @@ import type { Flexibility, Priority } from "@prisma/client";
 import type { OccurrenceStatus } from "@/lib/db/types";
 import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-status";
 import { findFreeSlots, searchBounds } from "@/features/scheduling/free-slots";
+import {
+  mergeIntervals,
+  type Interval,
+} from "@/features/scheduling/external-busy";
 import { taskKindOf } from "@/lib/parse-task";
 import type { SchedulePreferences } from "@/lib/validation/user";
 import {
@@ -240,17 +244,84 @@ export function patternInsight(
   return `You finish ${weakest.percent}% of tasks ${PART_WHEN[weakest.part]} — ${wordFor(count)} of today's ${verb} ${when}.`;
 }
 
-/** Latest end time (scheduledStart + duration) across today's occurrences. */
+/**
+ * Latest end time (scheduledStart + duration) across today's occurrences —
+ * and, sprint-17-tasks.md п.7, across today's Google busy rows, so "Free
+ * after" never lands inside a meeting. A day busy all day doesn't count:
+ * "free after 24:00" says nothing.
+ */
 export function latestOccurrenceEnd(
   occurrences: HomeOccurrence[],
+  busyRows: BusyRow[] = [],
 ): Date | null {
   if (occurrences.length === 0) return null;
-  return occurrences.reduce<Date>((latest, o) => {
+  const taskEnd = occurrences.reduce<Date>((latest, o) => {
     const end = new Date(
       o.scheduledStart.getTime() + o.task.durationMinutes * 60_000,
     );
     return end > latest ? end : latest;
   }, new Date(0));
+  return busyRows.reduce<Date>(
+    (latest, row) => (!row.allDay && row.end > latest ? row.end : latest),
+    taskEnd,
+  );
+}
+
+/** Busy time from Google Calendar on Home's day (sprint-17-tasks.md S17-04). */
+export type BusyRow = { start: Date; end: Date; allDay: boolean };
+
+/**
+ * п.3/п.7 — today's Google busy time as rows for "The rest of your day":
+ * merged, cut to the local day [dayStart, dayEnd), and only what isn't
+ * over yet. One interval covering the whole day is a single "busy all
+ * day" row instead.
+ */
+export function busyRowsForToday(
+  busy: Interval[],
+  { dayStart, dayEnd, now }: { dayStart: Date; dayEnd: Date; now: Date },
+): BusyRow[] {
+  const rows: BusyRow[] = [];
+  for (const { start, end } of mergeIntervals(busy)) {
+    if (end <= dayStart || start >= dayEnd) continue;
+    if (start <= dayStart && end >= dayEnd) {
+      return [{ start: dayStart, end: dayEnd, allDay: true }];
+    }
+    if (end <= now) continue;
+    rows.push({
+      start: start < dayStart ? dayStart : start,
+      end: end > dayEnd ? dayEnd : end,
+      allDay: false,
+    });
+  }
+  return rows;
+}
+
+export type TimelineEntry<T> =
+  { kind: "tasks"; group: TimelineGroup<T> } | { kind: "busy"; row: BusyRow };
+
+/**
+ * The day's task groups and busy rows in one list by start time — busy
+ * all day first, and on a tie the busy row before the tasks it covers.
+ */
+export function mergeTimeline<T>(
+  groups: TimelineGroup<T>[],
+  busyRows: BusyRow[],
+): TimelineEntry<T>[] {
+  const entries: TimelineEntry<T>[] = [
+    ...busyRows.map((row) => ({ kind: "busy" as const, row })),
+    ...groups.map((group) => ({ kind: "tasks" as const, group })),
+  ];
+  const sortKey = (entry: TimelineEntry<T>) =>
+    entry.kind === "busy"
+      ? entry.row.allDay
+        ? -Infinity
+        : entry.row.start.getTime()
+      : entry.group.when.getTime();
+  return entries.sort(
+    (a, b) =>
+      sortKey(a) - sortKey(b) ||
+      (a.kind === b.kind ? 0 : a.kind === "busy" ? -1 : 1),
+  );
 }
 
 export type MovableSuggestion<T> = {
@@ -312,11 +383,12 @@ function occurrenceEnd(o: HomeOccurrence): Date {
 /**
  * sprint-12-tasks.md S12-06 — when the movable task can go instead: the
  * first free slot of its length today once the anchor is over, not before
- * `now`, inside the user's day. Busy is the rest of today's open tasks —
- * Google isn't asked on Home ("Расхождения" п.9) — and, as in any search,
- * the user's work hours unless the title reads as a remote task; a workout
- * starts by the user's limit. Null when nothing is left today: then there's
- * no suggestion to make.
+ * `now`, inside the user's day. Busy is the rest of today's open tasks,
+ * Google Calendar's busy time when Home has it (sprint-17-tasks.md п.7 —
+ * until Sprint 17 Home didn't ask Google), and, as in any search, the
+ * user's work hours unless the title reads as a remote task; a workout
+ * starts by the user's limit. Null when nothing is left today: then
+ * there's no suggestion to make.
  */
 export function findMoveTime<T extends HomeOccurrence>(
   { anchor, movable }: MovableSuggestion<T>,
@@ -326,11 +398,13 @@ export function findMoveTime<T extends HomeOccurrence>(
     now,
     timezone,
     preferences,
+    externalBusy = [],
   }: {
     today: string;
     now: Date;
     timezone: string;
     preferences: SchedulePreferences;
+    externalBusy?: Interval[];
   },
 ): Date | null {
   const { windows, workBusy } = searchBounds(
@@ -348,7 +422,7 @@ export function findMoveTime<T extends HomeOccurrence>(
   const anchorEnd = occurrenceEnd(anchor);
   const [slot] = findFreeSlots({
     windows,
-    busy: [...busy, ...workBusy],
+    busy: [...busy, ...externalBusy, ...workBusy],
     durationMinutes: movable.task.durationMinutes,
     notBefore: anchorEnd > now ? anchorEnd : now,
     limit: 1,
