@@ -32,6 +32,7 @@ function occurrence(
     recurrenceLabel: null,
     daily: false,
     hasTime: true,
+    edited: false,
     ...overrides,
   };
 }
@@ -172,6 +173,22 @@ describe("buildCalendarDays", () => {
       rangeLabel: "20:00",
       metaLabel: "20:00",
       mobileMetaLabel: "20:00 · Fixed",
+    });
+  });
+
+  it("marks a day moved on its own and links to that day (sprint-19 п.4–5)", () => {
+    const [monday] = buildCalendarDays(week, today, [
+      occurrence("sync", "2026-09-21", {
+        startMinutes: 7 * 60,
+        durationMinutes: 60,
+        recurrenceLabel: "Daily",
+        edited: true,
+      }),
+    ]);
+    expect(monday.events[0]).toMatchObject({
+      metaLabel: "↻ 07:00 · 1h · Edited",
+      mobileMetaLabel: "07:00–08:00 · Fixed · ↻ Daily · Edited",
+      href: "/tasks/task-sync?occurrence=sync",
     });
   });
 });

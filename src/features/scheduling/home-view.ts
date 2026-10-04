@@ -292,10 +292,12 @@ export function latestOccurrenceEnd(
   // Tasks without a time end nowhere (sprint-18-tasks.md п.17).
   const timed = occurrences.filter(hasTime);
   if (timed.length === 0) return null;
+  // A day's own end first: one day of a series can be longer or shorter
+  // than the rest (sprint-19-tasks.md п.7).
   const taskEnd = timed.reduce<Date>((latest, o) => {
-    const end = new Date(
-      o.scheduledStart.getTime() + o.task.durationMinutes * 60_000,
-    );
+    const end =
+      o.scheduledEnd ??
+      new Date(o.scheduledStart.getTime() + o.task.durationMinutes * 60_000);
     return end > latest ? end : latest;
   }, new Date(0));
   return busyRows.reduce<Date>(

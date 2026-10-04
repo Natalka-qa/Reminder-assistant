@@ -27,3 +27,21 @@ export class OccurrenceNotRemovableError extends Error {
     this.name = "OccurrenceNotRemovableError";
   }
 }
+
+// sprint-19-tasks.md п.3 — "Only this day" refused; the message says why
+// (planOccurrenceReschedule) and goes straight to the form.
+export class OccurrenceNotReschedulableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OccurrenceNotReschedulableError";
+  }
+}
+
+// sprint-19-tasks.md п.8 — Undo / Restore refused; the message says why
+// (restoreRefusal).
+export class OccurrenceNotRestorableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OccurrenceNotRestorableError";
+  }
+}

@@ -54,30 +54,6 @@ export const occurrenceRepository = {
     return db.taskOccurrence.updateMany({ where, data });
   },
 
-  async findMaxScheduledStartForTask(
-    taskId: string,
-    userId: string,
-    db: Db = prisma,
-  ): Promise<Date | null> {
-    const result = await db.taskOccurrence.aggregate({
-      where: { taskId, userId },
-      _max: { scheduledStart: true },
-    });
-    return result._max.scheduledStart;
-  },
-
-  async findMinScheduledStartForTask(
-    taskId: string,
-    userId: string,
-    db: Db = prisma,
-  ): Promise<Date | null> {
-    const result = await db.taskOccurrence.aggregate({
-      where: { taskId, userId },
-      _min: { scheduledStart: true },
-    });
-    return result._min.scheduledStart;
-  },
-
   findByTaskId(taskId: string, userId: string, db: Db = prisma) {
     return db.taskOccurrence.findMany({
       where: { taskId, userId },

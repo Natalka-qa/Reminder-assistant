@@ -326,6 +326,8 @@ export function blockAriaLabel(event: {
   priority: Priority;
   recurrenceLabel: string | null;
   status: OccurrenceStatus;
+  /** sprint-19-tasks.md п.5 — moved on its own, said in the title too. */
+  edited?: boolean;
 }): string {
   return [
     event.title,
@@ -337,6 +339,7 @@ export function blockAriaLabel(event: {
         ? "High priority"
         : null,
     event.recurrenceLabel ? `↻ ${event.recurrenceLabel}` : null,
+    event.edited ? "Edited" : null,
     STATUS_WORDS[event.status] ?? null,
   ]
     .filter(Boolean)

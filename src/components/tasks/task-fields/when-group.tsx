@@ -24,6 +24,7 @@ export function WhenGroup({
   onTimeRemove,
   onDurationChange,
   dateReadOnly,
+  dateOnly,
   children,
 }: {
   labelId: string;
@@ -39,6 +40,11 @@ export function WhenGroup({
   onDurationChange: (minutes: number) => void;
   /** A recurring task's start date (S14-04). */
   dateReadOnly?: boolean;
+  /**
+   * sprint-19-tasks.md п.3 — one day of a series without a time: only its
+   * date moves, so no time and no duration.
+   */
+  dateOnly?: boolean;
   children?: ReactNode;
 }) {
   return (
@@ -65,54 +71,60 @@ export function WhenGroup({
           {formatWhenDate(date, today)}
         </PickerField>
         {/* § 4 — "09:00" or "Any time"; × clears it (sprint-18 п.7). */}
-        <div className="flex items-center">
-          <PickerField
-            type="time"
-            value={time ?? ""}
-            ariaLabel={
-              time === null
-                ? "Time: any time. Set a time"
-                : `Time: ${time}. Change time`
-            }
-            onChange={onTimeChange}
-            className={cn(
-              "tabular-nums",
-              time === null && "text-newtask-quiet-text",
-            )}
-          >
-            {time ?? "Any time"}
-          </PickerField>
-          {time !== null && onTimeRemove && (
-            <button
-              type="button"
-              onClick={onTimeRemove}
-              aria-label="Remove time"
-              className="text-newtask-quiet-text hover:bg-newtask-control-hover hover:text-text-primary -ml-1.5 flex size-8 items-center justify-center rounded-full transition-colors"
-            >
-              <X aria-hidden className="size-4" strokeWidth={1.8} />
-            </button>
-          )}
-        </div>
-        <div className="relative">
-          <select
-            aria-label="Duration"
-            value={durationMinutes}
-            onChange={(event) => onDurationChange(Number(event.target.value))}
-            className={cn(
-              "hover:bg-newtask-control-hover field-sizing-content min-h-11 cursor-pointer appearance-none rounded-[10px] bg-transparent py-2.5 pr-[30px] pl-3 text-[19px] transition-colors",
-              durationMinutes > 0
-                ? "text-text-primary"
-                : "text-newtask-quiet-text",
-            )}
-          >
-            {durationChoices(durationMinutes).map((minutes) => (
-              <option key={minutes} value={minutes}>
-                {formatDurationChoice(minutes)}
-              </option>
-            ))}
-          </select>
-          <Chevron />
-        </div>
+        {!dateOnly && (
+          <>
+            <div className="flex items-center">
+              <PickerField
+                type="time"
+                value={time ?? ""}
+                ariaLabel={
+                  time === null
+                    ? "Time: any time. Set a time"
+                    : `Time: ${time}. Change time`
+                }
+                onChange={onTimeChange}
+                className={cn(
+                  "tabular-nums",
+                  time === null && "text-newtask-quiet-text",
+                )}
+              >
+                {time ?? "Any time"}
+              </PickerField>
+              {time !== null && onTimeRemove && (
+                <button
+                  type="button"
+                  onClick={onTimeRemove}
+                  aria-label="Remove time"
+                  className="text-newtask-quiet-text hover:bg-newtask-control-hover hover:text-text-primary -ml-1.5 flex size-8 items-center justify-center rounded-full transition-colors"
+                >
+                  <X aria-hidden className="size-4" strokeWidth={1.8} />
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              <select
+                aria-label="Duration"
+                value={durationMinutes}
+                onChange={(event) =>
+                  onDurationChange(Number(event.target.value))
+                }
+                className={cn(
+                  "hover:bg-newtask-control-hover field-sizing-content min-h-11 cursor-pointer appearance-none rounded-[10px] bg-transparent py-2.5 pr-[30px] pl-3 text-[19px] transition-colors",
+                  durationMinutes > 0
+                    ? "text-text-primary"
+                    : "text-newtask-quiet-text",
+                )}
+              >
+                {durationChoices(durationMinutes).map((minutes) => (
+                  <option key={minutes} value={minutes}>
+                    {formatDurationChoice(minutes)}
+                  </option>
+                ))}
+              </select>
+              <Chevron />
+            </div>
+          </>
+        )}
       </div>
       {children}
     </div>

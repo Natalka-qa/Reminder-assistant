@@ -286,6 +286,16 @@ describe("latestOccurrenceEnd", () => {
     expect(latestOccurrenceEnd([])).toBeNull();
   });
 
+  it("takes a day's own end over the task's duration", () => {
+    // sprint-19-tasks.md п.7 — one day of a series made 2 h long.
+    const end = latestOccurrenceEnd([
+      occurrence("a", 12, 0, {
+        scheduledEnd: new Date(Date.UTC(2026, 3, 26, 14, 0)),
+      }),
+    ]);
+    expect(end).toEqual(new Date(Date.UTC(2026, 3, 26, 14, 0)));
+  });
+
   const at = (hour: number, minute = 0) =>
     new Date(Date.UTC(2026, 3, 26, hour, minute));
 

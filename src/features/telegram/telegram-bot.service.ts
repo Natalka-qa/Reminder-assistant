@@ -19,6 +19,7 @@ import {
   notLinkedMessage,
   occurrenceButtons,
   openAppButton,
+  removedButtons,
   replyKeyboard,
   todayMessage,
   TOO_LATE_TO_CHANGE_MESSAGE,
@@ -37,6 +38,7 @@ import {
   InvalidOccurrenceTransitionError,
   OccurrenceNotFoundError,
   OccurrenceNotRemovableError,
+  OccurrenceNotRestorableError,
 } from "@/features/scheduling/occurrence.errors";
 import { slotService } from "@/features/scheduling/slot.service";
 import { notificationService } from "@/features/notifications/notification.service";
@@ -55,6 +57,7 @@ import {
 import { userService } from "@/features/user/user.service";
 import {
   canFixCreatedTask,
+  canUndoRemoval,
   dayItem,
   dayItems,
   localNow,
@@ -340,6 +343,37 @@ async function pressButton(user: User, press: Button, now: Date) {
           chatId,
           messageId,
           buttonResultMessage(messageText, { action }),
+          // sprint-19-tasks.md п.8 — a removed day can be taken back.
+          action === "remove" ? removedButtons(occurrence.id) : undefined,
+        );
+        break;
+      }
+      case "restore": {
+        const occurrence = await occurrenceService.getOccurrence(user.id, id);
+        if (!occurrence) throw new OccurrenceNotFoundError(id);
+        if (!canUndoRemoval(occurrence.updatedAt, now)) {
+          await answerTelegramButton(callbackId, TOO_LATE_TO_UNDO_MESSAGE);
+          return;
+        }
+        try {
+          await occurrenceService.restoreOccurrence(
+            user.id,
+            id,
+            user.timezone,
+            now,
+          );
+        } catch (error) {
+          if (error instanceof OccurrenceNotRestorableError) {
+            await answerTelegramButton(callbackId, error.message);
+            return;
+          }
+          throw error;
+        }
+        revalidateAfterChange(occurrence.taskId);
+        await editTelegramMessage(
+          chatId,
+          messageId,
+          buttonResultMessage(messageText, { action: "restore" }),
         );
         break;
       }

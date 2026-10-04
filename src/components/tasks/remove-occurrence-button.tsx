@@ -14,10 +14,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { removeOccurrenceAction } from "@/features/scheduling/actions";
+import {
+  removeOccurrenceAction,
+  restoreOccurrenceAction,
+} from "@/features/scheduling/actions";
 
 // sprint-14-tasks.md S14-10 — "Remove this one": one day of a repeating
-// task, with a confirmation that says what stays and what brings it back
+// task, with a confirmation that says what stays and where to bring it back
 // ("Расхождения" п.15 (а)). "button" under Task detail's actions; "text"
 // in a Tasks row's action line and in Task detail's "Next occurrences".
 export function RemoveOccurrenceButton({
@@ -51,7 +54,22 @@ export function RemoveOccurrenceButton({
         return;
       }
       setOpen(false);
-      toast.success(`Removed ${dateLabel}`);
+      // sprint-19-tasks.md п.8 (а) — taken back from the toast for 10 s;
+      // later from "Removed days" on the task page.
+      toast.success(`Removed ${dateLabel}`, {
+        duration: 10_000,
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            const undone = await restoreOccurrenceAction(occurrenceId);
+            if (undone.status === "error") {
+              toast.error(undone.message ?? "Couldn't restore it.");
+            } else {
+              toast.success(`Restored ${dateLabel}`);
+            }
+          },
+        },
+      });
       onRemoved?.();
     });
   }
@@ -75,8 +93,7 @@ export function RemoveOccurrenceButton({
         <AlertDialogHeader>
           <AlertDialogTitle>Remove {dateLabel} only?</AlertDialogTitle>
           <AlertDialogDescription>
-            The rest of the series stays. Changing the series&rsquo; time or
-            days brings it back.
+            The rest of the series stays. You can restore it from the task page.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

@@ -38,6 +38,8 @@ type SourceOccurrence = {
   status: OccurrenceStatus;
   scheduledStart: Date;
   updatedAt: Date;
+  /** sprint-19-tasks.md п.1 — moved or removed on its own. */
+  isException?: boolean;
 };
 
 /** A Task with its occurrences, as taskService.getActiveTasks returns it. */
@@ -67,6 +69,8 @@ export type TaskListItem = {
   dayOffset: number;
   timing: TaskTiming;
   isRecurring: boolean;
+  /** sprint-19-tasks.md п.5 — this day of the series was moved on its own. */
+  edited: boolean;
 };
 
 export type TaskListGroup<T> = {
@@ -209,6 +213,7 @@ export function buildTaskListItems(
         recurrence,
         status: occurrence.status,
         scheduledStart: occurrence.scheduledStart,
+        edited: occurrence.isException ?? false,
         ...classifyTask(
           { scheduledStart: occurrence.scheduledStart, recurrence },
           now,
@@ -234,6 +239,10 @@ export function filterByTab<
       return items.filter((t) => !t.isRecurring && t.dayOffset > 0);
     case "recurring":
       return items.filter((t) => t.isRecurring);
+    case "ended":
+      // Active tasks only here; the ended ones are a list of their own
+      // (task-ending.ts, sprint-19-tasks.md п.12).
+      return [];
   }
 }
 
@@ -454,6 +463,7 @@ export function buildMeta(
   if (item.recurrence) {
     segments.push(`↻ ${describeRecurrenceRule(item.recurrence)}`);
     if (!timeInColumn && time) segments.push(time);
+    if (item.edited) segments.push("Edited");
   } else if (item.dayOffset === 0) {
     if (!timeInColumn && time) segments.push(time);
     segments.push(FLEXIBILITY_LABELS[item.flexibility]);

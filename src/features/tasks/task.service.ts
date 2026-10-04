@@ -120,7 +120,7 @@ function recurringSchedulePlan(
   const rule = buildRecurrenceRule(data);
   if (!rule) {
     throw new TaskValidationError(
-      "A repeating task can't stop repeating — deactivate it instead.",
+      "A repeating task can't stop repeating — end the series instead.",
     );
   }
   const time = data.time ?? null;
@@ -146,6 +146,22 @@ function recurringSchedulePlan(
       now,
     }),
   };
+}
+
+// Every interval a schedule change would put down: the new days, and the
+// moved days that take the series' new kind (sprint-19-tasks.md п.16) —
+// both get the overlap check.
+function plannedIntervals(
+  plan: ScheduleChangePlan | null,
+): CandidateInterval[] {
+  if (!plan) return [];
+  return [
+    ...plan.candidates,
+    ...plan.reshape.map(({ scheduledStart, scheduledEnd }) => ({
+      scheduledStart,
+      scheduledEnd,
+    })),
+  ];
 }
 
 export const taskService = {
@@ -184,7 +200,7 @@ export const taskService = {
       throw error;
     }
     // Days without a time overlap nothing (sprint-18-tasks.md п.16).
-    const timed = plan?.candidates.filter(hasEnd) ?? [];
+    const timed = plannedIntervals(plan).filter(hasEnd);
     if (timed.length === 0) return [];
 
     const intervals = timed.map((candidate) => ({
@@ -355,10 +371,12 @@ export const taskService = {
               : [{ start: scheduledStart, end: scheduledEnd }];
           }
           const plan = recurringSchedulePlan(task, data, timezone, now);
-          return (plan?.candidates ?? []).filter(hasEnd).map((candidate) => ({
-            start: candidate.scheduledStart,
-            end: candidate.scheduledEnd,
-          }));
+          return plannedIntervals(plan)
+            .filter(hasEnd)
+            .map((candidate) => ({
+              start: candidate.scheduledStart,
+              end: candidate.scheduledEnd,
+            }));
         });
     const externalBusy = calendar.status === "checked" ? calendar.overlaps : [];
 
@@ -539,18 +557,27 @@ export const taskService = {
     await taskRepository.delete(taskId, userId);
   },
 
+  // sprint-19-tasks.md п.10–12 — End series / Archive: the task stops and
+  // goes to Tasks → Ended, dated (endedAt); its history stays.
   async deactivateTask(userId: string, taskId: string, timezone: string) {
     const existing = await taskRepository.findById(taskId, userId);
     if (!existing) {
       throw new TaskNotFoundError(taskId);
     }
     return runInTransaction(async (tx) => {
-      const task = await taskRepository.setActive(taskId, userId, false, tx);
+      // Taken before the days are cancelled: Resume reopens exactly the
+      // days cancelled at or after it (daysToReopen).
+      const deactivatedAt = new Date();
+      const task = await taskRepository.setEnded(
+        taskId,
+        userId,
+        deactivatedAt,
+        tx,
+      );
       // Stops the now-inactive task's future SCHEDULED occurrences from
       // lingering on the dashboard — applies to non-recurring tasks too
       // (a still-future single occurrence), not just recurring ones. Past
       // occurrences (DONE/SKIPPED/etc.) are history and untouched.
-      const deactivatedAt = new Date();
       await occurrenceService.cancelFutureOccurrences(
         task,
         deactivatedAt,
@@ -563,6 +590,32 @@ export const taskService = {
         deactivatedAt,
         tx,
       );
+      return task;
+    });
+  },
+
+  getEndedTasks(userId: string) {
+    return taskRepository.findEndedByUserId(userId);
+  },
+
+  // sprint-19-tasks.md п.13 — Resume series / Restore: active again, its
+  // days back (occurrenceService.reopenEndedTask).
+  async resumeTask(
+    userId: string,
+    taskId: string,
+    timezone: string,
+    now = new Date(),
+  ) {
+    const existing = await taskRepository.findById(taskId, userId);
+    if (!existing) {
+      throw new TaskNotFoundError(taskId);
+    }
+    if (existing.active) {
+      throw new TaskValidationError("This task is already active.");
+    }
+    return runInTransaction(async (tx) => {
+      const task = await taskRepository.setEnded(taskId, userId, null, tx);
+      await occurrenceService.reopenEndedTask(existing, timezone, now, tx);
       return task;
     });
   },

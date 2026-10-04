@@ -107,47 +107,52 @@ export function TasksToolbar({
           />
         </label>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger className="text-text-tertiary hover:text-burgundy relative flex shrink-0 items-center gap-[5px] text-[13px] transition-colors after:absolute after:-inset-x-2 after:-inset-y-3">
-            Sort:{" "}
-            <span className="text-text-primary font-semibold">{sortLabel}</span>
-            <ChevronDown aria-hidden className="size-2.5" strokeWidth={2} />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            sideOffset={8}
-            className="bg-surface border-border shadow-soft w-auto min-w-[170px] rounded-[12px] border p-1.5 ring-0"
-          >
-            <MenuPrimitive.RadioGroup
-              value={sort}
-              onValueChange={(value: TaskSort) => navigate({ sort: value })}
+        {/* Ended is always latest first (sprint-19-tasks.md п.12). */}
+        {tab !== "ended" && (
+          <DropdownMenu>
+            <DropdownMenuTrigger className="text-text-tertiary hover:text-burgundy relative flex shrink-0 items-center gap-[5px] text-[13px] transition-colors after:absolute after:-inset-x-2 after:-inset-y-3">
+              Sort:{" "}
+              <span className="text-text-primary font-semibold">
+                {sortLabel}
+              </span>
+              <ChevronDown aria-hidden className="size-2.5" strokeWidth={2} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              sideOffset={8}
+              className="bg-surface border-border shadow-soft w-auto min-w-[170px] rounded-[12px] border p-1.5 ring-0"
             >
-              {TASK_SORTS.map((option) => (
-                <MenuPrimitive.RadioItem
-                  key={option.value}
-                  value={option.value}
-                  label={option.label}
-                  closeOnClick
-                  className="data-highlighted:bg-tasks-menu-hover flex cursor-default flex-col gap-0.5 rounded-[8px] px-2.5 py-2 outline-none select-none"
-                >
-                  <span
-                    className={cn(
-                      "text-[13px]",
-                      option.value === sort
-                        ? "text-burgundy font-semibold"
-                        : "text-text-primary font-medium",
-                    )}
+              <MenuPrimitive.RadioGroup
+                value={sort}
+                onValueChange={(value: TaskSort) => navigate({ sort: value })}
+              >
+                {TASK_SORTS.map((option) => (
+                  <MenuPrimitive.RadioItem
+                    key={option.value}
+                    value={option.value}
+                    label={option.label}
+                    closeOnClick
+                    className="data-highlighted:bg-tasks-menu-hover flex cursor-default flex-col gap-0.5 rounded-[8px] px-2.5 py-2 outline-none select-none"
                   >
-                    {option.label}
-                  </span>
-                  <span className="text-tasks-meta text-[11.5px]">
-                    {option.hint}
-                  </span>
-                </MenuPrimitive.RadioItem>
-              ))}
-            </MenuPrimitive.RadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+                    <span
+                      className={cn(
+                        "text-[13px]",
+                        option.value === sort
+                          ? "text-burgundy font-semibold"
+                          : "text-text-primary font-medium",
+                      )}
+                    >
+                      {option.label}
+                    </span>
+                    <span className="text-tasks-meta text-[11.5px]">
+                      {option.hint}
+                    </span>
+                  </MenuPrimitive.RadioItem>
+                ))}
+              </MenuPrimitive.RadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
     </div>
   );

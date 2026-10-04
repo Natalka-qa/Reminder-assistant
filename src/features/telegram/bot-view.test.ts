@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { OccurrenceStatus } from "@prisma/client";
 import {
   canFixCreatedTask,
+  canUndoRemoval,
   dayItems,
   localNow,
   openItems,
@@ -80,6 +81,19 @@ describe("localNow", () => {
       today: "2026-10-02",
       nowMinutes: 30,
     });
+  });
+});
+
+describe("canUndoRemoval", () => {
+  const removedAt = new Date("2026-10-04T12:00:00Z");
+
+  it("allows Undo for 10 minutes after the day was removed", () => {
+    expect(canUndoRemoval(removedAt, new Date("2026-10-04T12:10:00Z"))).toBe(
+      true,
+    );
+    expect(canUndoRemoval(removedAt, new Date("2026-10-04T12:10:01Z"))).toBe(
+      false,
+    );
   });
 });
 

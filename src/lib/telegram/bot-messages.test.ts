@@ -11,6 +11,7 @@ import {
   type DayItem,
   type InlineKeyboard,
   openAppButton,
+  removedButtons,
 } from "./bot-messages";
 import { CALLBACK_DATA_MAX_BYTES, parseButtonData } from "./button-data";
 
@@ -109,6 +110,27 @@ describe("buttonResultMessage", () => {
     );
     expect(buttonResultMessage(original, { action: "remove" })).toContain(
       "Removed this one",
+    );
+  });
+
+  it("Undo of a removed day takes the line back (sprint-19 п.8)", () => {
+    const original = "Gym is scheduled for 18:00 (60 min).";
+    const removed = buttonResultMessage(original, { action: "remove" });
+    expect(buttonResultMessage(removed, { action: "restore" })).toBe(
+      `${original}\n\nRestored`,
+    );
+  });
+});
+
+describe("removedButtons", () => {
+  it("is one Undo that restores the day, within Telegram's limit", () => {
+    const id = "cmuu475iq0006bo51r4hrvvob";
+    const [[undo]] = removedButtons(id).inline_keyboard;
+    expect(undo.text).toBe("Undo");
+    const data = "callback_data" in undo ? undo.callback_data : "";
+    expect(parseButtonData(data)).toEqual({ action: "restore", id });
+    expect(new TextEncoder().encode(data).length).toBeLessThanOrEqual(
+      CALLBACK_DATA_MAX_BYTES,
     );
   });
 });

@@ -125,7 +125,7 @@ export function WeekEventBlock({
           whole — never a line cut in half. */}
       <div className="flex min-w-0 flex-1 flex-col flex-wrap content-start gap-x-4 gap-y-px overflow-hidden">
         <Link
-          href={`/tasks/${event.taskId}`}
+          href={event.href}
           aria-label={label}
           title={label}
           className={cn(

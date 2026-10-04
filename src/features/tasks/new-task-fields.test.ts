@@ -16,6 +16,8 @@ import {
   resolveTaskFields,
   DEFAULT_REMINDER_MINUTES,
   REMINDER_CHOICES,
+  customReminderMinutes,
+  customReminderParts,
   parseReminderValue,
   reminderLabel,
   reminderOptions,
@@ -107,7 +109,33 @@ describe("reminderOptions", () => {
       "30",
       "60",
       "1440",
+      "CUSTOM",
     ]);
+  });
+
+  it("keeps a task's minutes and a custom one, once each (sprint-19 п.9)", () => {
+    const at45 = { kind: "OFFSET" as const, offsetMinutes: 45 };
+    const options = reminderOptions(true, at45, at45, {
+      kind: "OFFSET",
+      offsetMinutes: 120,
+    });
+    expect(options.map((o) => o.value)).toEqual([
+      "NONE",
+      "0",
+      "5",
+      "10",
+      "15",
+      "30",
+      "45",
+      "60",
+      "120",
+      "1440",
+      "CUSTOM",
+    ]);
+    expect(options.find((o) => o.value === "120")?.label).toBe(
+      "2 hours before",
+    );
+    expect(options.at(-1)?.label).toBe("Custom…");
   });
 
   it("adds a task's off-list minutes in their place", () => {
@@ -460,5 +488,29 @@ describe("reminder defaults (S14-06)", () => {
       resolveTaskFields({}, {}, { date: TODAY, time: "15:00" }).reminder
         .offsetMinutes,
     ).toBe(DEFAULT_REMINDER_MINUTES);
+  });
+});
+
+describe("Custom… reminder (sprint-19-tasks.md п.9)", () => {
+  it("reads minutes or hours as minutes, 1 min to 24 h", () => {
+    expect(customReminderMinutes("2", "hours")).toBe(120);
+    expect(customReminderMinutes("45", "minutes")).toBe(45);
+    expect(customReminderMinutes(" 24 ", "hours")).toBe(1440);
+    expect(customReminderMinutes("1", "minutes")).toBe(1);
+  });
+
+  it("refuses nothing, zero, more than a day, or not a whole number", () => {
+    expect(customReminderMinutes("", "minutes")).toBeNull();
+    expect(customReminderMinutes("0", "hours")).toBeNull();
+    expect(customReminderMinutes("25", "hours")).toBeNull();
+    expect(customReminderMinutes("1441", "minutes")).toBeNull();
+    expect(customReminderMinutes("1.5", "hours")).toBeNull();
+    expect(customReminderMinutes("-5", "minutes")).toBeNull();
+  });
+
+  it("shows whole hours as hours, the rest as minutes", () => {
+    expect(customReminderParts(120)).toEqual({ amount: "2", unit: "hours" });
+    expect(customReminderParts(90)).toEqual({ amount: "90", unit: "minutes" });
+    expect(customReminderParts(45)).toEqual({ amount: "45", unit: "minutes" });
   });
 });

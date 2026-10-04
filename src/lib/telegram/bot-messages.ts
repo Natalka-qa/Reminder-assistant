@@ -96,19 +96,29 @@ export function createdMessage(
 }
 
 /** What a reminder message turns into once one of its buttons is pressed. */
+const REMOVED_LINE = "Removed this one";
+
 export function buttonResultMessage(
   original: string,
   result:
-    | { action: "done" | "skip" | "remove" | "undo" }
+    | { action: "done" | "skip" | "remove" | "undo" | "restore" }
     | { action: "snooze15"; until: string },
 ): string {
+  // sprint-19-tasks.md п.8 — Undo under "Removed this one" takes that line
+  // back rather than stacking a second one under it.
+  if (result.action === "restore") {
+    const base = original.endsWith(`\n\n${REMOVED_LINE}`)
+      ? original.slice(0, -`\n\n${REMOVED_LINE}`.length)
+      : original;
+    return `${base}\n\nRestored`;
+  }
   const line =
     result.action === "snooze15"
       ? `Snoozed until ${result.until}`
       : {
           done: "✓ Done",
           skip: "Skipped",
-          remove: "Removed this one",
+          remove: REMOVED_LINE,
           undo: "Removed",
         }[result.action];
   return `${original}\n\n${line}`;
@@ -218,6 +228,18 @@ export function occurrenceButtons(occurrence: {
  * has a time and an hour later is still the same day; Tomorrow only for a
  * one-off task — a repeating task's date is fixed, as in the edit form.
  */
+/**
+ * sprint-19-tasks.md п.8 — what "Remove this one" leaves under the message:
+ * Undo, for the same 10 minutes as Undo under a new task.
+ */
+export function removedButtons(occurrenceId: string): InlineKeyboard {
+  return {
+    inline_keyboard: [
+      [{ text: "Undo", callback_data: buttonData("restore", occurrenceId) }],
+    ],
+  };
+}
+
 export function createdButtons(task: {
   id: string;
   /** `AUTH_URL` — where the app is (openAppButton). */

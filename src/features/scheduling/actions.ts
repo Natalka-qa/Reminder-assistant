@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/dal";
 import { runInTransaction } from "@/lib/db/transaction";
 import { occurrenceService } from "@/features/scheduling/occurrence.service";
@@ -9,13 +10,16 @@ import {
   OccurrenceNotFoundError,
   OccurrenceNotMovableError,
   OccurrenceNotRemovableError,
+  OccurrenceNotReschedulableError,
+  OccurrenceNotRestorableError,
 } from "@/features/scheduling/occurrence.errors";
+import { ScheduleConflictError } from "@/features/scheduling/conflict.errors";
 import {
   notificationService,
   type SnoozeOption,
 } from "@/features/notifications/notification.service";
 import { z } from "zod";
-import { dateStringSchema } from "@/lib/validation/task";
+import { dateStringSchema, timeStringSchema } from "@/lib/validation/task";
 import {
   slotService,
   type CalendarCheck,
@@ -152,6 +156,101 @@ export async function moveOccurrenceToTodayAction(
 
   revalidateOccurrencePaths(taskId);
   return { status: "success" };
+}
+
+// sprint-19-tasks.md п.8 — Undo in the "Removed Oct 5" toast and Restore
+// under "Removed days". Not a runOccurrenceAction transition: it needs the
+// user's timezone (a day without a time is still ahead all of today).
+export async function restoreOccurrenceAction(
+  occurrenceId: string,
+): Promise<OccurrenceActionState> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { status: "error", message: "Not signed in." };
+  }
+
+  let taskId: string;
+  try {
+    ({ taskId } = await occurrenceService.restoreOccurrence(
+      user.id,
+      occurrenceId,
+      user.timezone,
+    ));
+  } catch (error) {
+    if (
+      error instanceof OccurrenceNotFoundError ||
+      error instanceof OccurrenceNotRestorableError
+    ) {
+      return { status: "error", message: error.message };
+    }
+    throw error;
+  }
+
+  revalidateOccurrencePaths(taskId);
+  return { status: "success" };
+}
+
+const rescheduleInput = z.object({
+  date: dateStringSchema,
+  // Empty — a day of a series without a time.
+  time: z.preprocess(
+    (value) => (value === "" || value === null ? null : value),
+    timeStringSchema.nullable(),
+  ),
+  durationMinutes: z.coerce
+    .number()
+    .int()
+    .min(0, "Duration can't be negative")
+    .max(1440, "Duration can't exceed 24 hours"),
+  confirmConflicts: z.boolean(),
+});
+
+// sprint-19-tasks.md S19-03 — "Only this day": the Edit form in its
+// one-day mode (?occurrence=<id>). Back on the task page with that day in
+// front once it's saved.
+export async function rescheduleOccurrenceAction(
+  occurrenceId: string,
+  _prevState: OccurrenceActionState,
+  formData: FormData,
+): Promise<OccurrenceActionState> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { status: "error", message: "Not signed in." };
+  }
+  const parsed = rescheduleInput.safeParse({
+    date: formData.get("date"),
+    time: formData.get("time"),
+    durationMinutes: formData.get("durationMinutes"),
+    confirmConflicts: formData.get("confirmConflicts") === "true",
+  });
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.error.issues[0]?.message ?? "Couldn't read the day.",
+    };
+  }
+
+  let taskId: string;
+  try {
+    ({ taskId } = await occurrenceService.rescheduleOccurrence(
+      user.id,
+      occurrenceId,
+      user.timezone,
+      parsed.data,
+    ));
+  } catch (error) {
+    if (
+      error instanceof OccurrenceNotFoundError ||
+      error instanceof OccurrenceNotReschedulableError ||
+      error instanceof ScheduleConflictError
+    ) {
+      return { status: "error", message: error.message };
+    }
+    throw error;
+  }
+
+  revalidateOccurrencePaths(taskId);
+  redirect(`/tasks/${taskId}?occurrence=${occurrenceId}`);
 }
 
 const freeSlotsInput = z.object({

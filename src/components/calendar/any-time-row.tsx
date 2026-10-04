@@ -68,7 +68,7 @@ export function AnyTimeRow({
               {day.anyTime.map((event) => (
                 <li key={event.occurrenceId} className="min-w-0">
                   <Link
-                    href={`/tasks/${event.taskId}`}
+                    href={event.href}
                     className={cn(
                       "text-text-primary line-clamp-2 leading-[1.3] break-normal hover:underline",
                       isSelected ? "text-[12px]" : "text-[11px]",
@@ -78,6 +78,12 @@ export function AnyTimeRow({
                     )}
                   >
                     {event.title}
+                    {event.edited && (
+                      <span className="text-calendar-quiet-text">
+                        {" "}
+                        · Edited
+                      </span>
+                    )}
                   </Link>
                 </li>
               ))}
@@ -115,7 +121,7 @@ export function AnyTimeBlock({ day }: { day: CalendarDay }) {
         {day.anyTime.map((event) => (
           <li key={event.occurrenceId}>
             <Link
-              href={`/tasks/${event.taskId}`}
+              href={event.href}
               className={cn(
                 "text-text-primary line-clamp-2 text-[14px] leading-[1.3] hover:underline",
                 (event.status === "DONE" || event.status === "SKIPPED") &&
@@ -124,6 +130,9 @@ export function AnyTimeBlock({ day }: { day: CalendarDay }) {
               )}
             >
               {event.title}
+              {event.edited && (
+                <span className="text-calendar-quiet-text"> · Edited</span>
+              )}
             </Link>
           </li>
         ))}

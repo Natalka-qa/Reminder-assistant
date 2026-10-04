@@ -17,6 +17,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { TasksHeader } from "@/components/tasks/tasks-header";
 import { TasksToolbar } from "@/components/tasks/tasks-toolbar";
 import { TaskList } from "@/components/tasks/task-list";
+import { EndedTaskList } from "@/components/tasks/ended-task-list";
+import { endedRows } from "@/features/tasks/task-ending";
 
 // TASKS_V2_UPDATE.md — "What do I have?": an editorial grouped list, no
 // cards and no atmosphere layer. Every count, group and meta line comes
@@ -34,7 +36,12 @@ export default async function TasksPage({ searchParams }: PageProps<"/tasks">) {
   const sort = parseTaskSort(params.sort);
   const query = parseTaskQuery(params.q);
 
-  const tasks = user ? await taskService.getActiveTasks(user.id) : [];
+  const [tasks, ended] = user
+    ? await Promise.all([
+        taskService.getActiveTasks(user.id),
+        taskService.getEndedTasks(user.id),
+      ])
+    : [[], []];
   const items = buildTaskListItems(tasks, now, timezone);
 
   const snoozedIds = items
@@ -60,7 +67,7 @@ export default async function TasksPage({ searchParams }: PageProps<"/tasks">) {
         }
       />
 
-      {items.length === 0 ? (
+      {items.length === 0 && ended.length === 0 ? (
         <EmptyState
           title="Nothing here yet."
           body="Create your first task to see it in this list."
@@ -70,15 +77,22 @@ export default async function TasksPage({ searchParams }: PageProps<"/tasks">) {
       ) : (
         <>
           <TasksToolbar tab={tab} sort={sort} query={query} />
-          <TaskList
-            items={items}
-            tab={tab}
-            sort={sort}
-            query={query}
-            now={now}
-            timezone={timezone}
-            nextReminderLabels={nextReminderLabels}
-          />
+          {tab === "ended" ? (
+            <EndedTaskList
+              rows={endedRows(ended, timezone, query)}
+              query={query}
+            />
+          ) : (
+            <TaskList
+              items={items}
+              tab={tab}
+              sort={sort}
+              query={query}
+              now={now}
+              timezone={timezone}
+              nextReminderLabels={nextReminderLabels}
+            />
+          )}
         </>
       )}
     </div>

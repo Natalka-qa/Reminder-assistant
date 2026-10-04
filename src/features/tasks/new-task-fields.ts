@@ -121,34 +121,72 @@ export function reminderLabel(minutes: number): string {
   return `${hours} hour${hours === 1 ? "" : "s"} before`;
 }
 
+/** sprint-19-tasks.md п.9 — the Reminder select's "Custom…" entry. */
+export const CUSTOM_REMINDER = "CUSTOM";
+
 /**
  * sprint-18-tasks.md п.12 — the Reminder choices: with a time, "No
- * reminder" and the minutes-before list (plus `keep` minutes when they
- * aren't on it, sprint-14 п.7); without one, none or a fixed hour.
+ * reminder", the minutes-before list (plus each of `keep`'s minutes not on
+ * it — the task's own, sprint-14 п.7, and one entered under "Custom…") and
+ * "Custom…" (sprint-19-tasks.md п.9); without one, none or a fixed hour.
  */
 export function reminderOptions(
   hasTime: boolean,
-  keep?: ReminderChoice,
+  ...keep: (ReminderChoice | undefined)[]
 ): { value: string; label: string }[] {
   if (!hasTime) return UNTIMED_REMINDERS;
-  const offsets =
-    REMINDER_CHOICES.some((choice) => choice.value === keep?.offsetMinutes) ||
-    keep?.kind !== "OFFSET"
-      ? REMINDER_CHOICES
-      : [
-          ...REMINDER_CHOICES,
-          {
-            value: keep.offsetMinutes,
-            label: reminderLabel(keep.offsetMinutes),
-          },
-        ].sort((a, b) => a.value - b.value);
+  const extra = [
+    ...new Set(
+      keep
+        .filter((choice) => choice?.kind === "OFFSET")
+        .map((choice) => choice!.offsetMinutes)
+        .filter(
+          (minutes) =>
+            !REMINDER_CHOICES.some((choice) => choice.value === minutes),
+        ),
+    ),
+  ];
+  const offsets = [
+    ...REMINDER_CHOICES,
+    ...extra.map((minutes) => ({
+      value: minutes,
+      label: reminderLabel(minutes),
+    })),
+  ].sort((a, b) => a.value - b.value);
   return [
     { value: "NONE", label: "No reminder" },
     ...offsets.map((choice) => ({
       value: String(choice.value),
       label: choice.label,
     })),
+    { value: CUSTOM_REMINDER, label: "Custom…" },
   ];
+}
+
+export type ReminderUnit = "minutes" | "hours";
+
+/**
+ * sprint-19-tasks.md п.9 — "Custom…": a whole number of minutes or hours
+ * before the start, from 1 minute to 24 hours (the task's own limit), as
+ * minutes; null for anything else.
+ */
+export function customReminderMinutes(
+  amount: string,
+  unit: ReminderUnit,
+): number | null {
+  if (!/^\d+$/.test(amount.trim())) return null;
+  const minutes = Number(amount) * (unit === "hours" ? 60 : 1);
+  return minutes >= 1 && minutes <= 1440 ? minutes : null;
+}
+
+/** The "Custom…" fields for a number of minutes: whole hours as hours. */
+export function customReminderParts(minutes: number): {
+  amount: string;
+  unit: ReminderUnit;
+} {
+  return minutes >= 60 && minutes % 60 === 0
+    ? { amount: String(minutes / 60), unit: "hours" }
+    : { amount: String(minutes), unit: "minutes" };
 }
 
 /**

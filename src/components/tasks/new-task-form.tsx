@@ -641,7 +641,7 @@ export function NewTaskForm({
       <TaskDetailsFields
         ids={ids}
         reminder={reminderValue(fields.reminder)}
-        reminderChoices={reminderOptions(fields.time !== null)}
+        reminderChoices={reminderOptions(fields.time !== null, fields.reminder)}
         onReminderChange={(value) =>
           setField("reminder", parseReminderValue(value))
         }

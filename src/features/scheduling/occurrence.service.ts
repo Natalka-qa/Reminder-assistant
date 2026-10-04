@@ -1,12 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { Tx } from "@/lib/db/transaction";
-import {
-  addDaysInZone,
-  addMinutes,
-  formatDateInZone,
-  formatTimeInZone,
-  startOfDayInZone,
-} from "@/lib/date";
+import { addMinutes, startOfDayInZone } from "@/lib/date";
 import { occurrenceRepository } from "@/features/scheduling/occurrence.repository";
 import {
   canRemoveOccurrence,
@@ -19,12 +13,25 @@ import {
   OccurrenceNotFoundError,
   OccurrenceNotMovableError,
   OccurrenceNotRemovableError,
+  OccurrenceNotReschedulableError,
+  OccurrenceNotRestorableError,
 } from "@/features/scheduling/occurrence.errors";
 import { planMoveToToday } from "@/features/scheduling/move-to-today";
-import { conflictService } from "@/features/scheduling/conflict.service";
+import {
+  restoreRefusal,
+  restoredReminderAt,
+} from "@/features/scheduling/restore-occurrence";
+import { daysToReopen } from "@/features/tasks/task-ending";
+import {
+  planOccurrenceReschedule,
+  type RescheduleTarget,
+} from "@/features/scheduling/reschedule-occurrence";
+import {
+  EXTERNAL_BUSY_NOT_CHECKED,
+  conflictService,
+} from "@/features/scheduling/conflict.service";
 import { ScheduleConflictError } from "@/features/scheduling/conflict.errors";
 import { taskRepository } from "@/features/tasks/task.repository";
-import { generateOccurrenceDates } from "@/features/recurrence/occurrence-dates";
 import {
   buildCandidateIntervals,
   initialRecurringIntervals,
@@ -36,9 +43,12 @@ import {
   type ReminderRule,
 } from "@/features/notifications/reminder-rule";
 import type { Interval } from "@/features/scheduling/external-busy";
-import type { ScheduleChangePlan } from "@/features/scheduling/schedule-change";
 import {
-  RECURRENCE_WINDOW_DAYS,
+  durationCascadeTargets,
+  planWindowExtension,
+  type ScheduleChangePlan,
+} from "@/features/scheduling/schedule-change";
+import {
   parseRecurrenceRule,
   type RecurrenceRule,
 } from "@/features/recurrence/recurrence-rule";
@@ -266,13 +276,36 @@ export const occurrenceService = {
     if (!confirmConflicts) {
       const conflicts = await findCandidateConflicts(
         task.userId,
-        candidates,
+        [...candidates, ...toCandidates(task.id, task.userId, plan.reshape)],
         tx,
       );
       if (conflicts.length > 0 || externalBusy.length > 0) {
         throw new ScheduleConflictError(conflicts, externalBusy);
       }
     }
+
+    // sprint-19-tasks.md п.16 — a moved day takes the series' new kind on
+    // its own date; its reminder follows. Cancel first, as a move does, so
+    // the old one never fires alongside the new.
+    for (const { id, scheduledStart, scheduledEnd } of plan.reshape) {
+      await occurrenceRepository.update(
+        id,
+        task.userId,
+        { scheduledStart, scheduledEnd },
+        tx,
+      );
+      await notificationService.cancelForOccurrence(id, tx);
+    }
+    await notificationService.createForOccurrences(
+      plan.reshape.map(({ id, scheduledStart }) => ({
+        id,
+        userId: task.userId,
+        scheduledStart,
+      })),
+      reminder,
+      timezone,
+      tx,
+    );
     if (candidates.length === 0) return;
 
     await occurrenceRepository.createMany(candidates, tx);
@@ -315,7 +348,8 @@ export const occurrenceService = {
 
   // A recurring task's durationMinutes changed — keep every not-yet-happened
   // SCHEDULED occurrence's scheduledEnd in sync so durations never silently
-  // diverge across one task's occurrences.
+  // diverge across one task's occurrences (durationCascadeTargets: a day
+  // moved on its own keeps its own length).
   async cascadeDurationChange(
     taskId: string,
     userId: string,
@@ -327,13 +361,7 @@ export const occurrenceService = {
       userId,
       tx,
     );
-    const now = new Date();
-    const future = occurrences.filter(
-      (occurrence) =>
-        isActionableOccurrenceStatus(occurrence.status) &&
-        occurrence.scheduledStart > now,
-    );
-    for (const occurrence of future) {
+    for (const occurrence of durationCascadeTargets(occurrences, new Date())) {
       await occurrenceRepository.update(
         occurrence.id,
         userId,
@@ -363,57 +391,27 @@ export const occurrenceService = {
       if (!rule) continue;
 
       const zone = task.user.timezone;
-      const windowEnd = addDaysInZone(now, RECURRENCE_WINDOW_DAYS, zone);
-
-      const maxStart = await occurrenceRepository.findMaxScheduledStartForTask(
+      const occurrences = await occurrenceRepository.findByTaskId(
         task.id,
         task.userId,
         db,
       );
-      if (maxStart && maxStart >= windowEnd) {
-        continue;
-      }
-
-      const minStart = await occurrenceRepository.findMinScheduledStartForTask(
-        task.id,
-        task.userId,
-        db,
-      );
-      // minStart/maxStart are only ever null for a recurring task whose
-      // occurrences were somehow all removed — fall back to `now` as the
-      // best available anchor/time-of-day rather than skipping it entirely.
-      // The anchor is the first occurrence's date; the time of day is the
-      // latest's — a changed schedule replaces the future occurrences
-      // (schedule-change.ts), so the first keeps the old time and the
-      // latest carries the current one.
-      const anchorDate = minStart
-        ? formatDateInZone(minStart, zone, "yyyy-LL-dd")
-        : formatDateInZone(now, zone, "yyyy-LL-dd");
-      // A task without a time keeps generating days without one.
-      const time = !task.hasTime
-        ? null
-        : maxStart
-          ? formatTimeInZone(maxStart, zone, "HH:mm")
-          : formatTimeInZone(now, zone, "HH:mm");
-      const fromDate = maxStart
-        ? formatDateInZone(addDaysInZone(maxStart, 1, zone), zone, "yyyy-LL-dd")
-        : formatDateInZone(now, zone, "yyyy-LL-dd");
-      const toDate = formatDateInZone(windowEnd, zone, "yyyy-LL-dd");
-
-      const dates = generateOccurrenceDates(
+      // The anchor is the first day's date, the time of day the latest's —
+      // a changed schedule replaces the future days (schedule-change.ts),
+      // so the first keeps the old time and the latest carries the current
+      // one. Days moved on their own count for neither (sprint-19-tasks.md
+      // п.2).
+      const intervals = planWindowExtension({
+        occurrences,
         rule,
-        anchorDate,
-        fromDate,
-        toDate,
-        zone,
-      );
-      if (dates.length === 0) continue;
+        hasTime: task.hasTime,
+        durationMinutes: task.durationMinutes,
+        timezone: zone,
+        now,
+      });
+      if (intervals.length === 0) continue;
 
-      const candidates = toCandidates(
-        task.id,
-        task.userId,
-        buildCandidateIntervals(dates, time, task.durationMinutes, zone),
-      );
+      const candidates = toCandidates(task.id, task.userId, intervals);
       await occurrenceRepository.createMany(candidates, db);
 
       const created = await occurrenceRepository.findByTaskId(
@@ -433,6 +431,91 @@ export const occurrenceService = {
     }
 
     return extended;
+  },
+
+  // sprint-19-tasks.md п.13 — Resume series / Restore: the days ending the
+  // task cancelled come back with their reminders (daysToReopen), and a
+  // series is topped up again to RECURRENCE_WINDOW_DAYS from today at its
+  // own time, as the daily extension would — days moved or removed on
+  // their own stay as they are. No conflict check, as for the extension:
+  // a new overlap shows on Tasks like any other. Same transaction as the
+  // task's own update.
+  async reopenEndedTask(
+    task: {
+      id: string;
+      userId: string;
+      recurrenceRule: string | null;
+      hasTime: boolean;
+      durationMinutes: number;
+      reminderKind: ReminderRule["kind"];
+      reminderOffsetMinutes: number;
+      endedAt: Date | null;
+    },
+    timezone: string,
+    now: Date,
+    tx: Tx,
+  ) {
+    const occurrences = await occurrenceRepository.findByTaskId(
+      task.id,
+      task.userId,
+      tx,
+    );
+    const rule = parseRecurrenceRule(task.recurrenceRule);
+    const reopen = daysToReopen(occurrences, {
+      endedAt: task.endedAt,
+      recurring: rule !== null,
+      hasTime: task.hasTime,
+      now,
+      timezone,
+    });
+    const reminder = reminderRuleOf(task);
+    await occurrenceRepository.updateMany(
+      { id: { in: reopen.map((o) => o.id) }, userId: task.userId },
+      { status: "SCHEDULED" },
+      tx,
+    );
+    for (const occurrence of reopen) {
+      if (
+        restoredReminderAt(occurrence.scheduledStart, reminder, timezone, now)
+      ) {
+        await notificationService.createForOccurrence(
+          occurrence,
+          reminder,
+          timezone,
+          tx,
+          now,
+        );
+      }
+    }
+    if (!rule) return;
+
+    const reopened = new Set(reopen.map((o) => o.id));
+    const candidates = toCandidates(
+      task.id,
+      task.userId,
+      planWindowExtension({
+        occurrences: occurrences.map((o) =>
+          reopened.has(o.id) ? { ...o, status: "SCHEDULED" as const } : o,
+        ),
+        rule,
+        hasTime: task.hasTime,
+        durationMinutes: task.durationMinutes,
+        timezone,
+        now,
+      }),
+    );
+    if (candidates.length === 0) return;
+    await occurrenceRepository.createMany(candidates, tx);
+    await notificationService.createForOccurrences(
+      matchCreatedOccurrences(
+        candidates,
+        await occurrenceRepository.findByTaskId(task.id, task.userId, tx),
+      ),
+      reminder,
+      timezone,
+      tx,
+      now,
+    );
   },
 
   // sprint-18-tasks.md п.5 — the user's timezone changed: every day of a
@@ -499,8 +582,9 @@ export const occurrenceService = {
   // the rest of the series stays. CANCELLED, not deleted: the row keeps the
   // day taken, so extending the window never recreates it, and lists,
   // Calendar and the stats already leave CANCELLED out. Its reminder goes
-  // in the same transaction. A later change of the series' time or repeat
-  // builds the days ahead anew and brings it back ("Расхождения" п.15 (а)).
+  // in the same transaction. Marked an exception, so a later change of the
+  // series' time or repeat leaves it removed (sprint-19-tasks.md п.2; until
+  // then such a change brought it back).
   async removeOccurrence(userId: string, occurrenceId: string) {
     const occurrence = await occurrenceRepository.findById(
       occurrenceId,
@@ -521,10 +605,157 @@ export const occurrenceService = {
       const updated = await occurrenceRepository.update(
         occurrenceId,
         userId,
-        { status: "CANCELLED" },
+        { status: "CANCELLED", isException: true },
         tx,
       );
       await notificationService.cancelForOccurrence(occurrenceId, tx);
+      return updated;
+    });
+  },
+
+  // sprint-19-tasks.md п.3, п.6 — "Only this day": one day of a series
+  // gets its own date, time and length (planOccurrenceReschedule) and is
+  // marked an exception, so the series leaves it be. Overlaps are checked
+  // as on Edit — Google before the transaction, the user's other tasks
+  // inside it — unless the form already showed them (confirmConflicts).
+  // The move supersedes a snooze, and its reminder follows it: cancel
+  // first, so the old one never fires alongside the new.
+  async rescheduleOccurrence(
+    userId: string,
+    occurrenceId: string,
+    timezone: string,
+    input: RescheduleTarget & { confirmConflicts: boolean },
+    now = new Date(),
+  ) {
+    const occurrence = await occurrenceRepository.findById(
+      occurrenceId,
+      userId,
+    );
+    if (!occurrence) {
+      throw new OccurrenceNotFoundError(occurrenceId);
+    }
+    const { task } = occurrence;
+    const plan = planOccurrenceReschedule({
+      occurrence,
+      days: await occurrenceRepository.findByTaskId(task.id, userId),
+      recurring: task.recurrenceRule !== null,
+      hasTime: task.hasTime,
+      target: input,
+      timezone,
+      now,
+    });
+    if (!plan.ok) {
+      throw new OccurrenceNotReschedulableError(plan.message);
+    }
+    const { scheduledStart, scheduledEnd, originalStart } = plan;
+
+    const interval = scheduledEnd
+      ? { start: scheduledStart, end: scheduledEnd }
+      : null;
+    const calendar =
+      input.confirmConflicts || !interval
+        ? EXTERNAL_BUSY_NOT_CHECKED
+        : await conflictService.findExternalBusy(userId, () => [interval]);
+    const externalBusy = calendar.status === "checked" ? calendar.overlaps : [];
+
+    return runInTransaction(async (tx) => {
+      if (!input.confirmConflicts && interval) {
+        const conflicts = await conflictService.findConflicts(
+          userId,
+          interval.start,
+          interval.end,
+          { taskId: task.id },
+          tx,
+        );
+        if (conflicts.length > 0 || externalBusy.length > 0) {
+          throw new ScheduleConflictError(conflicts, externalBusy);
+        }
+      }
+      const updated = await occurrenceRepository.update(
+        occurrenceId,
+        userId,
+        {
+          scheduledStart,
+          scheduledEnd,
+          originalStart,
+          isException: true,
+          status: "SCHEDULED",
+        },
+        tx,
+      );
+      await notificationService.cancelForOccurrence(occurrenceId, tx);
+      await notificationService.createForOccurrence(
+        updated,
+        reminderRuleOf(task),
+        timezone,
+        tx,
+        now,
+      );
+      return updated;
+    });
+  },
+
+  getOccurrence(userId: string, occurrenceId: string) {
+    return occurrenceRepository.findById(occurrenceId, userId);
+  },
+
+  // sprint-19-tasks.md п.8 — a day removed with "Remove this one" comes
+  // back: open again, an ordinary day of the series once more (unless it
+  // had been moved, п.18), with its reminder if that's still ahead.
+  async restoreOccurrence(
+    userId: string,
+    occurrenceId: string,
+    timezone: string,
+    now = new Date(),
+  ) {
+    const occurrence = await occurrenceRepository.findById(
+      occurrenceId,
+      userId,
+    );
+    if (!occurrence) {
+      throw new OccurrenceNotFoundError(occurrenceId);
+    }
+    const { task } = occurrence;
+    const refusal = restoreRefusal(
+      occurrence,
+      {
+        recurring: task.recurrenceRule !== null,
+        active: task.active,
+        hasTime: task.hasTime,
+      },
+      now,
+      timezone,
+    );
+    if (refusal) {
+      throw new OccurrenceNotRestorableError(refusal);
+    }
+    const reminder = reminderRuleOf(task);
+    const sendAt = restoredReminderAt(
+      occurrence.scheduledStart,
+      reminder,
+      timezone,
+      now,
+    );
+    return runInTransaction(async (tx) => {
+      const updated = await occurrenceRepository.update(
+        occurrenceId,
+        userId,
+        {
+          status: "SCHEDULED",
+          isException: occurrence.originalStart !== null,
+        },
+        tx,
+      );
+      await notificationService.cancelForOccurrence(occurrenceId, tx);
+      if (sendAt) {
+        await notificationService.createForOccurrence(
+          updated,
+          reminder,
+          timezone,
+          tx,
+          now,
+        );
+      }
       return updated;
     });
   },

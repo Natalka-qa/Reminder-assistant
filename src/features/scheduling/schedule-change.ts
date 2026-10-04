@@ -30,19 +30,45 @@ export type ExistingOccurrence = {
   id: string;
   status: OccurrenceStatus;
   scheduledStart: Date;
+  /**
+   * sprint-19-tasks.md п.1–2 — a day changed on its own: moved ("Only this
+   * day") or removed ("Remove this one"). The series leaves it be.
+   */
+  isException?: boolean;
+  /** п.18 — a moved day's start before its first move; null otherwise. */
+  originalStart?: Date | null;
 };
+
+// The days that still show the series' own time: an exception was moved
+// or removed, so its time says nothing about the series.
+const followsSeries = (o: ExistingOccurrence) => !o.isException;
+
+// п.18 — the date the series put a day on: where a moved day came from.
+const seriesStartOf = (o: ExistingOccurrence) =>
+  o.originalStart ?? o.scheduledStart;
+
+// The subset `keep` picks out, or every occurrence when it picks none: a
+// series made only of exceptions still has to be read from something.
+function preferring(
+  occurrences: ExistingOccurrence[],
+  keep: (o: ExistingOccurrence) => boolean,
+): ExistingOccurrence[] {
+  const kept = occurrences.filter(keep);
+  return kept.length > 0 ? kept : occurrences;
+}
 
 /**
  * The task's time of day as it stands: the latest occurrence's, which is
  * also where the daily window extension takes it from — so after a change
- * the new time is what keeps being generated. Null with no occurrences.
+ * the new time is what keeps being generated. Never a moved day's (п.2).
+ * Null with no occurrences.
  */
 export function currentTimeOfDay(
   occurrences: ExistingOccurrence[],
   timezone: string,
 ): string | null {
   if (occurrences.length === 0) return null;
-  const latest = occurrences.reduce((a, b) =>
+  const latest = preferring(occurrences, followsSeries).reduce((a, b) =>
     b.scheduledStart > a.scheduledStart ? b : a,
   );
   return formatTimeInZone(latest.scheduledStart, timezone, "HH:mm");
@@ -52,16 +78,33 @@ export function currentTimeOfDay(
  * The first occurrence's local date: the rule's anchor. It stays the anchor
  * through any change (the start date isn't editable), so a monthly repeat
  * keeps its day of the month — the same anchor the window extension uses.
+ * A day moved away from the first date doesn't move the anchor (п.18).
  */
 export function anchorDateOf(
   occurrences: ExistingOccurrence[],
   timezone: string,
 ): string | null {
   if (occurrences.length === 0) return null;
-  const first = occurrences.reduce((a, b) =>
-    b.scheduledStart < a.scheduledStart ? b : a,
+  const first = occurrences
+    .map(seriesStartOf)
+    .reduce((a, b) => (b < a ? b : a));
+  return formatDateInZone(first, timezone, "yyyy-LL-dd");
+}
+
+const localDateOf = (start: Date, timezone: string) =>
+  formatDateInZone(start, timezone, "yyyy-LL-dd");
+
+// Every date that holds a day of this task, or held one before it was
+// moved away (п.18) — no new day goes there.
+function datesTaken(occurrences: ExistingOccurrence[], timezone: string) {
+  return occurrences.flatMap((o) =>
+    o.originalStart
+      ? [
+          localDateOf(o.scheduledStart, timezone),
+          localDateOf(o.originalStart, timezone),
+        ]
+      : [localDateOf(o.scheduledStart, timezone)],
   );
-  return formatDateInZone(first.scheduledStart, timezone, "yyyy-LL-dd");
 }
 
 // Weekly days compared as a set — [3, 1] is the same schedule as [1, 3].
@@ -92,6 +135,12 @@ export type ScheduleChangePlan = {
   replaceIds: string[];
   /** The new schedule from now to the end of the generation window. */
   candidates: CandidateInterval[];
+  /**
+   * sprint-19-tasks.md п.16 — moved days still ahead when the series gains
+   * or loses its time: each stays on its own date and takes the series'
+   * new kind. Empty for any other change — a moved day keeps its time.
+   */
+  reshape: (CandidateInterval & { id: string })[];
 };
 
 /**
@@ -124,17 +173,38 @@ export function planScheduleChange({
 }): ScheduleChangePlan {
   // "Ahead" by the old kind for what's replaced, by the new kind for
   // what's created: today's untimed day is still ahead all day (п.4).
-  const replaced = occurrences.filter(
+  const open = occurrences.filter(
     (o) =>
       isActionableOccurrenceStatus(o.status) &&
       isAhead(o, hadTime, now, timezone),
   );
+  // sprint-19-tasks.md п.2 — the days changed on their own stay: a moved
+  // one where it was moved to, a removed one removed.
+  const replaced = open.filter(followsSeries);
   const replacedIds = new Set(replaced.map((o) => o.id));
   const keptDates = new Set(
-    occurrences
-      .filter((o) => !replacedIds.has(o.id) && o.status !== "CANCELLED")
-      .map((o) => formatDateInZone(o.scheduledStart, timezone, "yyyy-LL-dd")),
+    datesTaken(
+      occurrences.filter(
+        (o) =>
+          !replacedIds.has(o.id) && (o.status !== "CANCELLED" || o.isException),
+      ),
+      timezone,
+    ),
   );
+  const kindChanged = hadTime !== (time !== null);
+  const reshape = kindChanged
+    ? open
+        .filter((o) => !followsSeries(o))
+        .map((o) => ({
+          id: o.id,
+          ...buildCandidateIntervals(
+            [localDateOf(o.scheduledStart, timezone)],
+            time,
+            durationMinutes,
+            timezone,
+          )[0],
+        }))
+    : [];
 
   const today = startOfDayInZone(now, timezone);
   const fromDate = formatDateInZone(today, timezone, "yyyy-LL-dd");
@@ -159,5 +229,83 @@ export function planScheduleChange({
       durationMinutes,
       timezone,
     ).filter((candidate) => isAhead(candidate, time !== null, now, timezone)),
+    reshape,
   };
+}
+
+/**
+ * A recurring task's duration changed with its schedule as it was: the
+ * days whose end moves with it — open and still ahead, except a day moved
+ * on its own, which keeps its own length (sprint-19-tasks.md п.2).
+ */
+export function durationCascadeTargets<T extends ExistingOccurrence>(
+  occurrences: T[],
+  now: Date,
+): T[] {
+  return occurrences.filter(
+    (o) =>
+      followsSeries(o) &&
+      isActionableOccurrenceStatus(o.status) &&
+      o.scheduledStart > now,
+  );
+}
+
+/**
+ * The daily cron's top-up of a recurring task (extendOccurrencesForAll-
+ * ActiveTasks): the dates after the series' latest own day through
+ * RECURRENCE_WINDOW_DAYS from now, at the series' time. Nothing when the
+ * window is already full. A moved day lends neither its time nor its date
+ * (п.2), and no date that holds a day of this task — removed, moved ahead
+ * of the window, or moved away from (п.18) — gets a second one. Never a
+ * day already behind `now`: a series resumed long after it ended
+ * (sprint-19-tasks.md п.13) starts again from today.
+ */
+export function planWindowExtension({
+  occurrences,
+  rule,
+  hasTime,
+  durationMinutes,
+  timezone,
+  now,
+}: {
+  occurrences: ExistingOccurrence[];
+  rule: RecurrenceRule;
+  hasTime: boolean;
+  durationMinutes: number;
+  timezone: string;
+  now: Date;
+}): CandidateInterval[] {
+  const windowEnd = addDaysInZone(now, RECURRENCE_WINDOW_DAYS, timezone);
+  const own = occurrences.filter(followsSeries);
+  const latest =
+    own.length > 0
+      ? own.reduce((a, b) => (b.scheduledStart > a.scheduledStart ? b : a))
+          .scheduledStart
+      : null;
+  if (latest && latest >= windowEnd) return [];
+
+  // No days of its own left: start from today, as a fresh series would.
+  const anchorDate =
+    anchorDateOf(occurrences, timezone) ?? localDateOf(now, timezone);
+  const time = !hasTime
+    ? null
+    : (currentTimeOfDay(occurrences, timezone) ??
+      formatTimeInZone(now, timezone, "HH:mm"));
+  const today = localDateOf(now, timezone);
+  const afterLatest = latest
+    ? localDateOf(addDaysInZone(latest, 1, timezone), timezone)
+    : today;
+  const fromDate = afterLatest > today ? afterLatest : today;
+  const taken = new Set(datesTaken(occurrences, timezone));
+
+  const dates = generateOccurrenceDates(
+    rule,
+    anchorDate,
+    fromDate,
+    localDateOf(windowEnd, timezone),
+    timezone,
+  ).filter((date) => !taken.has(date));
+  return buildCandidateIntervals(dates, time, durationMinutes, timezone).filter(
+    (candidate) => isAhead(candidate, hasTime, now, timezone),
+  );
 }

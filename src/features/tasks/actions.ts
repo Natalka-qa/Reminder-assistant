@@ -244,6 +244,31 @@ export async function deactivateTaskAction(
   return { status: "success" };
 }
 
+// sprint-19-tasks.md п.13 — Resume series / Restore from Task detail.
+export async function resumeTaskAction(
+  taskId: string,
+): Promise<TaskActionState> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { status: "error", message: "Not signed in." };
+  }
+
+  try {
+    await taskService.resumeTask(user.id, taskId, user.timezone);
+  } catch (error) {
+    if (
+      error instanceof TaskNotFoundError ||
+      error instanceof TaskValidationError
+    ) {
+      return { status: "error", message: error.message };
+    }
+    throw error;
+  }
+
+  revalidateTaskPaths(taskId);
+  return { status: "success" };
+}
+
 export type { OverlapPreview } from "@/features/scheduling/slot.service";
 export type { RecurringOverlapDay } from "@/features/scheduling/recurring-overlaps";
 
@@ -287,6 +312,9 @@ const editOverlapPreviewInput = overlapPreviewInput.extend({
   taskId: z.string().min(1),
   repeatFrequency: z.enum(["NONE", "DAILY", "WEEKLY", "MONTHLY"]),
   repeatDaysOfWeek: z.array(z.number().int().min(1).max(7)),
+  // sprint-19-tasks.md п.4 — "Only this day": one day of a series is
+  // checked like a one-off, "Free nearby" included.
+  singleDay: z.boolean().optional(),
 });
 
 export type EditOverlapPreview =
@@ -306,11 +334,12 @@ export async function previewTaskEditOverlapsAction(
   if (!user || !parsed.success) {
     return null;
   }
-  const { taskId, repeatFrequency, repeatDaysOfWeek, ...when } = parsed.data;
+  const { taskId, repeatFrequency, repeatDaysOfWeek, singleDay, ...when } =
+    parsed.data;
   try {
     const task = await taskService.getTask(user.id, taskId);
     if (!task) return null;
-    if (task.recurrenceRule !== null) {
+    if (task.recurrenceRule !== null && !singleDay) {
       return {
         kind: "recurring",
         days: await taskService.previewRecurringOverlaps(
