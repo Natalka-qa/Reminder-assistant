@@ -1,6 +1,13 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { Tx } from "@/lib/db/transaction";
-import { addDaysInZone, addMinutes, formatTimeInZone } from "@/lib/date";
+import {
+  addDaysInZone,
+  addMinutes,
+  formatDateInZone,
+  formatTimeInZone,
+  zonedDateTimeToUtc,
+} from "@/lib/date";
+import { shiftDate } from "@/lib/date/calendar-date";
 import { env } from "@/lib/env";
 import { sendEmail } from "@/lib/email/send-email";
 import { buildReminderEmail } from "@/lib/email/reminder-email";
@@ -12,6 +19,14 @@ import { buildReminderTelegramMessage } from "@/lib/telegram/reminder-telegram-m
 import { notificationRepository } from "@/features/notifications/notification.repository";
 import { occurrenceRepository } from "@/features/scheduling/occurrence.repository";
 import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-status";
+import { isAhead } from "@/features/scheduling/untimed";
+import {
+  MORNING_OF_TIME,
+  computeSendAt,
+  reminderDayLabel,
+  shouldCreateReminder,
+  type ReminderRule,
+} from "@/features/notifications/reminder-rule";
 import {
   InvalidOccurrenceTransitionError,
   OccurrenceNotFoundError,
@@ -49,27 +64,22 @@ type OccurrenceForNotification = {
   scheduledStart: Date;
 };
 
-function computeSendAt(
-  scheduledStart: Date,
-  reminderOffsetMinutes: number,
-): Date {
-  return addMinutes(scheduledStart, -reminderOffsetMinutes);
-}
-
 export const notificationService = {
   // Same transaction-only contract as occurrenceService.createForTask — both
-  // are always called from within task.service's transaction.
+  // are always called from within task.service's transaction. The moment
+  // comes from the task's reminder rule (sprint-18-tasks.md п.11–13): none
+  // for NONE, and none for a fixed-hour one already past.
   createForOccurrence(
     occurrence: OccurrenceForNotification,
-    reminderOffsetMinutes: number,
+    rule: ReminderRule,
+    timezone: string,
     tx: Tx,
+    now = new Date(),
   ) {
+    const sendAt = computeSendAt(occurrence.scheduledStart, rule, timezone);
+    if (!shouldCreateReminder(sendAt, rule, now)) return null;
     return notificationRepository.create(
-      {
-        occurrenceId: occurrence.id,
-        userId: occurrence.userId,
-        sendAt: computeSendAt(occurrence.scheduledStart, reminderOffsetMinutes),
-      },
+      { occurrenceId: occurrence.id, userId: occurrence.userId, sendAt },
       tx,
     );
   },
@@ -82,17 +92,19 @@ export const notificationService = {
   // layer rather than requiring a transaction client.
   createForOccurrences(
     occurrences: OccurrenceForNotification[],
-    reminderOffsetMinutes: number,
+    rule: ReminderRule,
+    timezone: string,
     db?: Db,
+    now = new Date(),
   ) {
-    return notificationRepository.createMany(
-      occurrences.map((occurrence) => ({
-        occurrenceId: occurrence.id,
-        userId: occurrence.userId,
-        sendAt: computeSendAt(occurrence.scheduledStart, reminderOffsetMinutes),
-      })),
-      db,
-    );
+    const data = occurrences.flatMap((occurrence) => {
+      const sendAt = computeSendAt(occurrence.scheduledStart, rule, timezone);
+      return shouldCreateReminder(sendAt, rule, now)
+        ? [{ occurrenceId: occurrence.id, userId: occurrence.userId, sendAt }]
+        : [];
+    });
+    if (data.length === 0) return Promise.resolve({ count: 0 });
+    return notificationRepository.createMany(data, db);
   },
 
   // Powers the "next reminder at ..." caption next to a SNOOZED occurrence's
@@ -118,40 +130,53 @@ export const notificationService = {
     return notificationRepository.cancelForTaskAfter(taskId, userId, after, db);
   },
 
-  // A task's reminderOffsetMinutes changed — keep every future, not-yet-sent
-  // notification's sendAt in sync, symmetric to
-  // occurrenceService.cascadeDurationChange (Sprint 5). Updates in place
-  // (not cancel+recreate) so attemptCount/history on an already-pending
-  // notification survives the offset edit.
+  // A task's reminder rule changed (kind or minutes) — or its days moved
+  // (a new timezone for a task without a time). Every open occurrence still
+  // ahead (isAhead) gets the reminder the rule gives it now: a pending one
+  // is moved in place (so attemptCount/history survive the edit), or
+  // cancelled when the rule gives none; one is created where there's none
+  // yet — unless this occurrence's reminder has already gone out, so a
+  // change never repeats a sent reminder.
   async rescheduleForTask(
-    taskId: string,
-    userId: string,
-    newOffsetMinutes: number,
+    task: { id: string; userId: string; hasTime: boolean },
+    rule: ReminderRule,
+    timezone: string,
     tx: Tx,
+    now = new Date(),
   ) {
     const occurrences = await occurrenceRepository.findByTaskId(
-      taskId,
-      userId,
+      task.id,
+      task.userId,
       tx,
     );
-    const now = new Date();
     const future = occurrences.filter(
       (occurrence) =>
         isActionableOccurrenceStatus(occurrence.status) &&
-        occurrence.scheduledStart > now,
+        isAhead(occurrence, task.hasTime, now, timezone),
     );
 
     for (const occurrence of future) {
+      const sendAt = computeSendAt(occurrence.scheduledStart, rule, timezone);
+      const wanted = shouldCreateReminder(sendAt, rule, now) ? sendAt : null;
       const pending = await notificationRepository.findPendingForOccurrence(
         occurrence.id,
         tx,
       );
-      if (!pending) continue;
-      await notificationRepository.updateSendAt(
-        pending.id,
-        computeSendAt(occurrence.scheduledStart, newOffsetMinutes),
-        tx,
-      );
+      if (pending) {
+        await (wanted
+          ? notificationRepository.updateSendAt(pending.id, wanted, tx)
+          : notificationRepository.cancelForOccurrence(occurrence.id, tx));
+        continue;
+      }
+      if (
+        wanted &&
+        !(await notificationRepository.hasGoneOut(occurrence.id, tx))
+      ) {
+        await notificationRepository.create(
+          { occurrenceId: occurrence.id, userId: task.userId, sendAt: wanted },
+          tx,
+        );
+      }
     }
   },
 
@@ -185,10 +210,11 @@ export const notificationService = {
 
       const { occurrence, user } = notification;
       const { task } = occurrence;
-      const timeLabel = formatTimeInZone(
-        occurrence.scheduledStart,
-        user.timezone,
-      );
+      // sprint-18-tasks.md п.14 — "today" / "tomorrow" for a task without a
+      // time, instead of its stored midnight.
+      const timeLabel = task.hasTime
+        ? formatTimeInZone(occurrence.scheduledStart, user.timezone)
+        : reminderDayLabel(occurrence.scheduledStart, now, user.timezone);
 
       if (notification.attemptCount === 0) {
         results.push({
@@ -255,6 +281,7 @@ export const notificationService = {
         const email = buildReminderEmail({
           title: task.title,
           timeLabel,
+          untimed: !task.hasTime,
           durationMinutes: task.durationMinutes,
           taskUrl,
         });
@@ -293,12 +320,20 @@ export const notificationService = {
     }
 
     // "tomorrow" keeps the task's own time of day and moves by one calendar
-    // day in the user's zone (never +24h — DST-unsafe). The other options
-    // are relative to the moment of snoozing, not to scheduledStart.
+    // day in the user's zone (never +24h — DST-unsafe); a task without a
+    // time has none to keep, so it's 09:00 tomorrow (sprint-18-tasks.md
+    // п.15). The other options are relative to the moment of snoozing, not
+    // to scheduledStart.
     const sendAt =
-      option === "tomorrow"
-        ? addDaysInZone(occurrence.scheduledStart, 1, timezone)
-        : addMinutes(now, SNOOZE_MINUTES[option]);
+      option !== "tomorrow"
+        ? addMinutes(now, SNOOZE_MINUTES[option])
+        : occurrence.task.hasTime
+          ? addDaysInZone(occurrence.scheduledStart, 1, timezone)
+          : zonedDateTimeToUtc(
+              shiftDate(formatDateInZone(now, timezone, "yyyy-LL-dd"), 1),
+              MORNING_OF_TIME,
+              timezone,
+            );
 
     const updated = await occurrenceRepository.update(
       occurrenceId,

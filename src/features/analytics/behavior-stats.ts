@@ -25,6 +25,8 @@ export const MIN_GAP_POINTS = 15;
 export type OutcomeSource = {
   status: OccurrenceStatus;
   scheduledStart: Date;
+  /** sprint-18-tasks.md п.21 — a task without a time has no part of day. */
+  task?: { hasTime?: boolean };
 };
 
 /**
@@ -102,10 +104,18 @@ export function behaviorPatterns(
 ): BehaviorPatterns {
   const counted = occurrences.flatMap((occurrence) => {
     const outcome = occurrenceOutcome(occurrence, todayStart);
-    return outcome ? [{ outcome, start: occurrence.scheduledStart }] : [];
+    return outcome
+      ? [
+          {
+            outcome,
+            start: occurrence.scheduledStart,
+            timed: occurrence.task?.hasTime !== false,
+          },
+        ]
+      : [];
   });
-  const tallyWhere = (keep: (start: Date) => boolean) =>
-    tallyOutcomes(counted.filter((c) => keep(c.start)).map((c) => c.outcome));
+  const tallyWhere = (keep: (c: (typeof counted)[number]) => boolean) =>
+    tallyOutcomes(counted.filter(keep).map((c) => c.outcome));
   // Saturday and Sunday — the week, not the user's work days (п.7).
   const isWeekend = (start: Date) => utcToZoned(start, timezone).weekday >= 6;
 
@@ -116,11 +126,12 @@ export function behaviorPatterns(
     byPart: Object.fromEntries(
       ANALYTICS_PARTS.map((part) => [
         part,
-        tallyWhere((start) => partOfDayOf(start, timezone) === part),
+        // Only tasks with a time are in a part of the day (п.21).
+        tallyWhere((c) => c.timed && partOfDayOf(c.start, timezone) === part),
       ]),
     ) as Record<AnalyticsPart, Tally>,
-    weekdays: tallyWhere((start) => !isWeekend(start)),
-    weekends: tallyWhere(isWeekend),
+    weekdays: tallyWhere((c) => !isWeekend(c.start)),
+    weekends: tallyWhere((c) => isWeekend(c.start)),
   };
 }
 
@@ -147,6 +158,13 @@ function partExtremes(
   return best.percent - worst.percent >= MIN_GAP_POINTS
     ? { best, worst }
     : null;
+}
+
+/** The part of the day tasks get done in, if it stands out (sprint-17 п.9). */
+export function strongestPart(
+  patterns: BehaviorPatterns,
+): AnalyticsPart | null {
+  return partExtremes(patterns)?.best.part ?? null;
 }
 
 /** The part of the day tasks get dropped in, if it stands out (for Home). */

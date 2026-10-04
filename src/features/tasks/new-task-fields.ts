@@ -35,27 +35,38 @@ export type ParsedTaskFields = {
 export type PartOfDay = "morning" | "afternoon" | "evening" | "any";
 
 /** A free slot the search found, in the user's local date and time. */
-export type FoundSlot = { date: string; time: string };
+export type FoundSlot = {
+  date: string;
+  time: string;
+  /** sprint-17-tasks.md п.12 — why the slot fits the user's habits. */
+  note?: string | null;
+};
 
 // S12-05 — a search needs a length to look for; "find me some time" with
 // none named looks for half an hour.
 export const SEARCH_DEFAULT_DURATION_MINUTES = 30;
 
+/** sprint-18-tasks.md п.11 — a task's reminder, as the form holds it. */
+export type ReminderKind = "NONE" | "OFFSET" | "MORNING_OF" | "EVENING_BEFORE";
+export type ReminderChoice = { kind: ReminderKind; offsetMinutes: number };
+
 /** Fields the user changed by hand — never overwritten by typing (§ 8). */
 export type TaskFieldOverrides = {
   date?: string;
-  time?: string;
+  /** Null — the time removed by hand ("Remove time", sprint-18 п.7). */
+  time?: string | null;
   durationMinutes?: number;
   flexibility?: Flexibility;
   priority?: Importance;
   repeat?: RepeatFrequency;
   repeatDays?: number[];
-  reminderOffsetMinutes?: number;
+  reminder?: ReminderChoice;
 };
 
 export type NewTaskDefaults = {
   date: string;
-  time: string;
+  /** Null — no time (NEW_TASK_V2_UPDATE.md § 4, sprint-18 п.6). */
+  time: string | null;
   /** Settings → Default reminder (S14-06); DEFAULT_REMINDER_MINUTES if unset. */
   reminderOffsetMinutes?: number;
 };
@@ -75,6 +86,91 @@ export const REMINDER_CHOICES: { value: number; label: string }[] = [
 // § 6 — "Default = Settings → Default reminder (15 min)". The setting is
 // real since sprint-14-tasks.md S14-06; this is its column default.
 export const DEFAULT_REMINDER_MINUTES = 15;
+
+// sprint-18-tasks.md п.12 — the Reminder select's values: a kind, or the
+// minutes of a minutes-before one.
+const UNTIMED_REMINDERS: { value: string; label: string }[] = [
+  { value: "NONE", label: "No reminder" },
+  { value: "MORNING_OF", label: "That morning, 09:00" },
+  { value: "EVENING_BEFORE", label: "Evening before, 19:00" },
+];
+
+export function reminderValue({ kind, offsetMinutes }: ReminderChoice): string {
+  return kind === "OFFSET" ? String(offsetMinutes) : kind;
+}
+
+export function parseReminderValue(value: string): ReminderChoice {
+  if (
+    value === "NONE" ||
+    value === "MORNING_OF" ||
+    value === "EVENING_BEFORE"
+  ) {
+    return { kind: value, offsetMinutes: 0 };
+  }
+  return { kind: "OFFSET", offsetMinutes: Number(value) };
+}
+
+/** "45 min before", "1 h 30 min before", "2 hours before". */
+export function reminderLabel(minutes: number): string {
+  const listed = REMINDER_CHOICES.find((choice) => choice.value === minutes);
+  if (listed) return listed.label;
+  if (minutes < 60) return `${minutes} min before`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (rest > 0) return `${hours} h ${rest} min before`;
+  return `${hours} hour${hours === 1 ? "" : "s"} before`;
+}
+
+/**
+ * sprint-18-tasks.md п.12 — the Reminder choices: with a time, "No
+ * reminder" and the minutes-before list (plus `keep` minutes when they
+ * aren't on it, sprint-14 п.7); without one, none or a fixed hour.
+ */
+export function reminderOptions(
+  hasTime: boolean,
+  keep?: ReminderChoice,
+): { value: string; label: string }[] {
+  if (!hasTime) return UNTIMED_REMINDERS;
+  const offsets =
+    REMINDER_CHOICES.some((choice) => choice.value === keep?.offsetMinutes) ||
+    keep?.kind !== "OFFSET"
+      ? REMINDER_CHOICES
+      : [
+          ...REMINDER_CHOICES,
+          {
+            value: keep.offsetMinutes,
+            label: reminderLabel(keep.offsetMinutes),
+          },
+        ].sort((a, b) => a.value - b.value);
+  return [
+    { value: "NONE", label: "No reminder" },
+    ...offsets.map((choice) => ({
+      value: String(choice.value),
+      label: choice.label,
+    })),
+  ];
+}
+
+/**
+ * sprint-18-tasks.md п.12 — a reminder kept when the time is added or
+ * removed if it still fits, else what fits: minutes before (`offset`) with
+ * a time, none without.
+ */
+export function fittingReminder(
+  reminder: ReminderChoice,
+  hasTime: boolean,
+  offset: number,
+): ReminderChoice {
+  const fits =
+    reminder.kind === "NONE" ||
+    (hasTime
+      ? reminder.kind === "OFFSET"
+      : reminder.kind === "MORNING_OF" || reminder.kind === "EVENING_BEFORE");
+  if (fits) return reminder;
+  return hasTime
+    ? { kind: "OFFSET", offsetMinutes: offset }
+    : { kind: "NONE", offsetMinutes: 0 };
+}
 
 const DURATION_CHOICES = [0, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180];
 
@@ -138,17 +234,19 @@ function ordinal(day: number): string {
 
 /**
  * § 6 — the line under Repeat for Every day / Every month: "Starting
- * tomorrow, at 09:00", "On the 1st of each month, at 09:00". Null for
- * Weekly (the weekday picker says it) and Does not repeat.
+ * tomorrow, at 09:00", "On the 1st of each month, at 09:00" — without the
+ * time for a task without one (sprint-18-tasks.md). Null for Weekly (the
+ * weekday picker says it) and Does not repeat.
  */
 export function repeatHint(
   repeat: RepeatFrequency,
   date: string,
   today: string,
-  time: string,
+  time: string | null,
 ): string | null {
+  const at = time === null ? "" : `, at ${time}`;
   if (repeat === "MONTHLY") {
-    return `On the ${ordinal(Number(date.slice(8, 10)))} of each month, at ${time}`;
+    return `On the ${ordinal(Number(date.slice(8, 10)))} of each month${at}`;
   }
   if (repeat === "DAILY") {
     const offset = daysBetween(today, date);
@@ -158,31 +256,24 @@ export function repeatHint(
         : offset === 1
           ? "tomorrow"
           : format(date, { month: "short", day: "numeric" });
-    return `Starting ${start}, at ${time}`;
+    return `Starting ${start}${at}`;
   }
   return null;
 }
 
 /**
- * Decision A (review of 2026-09-25): a task always has a time, so with no
- * time in the text the form starts at the next full hour today — 09:00
- * would read "already passed" on every task made after nine. After 23:00
- * there's no next hour left today, so it's tomorrow at 09:00.
+ * NEW_TASK_V2_UPDATE.md § 4 — with no input the date is today and there's
+ * no time (sprint-18-tasks.md п.6, replacing decision A of 2026-09-25 and
+ * its "next full hour").
  */
-export function newTaskDefaults(
-  today: string,
-  nowMinutes: number,
-): NewTaskDefaults {
-  const nextHour = Math.floor(nowMinutes / 60) + 1;
-  if (nextHour >= 24) {
-    return { date: shiftDate(today, 1), time: "09:00" };
-  }
-  return { date: today, time: `${String(nextHour).padStart(2, "0")}:00` };
+export function newTaskDefaults(today: string): NewTaskDefaults {
+  return { date: today, time: null };
 }
 
 export type ResolvedTaskFields = {
   date: string;
-  time: string;
+  /** Null — a task without a time. */
+  time: string | null;
   /** The time came from the text or a hand edit, not the default. */
   timeGiven: boolean;
   durationMinutes: number;
@@ -190,14 +281,17 @@ export type ResolvedTaskFields = {
   priority: Importance;
   repeat: RepeatFrequency;
   repeatDays: number[];
-  reminderOffsetMinutes: number;
+  reminder: ReminderChoice;
 };
 
 /**
  * § 8 — each field is the hand edit if there is one, else what the text
- * said, else the default. § 5: Fixed when a time was given, Flexible when
- * the time is only the default. A weekly repeat's days follow the date's
- * weekday until picked by hand.
+ * said, else the default. § 5: Fixed when a time was given, Flexible
+ * when there's none — and without a time always Flexible (sprint-18 п.8).
+ * The reminder fits the time (п.12): a hand-picked one while it still
+ * does, else minutes before (Settings → Default reminder) with a time and
+ * none without. A weekly repeat's days follow the date's weekday until
+ * picked by hand.
  *
  * S12-05 — a free slot `found` for a find-a-time request sits between the
  * two: below a hand edit, above the default. It doesn't count as a time
@@ -210,39 +304,81 @@ export function resolveTaskFields(
   found: FoundSlot | null = null,
 ): ResolvedTaskFields {
   const date = overrides.date ?? found?.date ?? parsed.date ?? defaults.date;
-  const timeGiven = overrides.time !== undefined || parsed.time !== undefined;
+  const time =
+    overrides.time !== undefined
+      ? overrides.time
+      : (found?.time ?? parsed.time ?? defaults.time);
+  const timeGiven =
+    overrides.time !== undefined
+      ? overrides.time !== null
+      : parsed.time !== undefined;
+  const offset = defaults.reminderOffsetMinutes ?? DEFAULT_REMINDER_MINUTES;
   return {
     date,
-    time: overrides.time ?? found?.time ?? parsed.time ?? defaults.time,
+    time,
     timeGiven,
     durationMinutes:
       overrides.durationMinutes ??
       parsed.durationMinutes ??
       (parsed.timeSearch ? SEARCH_DEFAULT_DURATION_MINUTES : 0),
-    flexibility: overrides.flexibility ?? (timeGiven ? "FIXED" : "FLEXIBLE"),
+    flexibility:
+      time === null
+        ? "FLEXIBLE"
+        : (overrides.flexibility ?? (timeGiven ? "FIXED" : "FLEXIBLE")),
     priority: overrides.priority ?? parsed.priority ?? "NORMAL",
     repeat: overrides.repeat ?? parsed.repeat ?? "NONE",
     repeatDays: overrides.repeatDays ?? parsed.repeatDays ?? [isoWeekday(date)],
-    reminderOffsetMinutes:
-      overrides.reminderOffsetMinutes ??
-      defaults.reminderOffsetMinutes ??
-      DEFAULT_REMINDER_MINUTES,
+    reminder: fittingReminder(
+      overrides.reminder ??
+        (time === null
+          ? { kind: "NONE", offsetMinutes: 0 }
+          : { kind: "OFFSET", offsetMinutes: offset }),
+      time !== null,
+      offset,
+    ),
   };
 }
 
-/** § 4 — factual notices about the chosen moment already being past. */
+/**
+ * § 4 — factual notices about the chosen moment already being past. A
+ * task without a time is only late once its day is over.
+ */
 export function pastNotice(
   date: string,
-  time: string,
+  time: string | null,
   today: string,
   nowMinutes: number,
 ): string | null {
   if (date < today) return "This date has already passed.";
-  if (date === today) {
+  if (date === today && time !== null) {
     const [hours, minutes] = time.split(":").map(Number);
     if (hours * 60 + minutes < nowMinutes) {
       return `${time} has already passed today.`;
     }
+  }
+  return null;
+}
+
+/**
+ * sprint-18-tasks.md п.13 — a fixed-hour reminder already past isn't sent:
+ * "09:00 has already passed today — no reminder."
+ */
+export function reminderPastNotice(
+  date: string,
+  reminder: ReminderChoice,
+  today: string,
+  nowMinutes: number,
+): string | null {
+  if (reminder.kind === "MORNING_OF") {
+    return date < today || (date === today && nowMinutes >= 9 * 60)
+      ? "09:00 that morning has already passed — no reminder."
+      : null;
+  }
+  if (reminder.kind === "EVENING_BEFORE") {
+    const evening = shiftDate(date, -1);
+    return evening < today || (evening === today && nowMinutes >= 19 * 60)
+      ? "19:00 the evening before has already passed — no reminder."
+      : null;
   }
   return null;
 }
@@ -281,6 +417,21 @@ export function formatNearbySlot(
   return slot.date === chosenDate
     ? slot.time
     : `${format(slot.date, { weekday: "short" })} ${slot.time}`;
+}
+
+/**
+ * sprint-17-tasks.md п.12 — one line under the slots for the first one
+ * with a note: "19:00 — matches your usual workout time". Null when none
+ * has one.
+ */
+export function slotNoteLine(
+  slots: FoundSlot[],
+  chosenDate: string,
+): string | null {
+  const noted = slots.find((slot) => slot.note);
+  return noted
+    ? `${formatNearbySlot(noted, chosenDate)} — ${noted.note}`
+    : null;
 }
 
 /**
@@ -369,13 +520,14 @@ export function taskInput(
     title,
     description: description || undefined,
     date: fields.date,
-    time: fields.time,
+    time: fields.time ?? undefined,
     durationMinutes: fields.durationMinutes,
     priority: fields.priority,
     flexibility: fields.flexibility,
     repeatFrequency: fields.repeat,
     repeatDaysOfWeek: fields.repeat === "WEEKLY" ? fields.repeatDays : [],
-    reminderOffsetMinutes: fields.reminderOffsetMinutes,
+    reminderKind: fields.reminder.kind,
+    reminderOffsetMinutes: fields.reminder.offsetMinutes,
     confirmConflicts: true,
   };
 }

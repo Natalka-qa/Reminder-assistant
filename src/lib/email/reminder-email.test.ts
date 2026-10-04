@@ -19,6 +19,20 @@ describe("buildReminderEmail", () => {
     expect(email.html).toContain("19:00");
   });
 
+  it("says the day, not 'at', for a task without a time", () => {
+    const email = buildReminderEmail({
+      title: "Buy groceries",
+      timeLabel: "today",
+      untimed: true,
+      durationMinutes: 0,
+      taskUrl: "https://example.com/tasks/1",
+    });
+    expect(email.subject).toBe("Reminder: Buy groceries — today");
+    expect(email.text).toBe(
+      "Buy groceries is scheduled for today.\n\nhttps://example.com/tasks/1",
+    );
+  });
+
   it("escapes HTML in a user-provided title", () => {
     const email = buildReminderEmail({
       title: "<script>alert(1)</script>",

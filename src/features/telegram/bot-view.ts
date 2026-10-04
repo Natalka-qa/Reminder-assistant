@@ -14,8 +14,16 @@ type BotOccurrence = {
   id: string;
   status: OccurrenceStatus;
   scheduledStart: Date;
-  task: { title: string; durationMinutes: number; flexibility: Flexibility };
+  task: {
+    title: string;
+    durationMinutes: number;
+    flexibility: Flexibility;
+    /** False — a task without a time (sprint-18-tasks.md); missing: has one. */
+    hasTime?: boolean;
+  };
 };
+
+const timed = (occurrence: BotOccurrence) => occurrence.task.hasTime !== false;
 
 const DAY_STATUS: Record<OccurrenceStatus, DayItemStatus | null> = {
   SCHEDULED: "open",
@@ -34,27 +42,39 @@ export function dayItem(
   const status = DAY_STATUS[occurrence.status];
   if (!status) return null;
   return {
-    time: formatTimeInZone(occurrence.scheduledStart, timezone),
+    // "Anytime" in the message for a task without a time (п.20).
+    time: timed(occurrence)
+      ? formatTimeInZone(occurrence.scheduledStart, timezone)
+      : null,
     title: occurrence.task.title,
     durationMinutes: occurrence.task.durationMinutes,
     status,
   };
 }
 
+// sprint-18-tasks.md п.20 — tasks without a time after the timed ones.
+function timedFirst<T extends BotOccurrence>(occurrences: T[]): T[] {
+  return [
+    ...occurrences.filter(timed),
+    ...occurrences.filter((o) => !timed(o)),
+  ];
+}
+
 export function dayItems(
   occurrences: BotOccurrence[],
   timezone: string,
 ): DayItem[] {
-  return occurrences.flatMap((occurrence) => {
+  return timedFirst(occurrences).flatMap((occurrence) => {
     const item = dayItem(occurrence, timezone);
     return item ? [item] : [];
   });
 }
 
 /**
- * `/next` — the first open task still ahead today; once the day's open
- * ones are all behind, the earliest of them (passed, not yet marked — the
- * one worth marking). On a tie, Fixed first, as on Home.
+ * `/next` — the first open task with a time still ahead today; then the
+ * first open one without a time (sprint-18-tasks.md п.20); once all that's
+ * left is behind, the earliest of them (passed, not yet marked — the one
+ * worth marking). On a tie, Fixed first, as on Home.
  */
 export function pickNext<T extends BotOccurrence>(
   today: T[],
@@ -69,7 +89,10 @@ export function pickNext<T extends BotOccurrence>(
       return a.task.flexibility === "FIXED" ? -1 : 1;
     });
   return (
-    open.find((occurrence) => occurrence.scheduledStart >= now) ??
+    open.find(
+      (occurrence) => timed(occurrence) && occurrence.scheduledStart >= now,
+    ) ??
+    open.find((occurrence) => !timed(occurrence)) ??
     open[0] ??
     null
   );
@@ -121,6 +144,8 @@ export function shiftedTaskInput(
 ): UpdateTaskInput | null {
   let { date, time, flexibility } = values;
   if (action === "later1h") {
+    // A task without a time has no hour to move (sprint-18-tasks.md п.20).
+    if (time === null) return null;
     const [hours, minutes] = time.split(":").map(Number);
     if (hours >= 23) return null;
     time = `${String(hours + 1).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
@@ -133,13 +158,14 @@ export function shiftedTaskInput(
     title: values.title,
     description: values.description,
     date,
-    time,
+    time: time ?? undefined,
     durationMinutes: values.durationMinutes,
     priority: values.priority,
     flexibility,
     repeatFrequency: values.repeat,
     repeatDaysOfWeek: values.repeat === "WEEKLY" ? values.repeatDays : [],
-    reminderOffsetMinutes: values.reminderOffsetMinutes,
+    reminderKind: values.reminder.kind,
+    reminderOffsetMinutes: values.reminder.offsetMinutes,
     confirmConflicts: true,
   };
 }
@@ -148,12 +174,14 @@ export function shiftedTaskInput(
 export function openItems(
   occurrences: BotOccurrence[],
   timezone: string,
-): { id: string; time: string; title: string }[] {
-  return occurrences
+): { id: string; time: string | null; title: string }[] {
+  return timedFirst(occurrences)
     .filter((occurrence) => isActionableOccurrenceStatus(occurrence.status))
     .map((occurrence) => ({
       id: occurrence.id,
-      time: formatTimeInZone(occurrence.scheduledStart, timezone),
+      time: timed(occurrence)
+        ? formatTimeInZone(occurrence.scheduledStart, timezone)
+        : null,
       title: occurrence.task.title,
     }));
 }

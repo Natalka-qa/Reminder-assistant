@@ -28,8 +28,8 @@ import type { TaskSort, TaskTab } from "@/features/tasks/task-list-params";
 //
 // The Task model has no category field, so the spec's category segment,
 // its icons and "search matches category" are left out entirely (the
-// data model wins). Every occurrence has a time (the form requires one),
-// so "untimed last" and "Flexible instead of the time" never apply either.
+// data model wins). Since sprint-18-tasks.md a task can have no time:
+// then it's last in its day and "Flexible" stands in for the time (п.18).
 
 export type TaskTiming = "overdue" | "today" | "upcoming" | "later";
 
@@ -48,6 +48,7 @@ export type TaskListSource = {
   flexibility: Flexibility;
   durationMinutes: number;
   recurrenceRule: string | null;
+  hasTime: boolean;
   occurrences: SourceOccurrence[];
 };
 
@@ -58,6 +59,8 @@ export type TaskListItem = {
   priority: Priority;
   flexibility: Flexibility;
   durationMinutes: number;
+  /** False — a task without a time (sprint-18-tasks.md). */
+  hasTime: boolean;
   recurrence: RecurrenceRule | null;
   status: OccurrenceStatus;
   scheduledStart: Date;
@@ -202,6 +205,7 @@ export function buildTaskListItems(
         priority: task.priority,
         flexibility: task.flexibility,
         durationMinutes: task.durationMinutes,
+        hasTime: task.hasTime,
         recurrence,
         status: occurrence.status,
         scheduledStart: occurrence.scheduledStart,
@@ -243,10 +247,13 @@ export function filterByQuery<T extends Pick<TaskListItem, "title">>(
   return items.filter((t) => t.title.toLocaleLowerCase().includes(q));
 }
 
-// Spec §4 base sort: day → time → priority. Day-then-time is simply
-// scheduledStart order; the title makes equal rows' order stable.
+// Spec §4 base sort: day → time (untimed last) → priority. A task without
+// a time sits at its day's midnight, so the day comes first and then
+// whether there's a time; the title makes equal rows' order stable.
 function compareBase(a: TaskListItem, b: TaskListItem): number {
   return (
+    a.dayOffset - b.dayOffset ||
+    Number(!a.hasTime) - Number(!b.hasTime) ||
     a.scheduledStart.getTime() - b.scheduledStart.getTime() ||
     PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] ||
     a.title.localeCompare(b.title)
@@ -381,12 +388,16 @@ export type ConflictTarget = { taskId: string; title: string };
  * Returns taskId → the first row's task.
  */
 export function findConflicts(
-  items: Pick<TaskListItem, "taskId" | "title" | "status" | "scheduledStart">[],
+  items: Pick<
+    TaskListItem,
+    "taskId" | "title" | "status" | "scheduledStart" | "hasTime"
+  >[],
 ): Map<string, ConflictTarget> {
   const firstAt = new Map<number, ConflictTarget>();
   const conflicts = new Map<string, ConflictTarget>();
   for (const item of items) {
-    if (!isActionableOccurrenceStatus(item.status)) continue;
+    // A task without a time holds no slot (sprint-18-tasks.md п.16).
+    if (!isActionableOccurrenceStatus(item.status) || !item.hasTime) continue;
     const time = item.scheduledStart.getTime();
     const first = firstAt.get(time);
     if (first) {
@@ -403,11 +414,12 @@ export function findConflicts(
  * status: their time in the Today column is drawn muted (spec §5).
  */
 export function findRepeatedTimes(
-  items: Pick<TaskListItem, "taskId" | "scheduledStart">[],
+  items: Pick<TaskListItem, "taskId" | "scheduledStart" | "hasTime">[],
 ): Set<string> {
   const seen = new Set<number>();
   const repeated = new Set<string>();
   for (const item of items) {
+    if (!item.hasTime) continue;
     const time = item.scheduledStart.getTime();
     if (seen.has(time)) repeated.add(item.taskId);
     seen.add(time);
@@ -434,17 +446,23 @@ export function buildMeta(
     nextReminderLabel?: string;
   },
 ): string[] {
-  const time = formatTimeInZone(item.scheduledStart, timezone);
+  const time = item.hasTime
+    ? formatTimeInZone(item.scheduledStart, timezone)
+    : null;
   const segments: string[] = [];
 
   if (item.recurrence) {
     segments.push(`↻ ${describeRecurrenceRule(item.recurrence)}`);
-    if (!timeInColumn) segments.push(time);
+    if (!timeInColumn && time) segments.push(time);
   } else if (item.dayOffset === 0) {
-    if (!timeInColumn) segments.push(time);
+    if (!timeInColumn && time) segments.push(time);
     segments.push(FLEXIBILITY_LABELS[item.flexibility]);
   } else {
-    segments.push(formatDayLabel(item.scheduledStart, now, timezone), time);
+    // TASKS_V2_UPDATE.md § 5 — "Flexible" instead of the time (п.18).
+    segments.push(
+      formatDayLabel(item.scheduledStart, now, timezone),
+      time ?? FLEXIBILITY_LABELS.FLEXIBLE,
+    );
   }
 
   // The recurring format has no duration (spec §5 table / the prototype).

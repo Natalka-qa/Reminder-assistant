@@ -56,6 +56,80 @@ export function timelineRange(events: TimedInterval[]): {
   return { startHour, endHour };
 }
 
+/** Busy time from Google Calendar within one local day (busy-blocks.ts). */
+export type BusySegment = { startMinutes: number; endMinutes: number };
+
+/**
+ * What Calendar and Home get from Google for the days they show
+ * (sprint-17-tasks.md п.6): busy segments per local date, or why there are
+ * none. "off" — Google Calendar is switched off or not connected, so there
+ * is nothing to say; "unavailable" — Google didn't answer this time;
+ * "needs-reconnect" — connected, but the access can't be used any more.
+ */
+export type CalendarBusy =
+  | { status: "ok"; byDay: Record<string, BusySegment[]> }
+  | { status: "off" }
+  | { status: "unavailable" }
+  | { status: "needs-reconnect" };
+
+/** п.8 — "Busy 14:00–15:00, Google Calendar"; a segment to midnight ends at 24:00. */
+export function busyAriaLabel({
+  startMinutes,
+  endMinutes,
+}: BusySegment): string {
+  const end = endMinutes >= 24 * 60 ? "24:00" : formatMinutes(endMinutes);
+  return `Busy ${formatMinutes(startMinutes)}–${end}, Google Calendar`;
+}
+
+/** A busy segment cut to the timeline, with the uncut one for its label. */
+export type BusyBlock = BusySegment & { actual: BusySegment };
+
+/**
+ * sprint-17-tasks.md п.3 — a day's busy segments against the hours the
+ * timeline shows. One segment covering the whole range is "busy all day"
+ * (a whole-day event) and draws no block; the rest are cut to the range,
+ * and whatever falls outside it is dropped — busy time never widens the
+ * timeline, only tasks do. Expects merged segments, as busyByDay gives.
+ */
+export function busyInRange(
+  segments: BusySegment[],
+  { startHour, endHour }: { startHour: number; endHour: number },
+): { allDay: boolean; blocks: BusyBlock[] } {
+  const from = startHour * 60;
+  const to = endHour * 60;
+  if (segments.some((s) => s.startMinutes <= from && s.endMinutes >= to)) {
+    return { allDay: true, blocks: [] };
+  }
+  const blocks = segments
+    .map((s) => ({
+      startMinutes: Math.max(s.startMinutes, from),
+      endMinutes: Math.min(s.endMinutes, to),
+      actual: s,
+    }))
+    .filter((s) => s.endMinutes > s.startMinutes);
+  return { allDay: false, blocks };
+}
+
+/** п.2 — the shortest busy block that still gets its "Busy" label. */
+export const BUSY_LABEL_MIN_MINUTES = 30;
+
+/**
+ * п.2 — busy block geometry: its true height (no minimum, no gap — it's a
+ * backdrop under the tasks, not a tappable block) and whether there's room
+ * for the label.
+ */
+export function layoutBusyBlocks<T extends BusySegment>(
+  blocks: T[],
+  { hourHeight, startHour }: { hourHeight: number; startHour: number },
+): (T & { top: number; height: number; showLabel: boolean })[] {
+  return blocks.map((block) => ({
+    ...block,
+    top: ((block.startMinutes - startHour * 60) / 60) * hourHeight,
+    height: ((block.endMinutes - block.startMinutes) / 60) * hourHeight,
+    showLabel: block.endMinutes - block.startMinutes >= BUSY_LABEL_MIN_MINUTES,
+  }));
+}
+
 export type LaidOut<T> = T & {
   top: number;
   /** Already less the 2px gap between stacked blocks (§ 2.5). */

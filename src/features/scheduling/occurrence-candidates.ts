@@ -2,6 +2,7 @@ import {
   addDaysInZone,
   addMinutes,
   formatDateInZone,
+  startOfLocalDate,
   zonedDateTimeToUtc,
 } from "@/lib/date";
 import { generateOccurrenceDates } from "@/features/recurrence/occurrence-dates";
@@ -14,15 +15,26 @@ import {
 // occurrence generation and the Google Calendar pre-check, which has to run
 // before the transaction that creates the task (sprint-11-tasks.md S11-06).
 
-export type CandidateInterval = { scheduledStart: Date; scheduledEnd: Date };
+// sprint-18-tasks.md п.1–3 — without a time (`time` null) a day's start is
+// its first local instant and there's no end: nothing to overlap.
+export type CandidateInterval = {
+  scheduledStart: Date;
+  scheduledEnd: Date | null;
+};
 
 export function buildCandidateIntervals(
   dates: string[],
-  time: string,
+  time: string | null,
   durationMinutes: number,
   timezone: string,
 ): CandidateInterval[] {
   return dates.map((dateStr) => {
+    if (time === null) {
+      return {
+        scheduledStart: startOfLocalDate(dateStr, timezone),
+        scheduledEnd: null,
+      };
+    }
     const scheduledStart = zonedDateTimeToUtc(dateStr, time, timezone);
     return {
       scheduledStart,
@@ -38,7 +50,7 @@ export function buildCandidateIntervals(
 export function initialRecurringIntervals(
   rule: RecurrenceRule,
   date: string,
-  time: string,
+  time: string | null,
   durationMinutes: number,
   timezone: string,
 ): CandidateInterval[] {

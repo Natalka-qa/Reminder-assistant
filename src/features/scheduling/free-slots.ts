@@ -145,7 +145,12 @@ export function searchBounds(
   };
 }
 
-export type SlotOrder = "earliest" | { nearestTo: Date };
+export type SlotOrder =
+  | "earliest"
+  | { nearestTo: Date }
+  // sprint-17-tasks.md п.11 — a time of day (local minutes), e.g. the usual
+  // workout time: day by day, the slots closest to it first.
+  | { nearestMinutes: number };
 
 /**
  * Free slots of `durationMinutes` inside the windows. Each starts on a
@@ -162,6 +167,8 @@ export type SlotOrder = "earliest" | { nearestTo: Date };
  * picks slots around that instant, alternating before and after it — the
  * closer side first, a tie to the earlier one — and returns them in time
  * order too, the order they read in: "Free nearby: 17:30 · 20:45".
+ * `{ nearestMinutes }` goes day by day, on each day the slots closest to
+ * that time of day first, and keeps that order (sprint-17-tasks.md п.11).
  */
 export function findFreeSlots({
   windows,
@@ -181,6 +188,8 @@ export function findFreeSlots({
   timezone: string;
 }): Interval[] {
   const free: Interval[] = [];
+  // Each free slot's local date and minutes, for { nearestMinutes }.
+  const local: { date: string; minutes: number }[] = [];
   for (const window of windows) {
     const windowEnd = localInstant(window.date, window.endMinutes, timezone);
     const firstMark =
@@ -205,6 +214,7 @@ export function findFreeSlots({
       if (start < notBefore || end > windowEnd) continue;
       if (busy.some((b) => hasOverlap(start, end, b.start, b.end))) continue;
       free.push({ start, end });
+      local.push({ date: window.date, minutes });
     }
   }
   const overlapsPicked = (slot: Interval, picked: Interval[]) =>
@@ -213,6 +223,29 @@ export function findFreeSlots({
   if (order === "earliest") {
     const picked: Interval[] = [];
     for (const slot of free) {
+      if (picked.length === limit) break;
+      if (!overlapsPicked(slot, picked)) picked.push(slot);
+    }
+    return picked;
+  }
+
+  if ("nearestMinutes" in order) {
+    // Not back in time order: the first one is the best fit, and the form
+    // fills it in.
+    const ranked = free
+      .map((slot, index) => ({
+        slot,
+        date: local[index].date,
+        distance: Math.abs(local[index].minutes - order.nearestMinutes),
+      }))
+      .sort(
+        (a, b) =>
+          a.date.localeCompare(b.date) ||
+          a.distance - b.distance ||
+          a.slot.start.getTime() - b.slot.start.getTime(),
+      );
+    const picked: Interval[] = [];
+    for (const { slot } of ranked) {
       if (picked.length === limit) break;
       if (!overlapsPicked(slot, picked)) picked.push(slot);
     }

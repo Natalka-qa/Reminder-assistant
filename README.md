@@ -119,7 +119,12 @@ The webhook only reaches a public URL, so a local `next dev` never gets updates 
 
 Skip this if you don't need it — without `GOOGLE_CALENDAR_ENABLED=true` there's no "Google Calendar" section on `/settings`, no request ever goes to Google, and conflict checks and free-time suggestions only look at your own tasks.
 
-With it, a connected user's **primary** calendar is checked for busy times whenever they create or edit a task, and an overlap shows up the same way an overlapping task does — in the overlap notice of the New task and Edit task forms; either way the task can still be saved. Free-time suggestions skip those busy times too (see "Finding free time"). Only free/busy is read — scope `calendar.freebusy`, never event titles or details — and the busy times aren't stored. The connection is a second Auth.js provider, `google-calendar`, on the same OAuth client as "Sign in with Google"; its tokens live in the `Account` row with `provider = "google-calendar"`. Connecting writes real OAuth tokens, so test it locally against a Neon dev branch, not production.
+With it, a connected user's **primary** calendar is checked for busy times whenever they create or edit a task, and an overlap shows up the same way an overlapping task does — in the overlap notice of the New task and Edit task forms; either way the task can still be saved. Free-time suggestions skip those busy times too (see "Finding free time"), and the busy times are drawn where the day is planned:
+
+- **Calendar, Week** — grey hatched "Busy" blocks under the tasks, at their hours (on a phone, in the selected day). A day busy from start to end (an all-day event) gets "Busy" in an "All day" row under the day strip instead of a block over the whole grid; on a phone, "Busy all day · Google Calendar" under the day's heading. Busy time is cut to the hours the grid shows and never widens it. A legend "Busy — from your Google Calendar" appears when there's busy time on screen. Month shows no busy time.
+- **Home, "The rest of your day"** — "16:00 Busy until 17:30 · Google Calendar" rows between the tasks (busy time already over isn't shown; a day busy all day is one "Busy all day" row). "Free after" and "Your evening is free after…" come after the busy time, and "A small suggestion" never moves a task into it.
+
+Both pages render the tasks first and fill the busy time in when Google answers — Google is never waited for, one free/busy request per page (the visible week, or today). If Google doesn't answer, there's one line, "Google Calendar didn't respond — busy time isn't shown."; if the connection can no longer be used, "Reconnect Google Calendar in Settings". With the flag off or nothing connected, both pages look as they did and ask Google nothing. There are no titles anywhere, because free/busy has none. Only free/busy is read — scope `calendar.freebusy`, never event titles or details — and the busy times aren't stored. The connection is a second Auth.js provider, `google-calendar`, on the same OAuth client as "Sign in with Google"; its tokens live in the `Account` row with `provider = "google-calendar"`. Connecting writes real OAuth tokens, so test it locally against a Neon dev branch, not production.
 
 In the Google Cloud project that owns `GOOGLE_CLIENT_ID`:
 
@@ -150,7 +155,7 @@ The app suggests free times in three places. It only fills in a date and time �
 **What counts as busy:**
 
 - Your open tasks (Scheduled or Snoozed), checked the same way the overlap notice checks them — touching isn't overlapping. A slot you're offered never shows up as an overlap.
-- Your Google Calendar's busy times, if `GOOGLE_CALENDAR_ENABLED=true` and you've connected it: **one** free/busy request per search, however many days it covers. "Free nearby" asks nothing extra — it reuses the overlap check's request. Home never asks Google.
+- Your Google Calendar's busy times, if `GOOGLE_CALENDAR_ENABLED=true` and you've connected it: **one** free/busy request per search, however many days it covers. "Free nearby" asks nothing extra — it reuses the overlap check's request. Home's suggestion uses the request Home already makes for its busy rows (see "Google Calendar setup").
 - Work hours, unless "Can do during work hours" is on. The switch appears under When during a search or with "Free nearby", and starts on for tasks whose title reads as remote.
 
 **What a task is** comes from words in its title, in all three languages — nothing is stored:
@@ -177,6 +182,22 @@ A title with both reads as a workout ("Pay for the gym"); the switch is there to
 
 Suggested times start on :00, :15, :30 or :45 of your local time, never in the past, and the ones offered never overlap each other.
 
+**Your habits** (from "Your patterns", the last 30 days) shape suggestions in two small ways:
+
+- **Usual workout time.** With at least **4** workouts done (or partly done) in the 30 days and at least half of them within an hour of their median start, that median — rounded to 15 minutes — is your usual workout time (shown on `/progress`). A search for a workout then starts from it: day by day, the free slots closest to it first, so the one filled in is the one that fits. Other tasks, "Free nearby" and Home keep their order.
+- **Notes.** A workout slot within 30 minutes of the usual time says "19:00 — matches your usual workout time"; otherwise a slot in the part of the day you finish the most in (when it stands out — see "Your patterns") says "09:00 — you usually finish morning tasks". One line under the slots for the first one with a note; every slot's button carries its note for screen readers.
+
+## Tasks without a time
+
+A task can have no time — "Buy groceries", "Plan the trip" — and just belong to a day. In New task that's the default: with nothing typed the date is today and the time reads **Any time**; a time in the sentence ("at 18") or one picked sets it, and the **×** beside it ("Remove time") takes it off again. "Take vitamins every morning" is every day without a time.
+
+- **Always Flexible.** Fixed can't be picked ("Tasks without a time are flexible.").
+- **It holds no time.** It never overlaps anything — no "Overlaps with…", no "N at the same time", no "Same time as…" — and free-time search, "Free nearby" and Home's suggestion don't treat it as busy. A duration can still be set; it's shown, but doesn't make an interval.
+- **Where it shows:** Home — an "Any time" block after the timed tasks (Up next only picks it once nothing with a time is left open: "Any time · today"); Tasks — last in its day, "Flexible" instead of the time, "Any time" in Today's time column; Calendar — the "Any time" row above the week's timeline (with "Busy" under a day Google has busy all day), a block above the day's timeline on a phone, last in a Month day's summary; Telegram — "Anytime" in `/today` and the morning summary, after the timed tasks.
+- **Overdue** only once its day is over ("Overdue since Oct 1", no time). "Move to today" keeps it without a time.
+- **Stored** as an occurrence at the first instant of its local day with no end, and `Task.hasTime = false`. Changing your timezone in Settings moves such days still ahead to the same date in the new zone, so they stay on their day.
+- **Patterns** ("Your patterns") count it overall and on weekdays/weekends, but not in a part of the day — midnight isn't "after 20:00".
+
 ## Editing a task
 
 `/tasks/[id]/edit` is built from the same parts as New task (`components/tasks/task-fields/`), with what editing needs instead of the sentence:
@@ -184,6 +205,7 @@ Suggested times start on :00, :15, :30 or :45 of your local time, never in the p
 - **The title is a plain field.** It isn't read as a sentence — a saved "Call mom tomorrow" doesn't move the task when you touch it. Date, time and the rest are set with the same controls as in New task.
 - **Saving untouched changes nothing.** Every field starts at the task's own value. A **Critical** task keeps Critical among its choices (New task offers Low / Normal / High only), and a reminder outside the list — say 45 min, from the old form's "Custom…" — stays as its own choice.
 - **Overlaps are a notice, never a dialog**, and the task never overlaps itself. A one-off task gets "Free nearby", like New task.
+- **The time can be removed or added** (× / the time picker). On a repeating task that's a change of schedule, like changing its time: the days ahead are replaced. The reminder follows: a minutes-before one becomes "No reminder" without a time; a fixed-hour one becomes minutes before with one.
 - **A repeating task** keeps its start date and can't stop repeating (deactivate it instead). Changing its time or days replaces the occurrences still ahead; the notice checks every new day in the next 30 days — "Overlaps on 2 days: Oct 3 with Dentist at 07:30, …" — with one Google request, and offers no "Free nearby" (a time free on every day isn't looked for).
 - Clearing the note clears it.
 
@@ -205,14 +227,23 @@ Two settings on `/settings`, each user's own:
 | Default reminder | 15 min before | Where a new task's reminder starts: at start time, 5 / 10 / 15 / 30 min, 1 hour or 1 day before. Each task can still have its own.             |
 | Email reminders  | On            | Off: no reminder emails. Telegram (if connected) and the in-app reminder on Home still come; with no Telegram, reminders only show in the app. |
 
+**Kinds of reminder** (each task's own, in New task and Edit):
+
+| Task           | Choices                                                                    | Default          |
+| -------------- | -------------------------------------------------------------------------- | ---------------- |
+| With a time    | No reminder · At start time · 5 / 10 / 15 / 30 min · 1 hour · 1 day before | Default reminder |
+| Without a time | No reminder · That morning, 09:00 · Evening before, 19:00                  | No reminder      |
+
+"That morning" and "Evening before" are **local wall-clock time** — 09:00 on the task's day and 19:00 the day before in your timezone, through clock changes (stored as a kind, `Task.reminderKind`, not as "minutes before midnight", which DST would turn into 08:00 or 10:00). One whose moment has already passed isn't sent — a task for today made at 10:00 with "That morning" gets none, and the form says so. A minutes-before reminder that's already late still goes out at once, as before. The reminder of a task without a time reads "Buy groceries is scheduled for today." (subject "Reminder: Buy groceries — today"); "Snooze → tomorrow" on it is 09:00 tomorrow. Changing a task's reminder, date or time moves its pending reminders, cancels them for "No reminder", and creates missing ones — never re-sending one that already went out.
+
 A reminder whose email fails is retried; Telegram is sent once, not again on every retry. With Email reminders off and Telegram connected, Telegram is the reminder: if it doesn't go through, it's retried the same way an email would be (up to 3 attempts, on the next runs).
 
 ## Telegram bot
 
 Once a chat is connected (see "Telegram setup"), it works as a second way in, on the same data as the app:
 
-- **Write a task** the way you'd say it — "Call mom tomorrow at 18", "Позвонить маме в пятницу в 10" — and it's added by the same rules as a sentence in New task, with your Default reminder. The reply shows what was added and when, and the same notices as the form ("Overlaps with …", "… has already passed today"). Under it: **+1 h** and **Tomorrow** to fix the time or day, **Undo**, **Open**. They work for 10 minutes and until something of the task is marked; +1 h only before 23:00, Tomorrow only for a one-off task. A find-a-time sentence ("find an hour tomorrow evening") isn't searched in the chat — the reply links to New task. A repeat with its own time on each day — "Dance every Mon at 19 and Wed at 20", "Танцы по пн в 19 и по ср в 20" — becomes one task per day (a task has one time for all its days), each with its own reply; New task does the same, listing them under "Will be added as 2 tasks" and sharing scheduling, reminder, importance and the note between them.
-- **/today** — the day in your timezone, with how many tasks are overdue; **/next** — the next open task. **Today** and **Next** are also on the keyboard under the message box.
+- **Write a task** the way you'd say it — "Call mom tomorrow at 18", "Позвонить маме в пятницу в 10" — and it's added by the same rules as a sentence in New task, with your Default reminder. The reply shows what was added and when, and the same notices as the form ("Overlaps with …", "… has already passed today"). Under it: **+1 h** and **Tomorrow** to fix the time or day, **Undo**, **Open**. They work for 10 minutes and until something of the task is marked; +1 h only before 23:00 and only for a task with a time, Tomorrow only for a one-off task. A sentence without a time ("buy milk") adds a task without one, like New task (see "Tasks without a time"). A find-a-time sentence ("find an hour tomorrow evening") isn't searched in the chat — the reply links to New task. A repeat with its own time on each day — "Dance every Mon at 19 and Wed at 20", "Танцы по пн в 19 и по ср в 20" — becomes one task per day (a task has one time for all its days), each with its own reply; New task does the same, listing them under "Will be added as 2 tasks" and sharing scheduling, reminder, importance and the note between them.
+- **/today** — the day in your timezone, with how many tasks are overdue; **/next** — the next open task with a time still ahead, else the first open one without a time, else the earliest one passed and not marked. Tasks without a time show as "Anytime", after the timed ones. **Today** and **Next** are also on the keyboard under the message box.
 - **Reminders** come with **Done · Snooze 15 min · Skip**, then **Open** (and **Remove this one** for a repeating task). Pressing one changes the task exactly as the same button in the app does, and the message shows the outcome; a button for a task that's no longer open just says so.
 - **Morning summary** — on `/settings`, under Telegram: Off (default), 07:00, 08:00, 09:00 or 10:00. The `/today` text with a **✓** button per open task (up to 8); pressing one marks it and redraws the summary. Sent once a day by the same 5-minute `send-notifications` run, so up to 5 minutes after the time you picked, and not at all if it couldn't go out within 2 hours or there's nothing planned or overdue.
 
@@ -251,7 +282,8 @@ The app counts what happened to your past tasks and shows it back to you. It's p
 - **`/progress`, "How it's going"** — reached from a row on `/settings` and from Home's sentence. Two blocks:
   - **"Last 7 days"** — today and the six days before: Completed, Partial, Skipped, Missed and the completion rate. Missed only counts days that are over.
   - **"Last 30 days"** — the 30 whole days before today, so the numbers don't change during the day. The share done in each part of the day, by the task's planned local start: morning 05–12, afternoon 12–18, evening 18–20, after 20:00 20–05. Then weekdays against Saturday and Sunday.
-- **Home, "Assistant insight"** — one sentence, only when it's about today: "You finish 33% of tasks after 20:00 — two of today's are that late.", with a "How it's going →" link. One small extra database query per Home render, none to Google.
+- **Home, "Assistant insight"** — one sentence, only when it's about today: "You finish 33% of tasks after 20:00 — two of today's are that late.", with a "How it's going →" link. One small extra database query per Home render.
+- **`/progress`, "Usual workout time: around 19:00 (6 of 8 workouts)."** — under "Last 30 days", with its own threshold (see "Finding free time" → "Your habits"), so it can show before the rest does. Free-time suggestions use it too.
 
 **When there's a sentence:**
 

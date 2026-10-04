@@ -24,7 +24,15 @@ export type TimelineGroupData = {
   items: TimelineItem[];
   overlapLabel?: string;
   conflictHref?: string;
+  /**
+   * sprint-17-tasks.md S17-04 — a row of Google Calendar busy time instead
+   * of tasks ("Busy until 15:00"); `items` is empty then.
+   */
+  busyLabel?: string;
 };
+
+const BUSY_HATCH =
+  "repeating-linear-gradient(135deg, var(--calendar-google-busy-hatch) 0 2px, transparent 2px 5px)";
 
 // HOME_V2_UPDATE.md §§ 3-4 — "The rest of your day". Self-contained client
 // component (same reasoning as reminder-row.tsx). The `openConflict`
@@ -41,7 +49,8 @@ export function DayTimeline({
 }: {
   groups: TimelineGroupData[];
   freeLine?: string;
-  endOfDayLabel: string;
+  /** No tasks with a time today (sprint-18) — no "evening is free" end. */
+  endOfDayLabel?: string;
 }) {
   const [pending, startTransition] = useTransition();
 
@@ -71,87 +80,117 @@ export function DayTimeline({
 
         {groups.map((group) => (
           <div
-            key={group.timeLabel + group.items[0]?.occurrenceId}
+            key={
+              group.timeLabel +
+              (group.busyLabel ?? "") +
+              (group.items[0]?.occurrenceId ?? "")
+            }
             className="relative flex items-start gap-4 py-[11px] pr-2"
           >
             <span className="text-home-quiet-meta w-[46px] shrink-0 pt-px text-[13px] font-medium">
               {group.timeLabel}
             </span>
-            <span
-              className="border-home-dot-idle-border rounded-pill mt-[5px] size-[9px] shrink-0 border bg-transparent"
-              style={{ boxShadow: "0 0 0 4px var(--background)" }}
-            />
-            <div className="flex min-w-0 flex-1 flex-col gap-[9px]">
-              {group.overlapLabel && group.conflictHref && (
-                <Link
-                  href={group.conflictHref}
-                  className="text-overdue-ink bg-home-badge-bg text-chip rounded-pill self-start px-[9px] py-1 font-semibold tracking-[0.12em] uppercase"
-                >
-                  {group.overlapLabel}
-                </Link>
-              )}
-              {group.items.map((item) => {
-                const dimmed =
-                  item.status === "DONE" || item.status === "SKIPPED";
-                return (
-                  <div
-                    key={item.occurrenceId}
-                    className="hover:bg-home-timeline-hover flex items-start gap-3 rounded-[10px] py-0.5 pr-1 transition-colors"
-                  >
+            {group.busyLabel ? (
+              <>
+                <span
+                  className="bg-calendar-google-busy mt-[5px] size-[9px] shrink-0 rounded-[2px]"
+                  style={{
+                    boxShadow: "0 0 0 4px var(--background)",
+                    backgroundImage: BUSY_HATCH,
+                  }}
+                />
+                <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
+                  <span className="text-text-secondary text-[15px] leading-[1.35]">
+                    {group.busyLabel}
+                  </span>
+                  <span className="text-home-quiet-meta text-xs">
+                    Google Calendar
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <span
+                  className="border-home-dot-idle-border rounded-pill mt-[5px] size-[9px] shrink-0 border bg-transparent"
+                  style={{ boxShadow: "0 0 0 4px var(--background)" }}
+                />
+                <div className="flex min-w-0 flex-1 flex-col gap-[9px]">
+                  {group.overlapLabel && group.conflictHref && (
                     <Link
-                      href={`/tasks/${item.taskId}`}
-                      className={cn(
-                        "flex min-w-0 flex-1 flex-col gap-[3px]",
-                        dimmed && "opacity-45",
-                      )}
+                      href={group.conflictHref}
+                      className="text-overdue-ink bg-home-badge-bg text-chip rounded-pill self-start px-[9px] py-1 font-semibold tracking-[0.12em] uppercase"
                     >
-                      <span
-                        className={cn(
-                          "text-home-quiet-title text-[16px] leading-[1.35]",
-                          item.status === "DONE" && "line-through",
-                        )}
-                      >
-                        {item.title}
-                      </span>
-                      <span className="text-home-quiet-meta text-xs">
-                        {item.metaLabel}
-                      </span>
-                      {item.statusNote && (
-                        <span className="text-home-quiet-meta text-xs">
-                          {item.statusNote}
-                        </span>
-                      )}
+                      {group.overlapLabel}
                     </Link>
-                    <ReminderIndicator
-                      status={
-                        item.status === "DONE"
-                          ? "completed"
-                          : item.status === "SKIPPED"
-                            ? "skipped"
-                            : item.emphasis
-                      }
-                      onToggle={() => toggle(item.occurrenceId, item.status)}
-                      className="mt-1.5 size-[9px] border-[1px]"
-                    />
-                  </div>
-                );
-              })}
-            </div>
+                  )}
+                  {group.items.map((item) => {
+                    const dimmed =
+                      item.status === "DONE" || item.status === "SKIPPED";
+                    return (
+                      <div
+                        key={item.occurrenceId}
+                        className="hover:bg-home-timeline-hover flex items-start gap-3 rounded-[10px] py-0.5 pr-1 transition-colors"
+                      >
+                        <Link
+                          href={`/tasks/${item.taskId}`}
+                          className={cn(
+                            "flex min-w-0 flex-1 flex-col gap-[3px]",
+                            dimmed && "opacity-45",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "text-home-quiet-title text-[16px] leading-[1.35]",
+                              item.status === "DONE" && "line-through",
+                            )}
+                          >
+                            {item.title}
+                          </span>
+                          <span className="text-home-quiet-meta text-xs">
+                            {item.metaLabel}
+                          </span>
+                          {item.statusNote && (
+                            <span className="text-home-quiet-meta text-xs">
+                              {item.statusNote}
+                            </span>
+                          )}
+                        </Link>
+                        <ReminderIndicator
+                          status={
+                            item.status === "DONE"
+                              ? "completed"
+                              : item.status === "SKIPPED"
+                                ? "skipped"
+                                : item.emphasis
+                          }
+                          onToggle={() =>
+                            toggle(item.occurrenceId, item.status)
+                          }
+                          className="mt-1.5 size-[9px] border-[1px]"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         ))}
 
-        <div className="relative flex items-center gap-4 pt-[11px]">
-          <span className="text-text-secondary w-[46px] shrink-0 text-[13px] font-medium">
-            {endOfDayLabel}
-          </span>
-          <span
-            className="border-home-timeline-end-dot-border bg-background rounded-pill size-[9px] shrink-0 border"
-            style={{ boxShadow: "0 0 0 4px var(--background)" }}
-          />
-          <span className="font-display text-text-tertiary text-[20px] font-light">
-            Your evening is free
-          </span>
-        </div>
+        {endOfDayLabel && (
+          <div className="relative flex items-center gap-4 pt-[11px]">
+            <span className="text-text-secondary w-[46px] shrink-0 text-[13px] font-medium">
+              {endOfDayLabel}
+            </span>
+            <span
+              className="border-home-timeline-end-dot-border bg-background rounded-pill size-[9px] shrink-0 border"
+              style={{ boxShadow: "0 0 0 4px var(--background)" }}
+            />
+            <span className="font-display text-text-tertiary text-[20px] font-light">
+              Your evening is free
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

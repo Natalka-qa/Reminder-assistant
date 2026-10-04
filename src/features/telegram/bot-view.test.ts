@@ -123,7 +123,7 @@ describe("shiftedTaskInput", () => {
     priority: "NORMAL" as const,
     repeat: "NONE" as const,
     repeatDays: [5],
-    reminderOffsetMinutes: 15,
+    reminder: { kind: "OFFSET" as const, offsetMinutes: 15 },
     recurring: false,
   };
 
@@ -138,12 +138,20 @@ describe("shiftedTaskInput", () => {
       flexibility: "FIXED",
       repeatFrequency: "NONE",
       repeatDaysOfWeek: [],
+      reminderKind: "OFFSET",
       reminderOffsetMinutes: 15,
       confirmConflicts: true,
     });
     expect(
       shiftedTaskInput({ ...values, time: "09:30" }, "later1h"),
     ).toMatchObject({ time: "10:30" });
+  });
+
+  it("has no hour to move for a task without a time", () => {
+    expect(shiftedTaskInput({ ...values, time: null }, "later1h")).toBeNull();
+    expect(
+      shiftedTaskInput({ ...values, time: null }, "tomorrow"),
+    ).toMatchObject({ date: "2026-10-03", time: undefined });
   });
 
   it("moves only the date to the next day, keeping the rest", () => {
@@ -194,6 +202,54 @@ describe("openItems", () => {
     ).toEqual([
       { id: "Gym", time: "18:00", title: "Gym" },
       { id: "Call", time: "20:00", title: "Call" },
+    ]);
+  });
+});
+
+describe("tasks without a time (sprint-18-tasks.md п.20)", () => {
+  // Oct 1 at local midnight in Madrid.
+  const untimed = (id: string, status: OccurrenceStatus = "SCHEDULED") => ({
+    ...occurrence(id, "2026-09-30T22:00:00Z", status, "FLEXIBLE"),
+    task: {
+      title: id,
+      durationMinutes: 0,
+      flexibility: "FLEXIBLE" as const,
+      hasTime: false,
+    },
+  });
+
+  it("lists them after the timed tasks, as Anytime", () => {
+    expect(
+      dayItems(
+        [untimed("Buy milk"), occurrence("Gym", "2026-10-01T16:00:00Z")],
+        zone,
+      ),
+    ).toEqual([
+      { time: "18:00", title: "Gym", durationMinutes: 30, status: "open" },
+      { time: null, title: "Buy milk", durationMinutes: 0, status: "open" },
+    ]);
+  });
+
+  it("picks a timed task ahead, then an untimed one, then the earliest passed", () => {
+    const now = new Date("2026-10-01T12:00:00Z"); // 14:00 in Madrid
+    const ahead = occurrence("Gym", "2026-10-01T16:00:00Z");
+    const passed = occurrence("Call", "2026-10-01T08:00:00Z");
+    expect(pickNext([untimed("Buy milk"), passed, ahead], now)?.id).toBe("Gym");
+    expect(pickNext([untimed("Buy milk"), passed], now)?.id).toBe("Buy milk");
+    expect(pickNext([untimed("Buy milk", "DONE"), passed], now)?.id).toBe(
+      "Call",
+    );
+  });
+
+  it("gives the summary a button without a time", () => {
+    expect(
+      openItems(
+        [untimed("Buy milk"), occurrence("Gym", "2026-10-01T16:00:00Z")],
+        zone,
+      ),
+    ).toEqual([
+      { id: "Gym", time: "18:00", title: "Gym" },
+      { id: "Buy milk", time: null, title: "Buy milk" },
     ]);
   });
 });

@@ -53,6 +53,7 @@ function toCalendarInput(
     priority: occurrence.task.priority,
     recurrenceLabel: rule ? describeRecurrenceRule(rule) : null,
     daily: rule?.frequency === "DAILY",
+    hasTime: occurrence.task.hasTime,
   };
 }
 
@@ -105,6 +106,11 @@ export default async function CalendarPage({
   }
 
   const weekStart = mondayOf(selected);
+  // Started before the tasks are awaited and handed over unawaited: the
+  // week renders without waiting for Google (sprint-17-tasks.md п.5).
+  const busy = user
+    ? calendarService.getBusy(user.id, timezone, weekDates(weekStart))
+    : Promise.resolve({ status: "off" as const });
   const occurrences = user
     ? await calendarService.getWeekOccurrences(user.id, timezone, weekStart)
     : [];
@@ -126,6 +132,7 @@ export default async function CalendarPage({
         today={today}
         nowMinutes={now.hour * 60 + now.minute}
         timezone={timezone}
+        busy={busy}
       />
     </div>
   );

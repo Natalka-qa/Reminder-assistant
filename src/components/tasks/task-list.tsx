@@ -88,7 +88,9 @@ export function TaskList({
               time={
                 group.timeColumn
                   ? {
-                      label: formatTimeInZone(item.scheduledStart, timezone),
+                      label: item.hasTime
+                        ? formatTimeInZone(item.scheduledStart, timezone)
+                        : "Any time",
                       tone: repeatedTimes.has(item.taskId)
                         ? "repeat"
                         : item.flexibility === "FIXED"

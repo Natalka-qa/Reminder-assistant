@@ -10,6 +10,7 @@ function occurrence(
     recurrenceRule: string | null;
     durationMinutes: number;
     reminderOffsetMinutes: number;
+    hasTime: boolean;
   }> = {},
 ) {
   return {
@@ -18,6 +19,7 @@ function occurrence(
       recurrenceRule: null,
       durationMinutes: 15,
       reminderOffsetMinutes: 0,
+      hasTime: true,
       ...task,
     },
   };
@@ -26,6 +28,21 @@ function occurrence(
 describe("planMoveToToday", () => {
   // Sunday, Apr 26 2026, 10:00 in Kyiv (UTC+3).
   const now = at("2026-04-26T07:00:00Z");
+
+  it("keeps a task without a time without one, on today's midnight", () => {
+    // Apr 24 at local midnight in Kyiv.
+    expect(
+      planMoveToToday(
+        occurrence("2026-04-23T21:00:00Z", { hasTime: false }),
+        now,
+        TZ,
+      ),
+    ).toEqual({
+      scheduledStart: at("2026-04-25T21:00:00Z"),
+      scheduledEnd: null,
+      reminderAt: null,
+    });
+  });
 
   it("keeps the time of day and takes today's date in the user's zone", () => {
     // Yesterday 18:00 Kyiv → today 18:00 Kyiv.

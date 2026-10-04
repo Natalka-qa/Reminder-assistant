@@ -3,6 +3,7 @@ import {
   durationChoices,
   formatDurationChoice,
   formatNearbySlot,
+  slotNoteLine,
   formatWhenDate,
   noFreeTimeNotice,
   onlyFreeTimeNotice,
@@ -10,10 +11,16 @@ import {
   newTaskDefaults,
   overlapNotice,
   pastNotice,
+  taskInput,
   repeatHint,
   resolveTaskFields,
   DEFAULT_REMINDER_MINUTES,
   REMINDER_CHOICES,
+  parseReminderValue,
+  reminderLabel,
+  reminderOptions,
+  reminderPastNotice,
+  reminderValue,
 } from "./new-task-fields";
 import { REMINDER_OFFSET_MINUTES } from "@/lib/validation/user";
 
@@ -21,22 +28,172 @@ const TODAY = "2026-09-25"; // a Friday
 const DEFAULTS = { date: TODAY, time: "15:00" };
 
 describe("newTaskDefaults", () => {
-  it("starts at the next full hour today", () => {
-    expect(newTaskDefaults(TODAY, 14 * 60 + 20)).toEqual({
-      date: TODAY,
-      time: "15:00",
-    });
-    expect(newTaskDefaults(TODAY, 9 * 60)).toEqual({
-      date: TODAY,
-      time: "10:00",
+  it("is today with no time (sprint-18-tasks.md п.6)", () => {
+    expect(newTaskDefaults(TODAY)).toEqual({ date: TODAY, time: null });
+  });
+});
+
+describe("resolveTaskFields without a time", () => {
+  const NO_TIME = { date: TODAY, time: null, reminderOffsetMinutes: 30 };
+
+  it("is Any time, Flexible and without a reminder by default", () => {
+    expect(resolveTaskFields({}, {}, NO_TIME)).toMatchObject({
+      time: null,
+      timeGiven: false,
+      flexibility: "FLEXIBLE",
+      reminder: { kind: "NONE", offsetMinutes: 0 },
     });
   });
 
-  it("moves to tomorrow morning once no hour is left today", () => {
-    expect(newTaskDefaults(TODAY, 23 * 60 + 10)).toEqual({
-      date: "2026-09-26",
-      time: "09:00",
+  it("stays Flexible even when Fixed was picked by hand", () => {
+    expect(
+      resolveTaskFields({}, { flexibility: "FIXED" }, NO_TIME).flexibility,
+    ).toBe("FLEXIBLE");
+  });
+
+  it("gets the default reminder once a time is given", () => {
+    expect(resolveTaskFields({ time: "18:00" }, {}, NO_TIME)).toMatchObject({
+      time: "18:00",
+      flexibility: "FIXED",
+      reminder: { kind: "OFFSET", offsetMinutes: 30 },
     });
+  });
+
+  it("drops a parsed time removed by hand", () => {
+    expect(
+      resolveTaskFields({ time: "18:00" }, { time: null }, NO_TIME),
+    ).toMatchObject({ time: null, timeGiven: false, flexibility: "FLEXIBLE" });
+  });
+
+  it("keeps a picked reminder while it fits, else what fits", () => {
+    const morning = { kind: "MORNING_OF" as const, offsetMinutes: 0 };
+    expect(
+      resolveTaskFields({}, { reminder: morning }, NO_TIME).reminder,
+    ).toEqual(morning);
+    // A time set after: that morning doesn't fit a time — minutes before.
+    expect(
+      resolveTaskFields({}, { reminder: morning, time: "18:00" }, NO_TIME)
+        .reminder,
+    ).toEqual({ kind: "OFFSET", offsetMinutes: 30 });
+    // "No reminder" fits both.
+    const none = { kind: "NONE" as const, offsetMinutes: 0 };
+    expect(
+      resolveTaskFields({}, { reminder: none, time: "18:00" }, NO_TIME)
+        .reminder,
+    ).toEqual(none);
+  });
+
+  it("is saved without a time and with its reminder kind", () => {
+    const input = taskInput(
+      "Buy groceries",
+      resolveTaskFields({}, {}, NO_TIME),
+    );
+    expect(input.time).toBeUndefined();
+    expect(input).toMatchObject({
+      flexibility: "FLEXIBLE",
+      reminderKind: "NONE",
+    });
+  });
+});
+
+describe("reminderOptions", () => {
+  it("offers none and minutes before with a time", () => {
+    expect(reminderOptions(true).map((o) => o.value)).toEqual([
+      "NONE",
+      "0",
+      "5",
+      "10",
+      "15",
+      "30",
+      "60",
+      "1440",
+    ]);
+  });
+
+  it("adds a task's off-list minutes in their place", () => {
+    const options = reminderOptions(true, {
+      kind: "OFFSET",
+      offsetMinutes: 45,
+    });
+    expect(options.map((o) => o.value)).toContain("45");
+    expect(options.find((o) => o.value === "45")?.label).toBe("45 min before");
+  });
+
+  it("offers none or a fixed hour without a time", () => {
+    expect(reminderOptions(false)).toEqual([
+      { value: "NONE", label: "No reminder" },
+      { value: "MORNING_OF", label: "That morning, 09:00" },
+      { value: "EVENING_BEFORE", label: "Evening before, 19:00" },
+    ]);
+  });
+
+  it("reads back what it offers", () => {
+    expect(parseReminderValue("MORNING_OF")).toEqual({
+      kind: "MORNING_OF",
+      offsetMinutes: 0,
+    });
+    expect(parseReminderValue("30")).toEqual({
+      kind: "OFFSET",
+      offsetMinutes: 30,
+    });
+    expect(reminderValue({ kind: "OFFSET", offsetMinutes: 30 })).toBe("30");
+    expect(reminderValue({ kind: "NONE", offsetMinutes: 15 })).toBe("NONE");
+  });
+});
+
+describe("reminderLabel", () => {
+  it("names listed and off-list offsets", () => {
+    expect(reminderLabel(15)).toBe("15 min before");
+    expect(reminderLabel(0)).toBe("At start time");
+    expect(reminderLabel(20)).toBe("20 min before");
+    expect(reminderLabel(90)).toBe("1 h 30 min before");
+    expect(reminderLabel(120)).toBe("2 hours before");
+    expect(reminderLabel(1440)).toBe("1 day before");
+  });
+});
+
+describe("reminderPastNotice", () => {
+  const morning = { kind: "MORNING_OF" as const, offsetMinutes: 0 };
+  const evening = { kind: "EVENING_BEFORE" as const, offsetMinutes: 0 };
+
+  it("says when that morning's 09:00 is already gone", () => {
+    expect(reminderPastNotice(TODAY, morning, TODAY, 10 * 60)).toBe(
+      "09:00 that morning has already passed — no reminder.",
+    );
+    expect(reminderPastNotice(TODAY, morning, TODAY, 8 * 60)).toBeNull();
+    expect(
+      reminderPastNotice("2026-09-26", morning, TODAY, 10 * 60),
+    ).toBeNull();
+  });
+
+  it("says when the evening before's 19:00 is already gone", () => {
+    expect(reminderPastNotice("2026-09-26", evening, TODAY, 20 * 60)).toBe(
+      "19:00 the evening before has already passed — no reminder.",
+    );
+    expect(
+      reminderPastNotice("2026-09-26", evening, TODAY, 18 * 60),
+    ).toBeNull();
+    expect(reminderPastNotice(TODAY, evening, TODAY, 8 * 60)).not.toBeNull();
+  });
+
+  it("has nothing to say for other reminders", () => {
+    expect(
+      reminderPastNotice(
+        TODAY,
+        { kind: "OFFSET", offsetMinutes: 15 },
+        TODAY,
+        23 * 60,
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("pastNotice without a time", () => {
+  it("is late only once its day is over", () => {
+    expect(pastNotice(TODAY, null, TODAY, 23 * 60)).toBeNull();
+    expect(pastNotice("2026-09-24", null, TODAY, 0)).toBe(
+      "This date has already passed.",
+    );
   });
 });
 
@@ -51,7 +208,7 @@ describe("resolveTaskFields", () => {
       priority: "NORMAL",
       repeat: "NONE",
       repeatDays: [5],
-      reminderOffsetMinutes: 15,
+      reminder: { kind: "OFFSET", offsetMinutes: 15 },
     });
   });
 
@@ -184,6 +341,35 @@ describe("notices", () => {
   });
 });
 
+describe("slotNoteLine", () => {
+  it("names the first slot with a note", () => {
+    expect(
+      slotNoteLine(
+        [
+          { date: TODAY, time: "17:30" },
+          {
+            date: TODAY,
+            time: "19:00",
+            note: "matches your usual workout time",
+          },
+          {
+            date: TODAY,
+            time: "20:00",
+            note: "you usually finish evening tasks",
+          },
+        ],
+        TODAY,
+      ),
+    ).toBe("19:00 — matches your usual workout time");
+  });
+
+  it("is null when no slot has a note", () => {
+    expect(
+      slotNoteLine([{ date: TODAY, time: "17:30", note: null }], TODAY),
+    ).toBeNull();
+  });
+});
+
 describe("formatNearbySlot", () => {
   it("shows the time alone on the chosen day, with the weekday otherwise", () => {
     expect(formatNearbySlot({ date: TODAY, time: "17:30" }, TODAY)).toBe(
@@ -259,14 +445,20 @@ describe("reminder defaults (S14-06)", () => {
 
   it("starts at the user's default reminder, below a hand edit", () => {
     const defaults = { date: TODAY, time: "15:00", reminderOffsetMinutes: 30 };
-    expect(resolveTaskFields({}, {}, defaults).reminderOffsetMinutes).toBe(30);
+    expect(resolveTaskFields({}, {}, defaults).reminder).toEqual({
+      kind: "OFFSET",
+      offsetMinutes: 30,
+    });
     expect(
-      resolveTaskFields({}, { reminderOffsetMinutes: 5 }, defaults)
-        .reminderOffsetMinutes,
+      resolveTaskFields(
+        {},
+        { reminder: { kind: "OFFSET", offsetMinutes: 5 } },
+        defaults,
+      ).reminder.offsetMinutes,
     ).toBe(5);
     expect(
-      resolveTaskFields({}, {}, { date: TODAY, time: "15:00" })
-        .reminderOffsetMinutes,
+      resolveTaskFields({}, {}, { date: TODAY, time: "15:00" }).reminder
+        .offsetMinutes,
     ).toBe(DEFAULT_REMINDER_MINUTES);
   });
 });

@@ -1,17 +1,28 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { Suspense, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useZonedClock, type ZonedClock } from "@/lib/date/zoned-clock";
 import { shiftDate } from "@/lib/date/calendar-date";
 import { BusyLine } from "@/components/calendar/busy-line";
 import { CalendarHeader } from "@/components/calendar/calendar-header";
+import {
+  GoogleAllDayLine,
+  GoogleBusyBlocks,
+  GoogleBusyNote,
+} from "@/components/calendar/google-busy";
+import {
+  AnyTimeBlock,
+  AnyTimeRow,
+  AnyTimeRowWithBusy,
+} from "@/components/calendar/any-time-row";
 import { WeekEventBlock } from "@/components/calendar/week-event-block";
 import {
   formatMinutes,
   layoutDayEvents,
   timelineRange,
+  type CalendarBusy,
 } from "@/features/scheduling/calendar-layout";
 import type { CalendarDay } from "@/features/scheduling/calendar-view";
 
@@ -50,6 +61,7 @@ export function WeekCalendar({
   today,
   nowMinutes,
   timezone,
+  busy,
 }: {
   title: string;
   subtitle: string;
@@ -58,6 +70,8 @@ export function WeekCalendar({
   today: string;
   nowMinutes: number;
   timezone: string;
+  /** Google busy time, streamed in after the tasks (sprint-17 п.5). */
+  busy: Promise<CalendarBusy>;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState(initialSelected);
@@ -104,6 +118,13 @@ export function WeekCalendar({
         prevHref={`/calendar?date=${shiftDate(selected, -7)}`}
         nextHref={`/calendar?date=${shiftDate(selected, 7)}`}
       />
+      <Suspense fallback={null}>
+        <GoogleBusyNote
+          busy={busy}
+          dates={days.map((day) => day.date)}
+          range={range}
+        />
+      </Suspense>
       <div className="hidden lg:block">
         <DesktopWeek
           days={days}
@@ -111,6 +132,7 @@ export function WeekCalendar({
           onSelect={select}
           clock={clock}
           range={range}
+          busy={busy}
         />
       </div>
       <div className="lg:hidden">
@@ -121,6 +143,7 @@ export function WeekCalendar({
           onSwipe={shiftDay}
           clock={clock}
           range={range}
+          busy={busy}
         />
       </div>
     </div>
@@ -133,12 +156,14 @@ function DesktopWeek({
   onSelect,
   clock,
   range,
+  busy,
 }: {
   days: CalendarDay[];
   selected: string;
   onSelect: (date: string) => void;
   clock: ZonedClock;
   range: Range;
+  busy: Promise<CalendarBusy>;
 }) {
   const laidOut = useMemo(
     () =>
@@ -175,8 +200,28 @@ function DesktopWeek({
         ))}
       </div>
 
-      {/* § 2.3's "Any time" row isn't here: every task has a time
-          (decision A, review of 2026-09-25), so it would never render. */}
+      {/* § 2.3 — the "Any time" row: tasks without a time and whole-day
+          Google busy time (sprint-18-tasks.md п.19). Without waiting for
+          Google: the row with tasks only, then with the busy days too. */}
+      <Suspense
+        fallback={
+          <AnyTimeRow
+            days={days}
+            columns={columns}
+            selected={selected}
+            range={range}
+            busyAllDay={new Set()}
+          />
+        }
+      >
+        <AnyTimeRowWithBusy
+          busy={busy}
+          days={days}
+          columns={columns}
+          selected={selected}
+          range={range}
+        />
+      </Suspense>
 
       <div className="flex pt-3.5">
         <HourGutter
@@ -201,6 +246,14 @@ function DesktopWeek({
                     isSelected && "bg-calendar-selected-column",
                   )}
                 >
+                  <Suspense fallback={null}>
+                    <GoogleBusyBlocks
+                      busy={busy}
+                      date={day.date}
+                      range={range}
+                      hourHeight={DESKTOP.hourHeight}
+                    />
+                  </Suspense>
                   {laidOut[index].map((event) => (
                     <WeekEventBlock
                       key={event.occurrenceId}
@@ -229,6 +282,7 @@ function MobileWeek({
   onSwipe,
   clock,
   range,
+  busy,
 }: {
   days: CalendarDay[];
   selectedDay: CalendarDay;
@@ -236,6 +290,7 @@ function MobileWeek({
   onSwipe: (delta: number) => void;
   clock: ZonedClock;
   range: Range;
+  busy: Promise<CalendarBusy>;
 }) {
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const events = useMemo(
@@ -272,7 +327,12 @@ function MobileWeek({
         <p className="text-calendar-quiet-text text-[12px]">
           {selectedDay.countsLabel}
         </p>
+        <Suspense fallback={null}>
+          <GoogleAllDayLine busy={busy} date={selectedDay.date} range={range} />
+        </Suspense>
       </div>
+
+      <AnyTimeBlock day={selectedDay} />
 
       <div
         className="flex pt-2"
@@ -304,6 +364,14 @@ function MobileWeek({
           style={{ height }}
         >
           <HourLines range={range} hourHeight={MOBILE.hourHeight} />
+          <Suspense fallback={null}>
+            <GoogleBusyBlocks
+              busy={busy}
+              date={selectedDay.date}
+              range={range}
+              hourHeight={MOBILE.hourHeight}
+            />
+          </Suspense>
           {events.map((event) => (
             <WeekEventBlock
               key={event.occurrenceId}

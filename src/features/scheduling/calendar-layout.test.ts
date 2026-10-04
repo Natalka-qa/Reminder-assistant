@@ -3,8 +3,11 @@ import {
   blockAriaLabel,
   blockContentFit,
   blockTone,
+  busyAriaLabel,
+  busyInRange,
   busyLevel,
   formatMinutes,
+  layoutBusyBlocks,
   layoutDayEvents,
   timelineRange,
 } from "./calendar-layout";
@@ -44,6 +47,103 @@ describe("timelineRange", () => {
 
   it("stops at midnight for a task running into the next day", () => {
     expect(timelineRange([at("a", 23, 30, 120)]).endHour).toBe(24);
+  });
+});
+
+describe("busyInRange", () => {
+  const RANGE = { startHour: 7, endHour: 22 };
+  const seg = (from: number, to: number) => ({
+    startMinutes: from * 60,
+    endMinutes: to * 60,
+  });
+
+  it("keeps a segment inside the range as it is", () => {
+    expect(busyInRange([seg(14, 15)], RANGE)).toEqual({
+      allDay: false,
+      blocks: [{ ...seg(14, 15), actual: seg(14, 15) }],
+    });
+  });
+
+  it("is busy all day when one segment covers the whole range", () => {
+    expect(busyInRange([seg(0, 24)], RANGE)).toEqual({
+      allDay: true,
+      blocks: [],
+    });
+    expect(busyInRange([seg(7, 22)], RANGE)).toEqual({
+      allDay: true,
+      blocks: [],
+    });
+  });
+
+  it("cuts segments to the range and drops what falls outside it", () => {
+    expect(busyInRange([seg(0, 1), seg(6, 8), seg(21, 24)], RANGE)).toEqual({
+      allDay: false,
+      blocks: [
+        { ...seg(7, 8), actual: seg(6, 8) },
+        { ...seg(21, 22), actual: seg(21, 24) },
+      ],
+    });
+  });
+
+  it("drops a segment that only touches the range", () => {
+    expect(busyInRange([seg(5, 7), seg(22, 23)], RANGE)).toEqual({
+      allDay: false,
+      blocks: [],
+    });
+  });
+
+  it("follows a widened range", () => {
+    expect(busyInRange([seg(6, 8)], { startHour: 6, endHour: 22 })).toEqual({
+      allDay: false,
+      blocks: [{ ...seg(6, 8), actual: seg(6, 8) }],
+    });
+  });
+
+  it("isn't all day for a long working block", () => {
+    expect(busyInRange([seg(9, 17)], RANGE).allDay).toBe(false);
+  });
+});
+
+describe("layoutBusyBlocks", () => {
+  it("places a block at its true height with no minimum", () => {
+    expect(
+      layoutBusyBlocks([{ startMinutes: 14 * 60, endMinutes: 14 * 60 + 10 }], {
+        hourHeight: 60,
+        startHour: 7,
+      }),
+    ).toEqual([
+      {
+        startMinutes: 14 * 60,
+        endMinutes: 14 * 60 + 10,
+        top: 7 * 60,
+        height: 10,
+        showLabel: false,
+      },
+    ]);
+  });
+
+  it("labels blocks of 30 minutes and more", () => {
+    const [block] = layoutBusyBlocks(
+      [{ startMinutes: 9 * 60, endMinutes: 9 * 60 + 30 }],
+      DESKTOP,
+    );
+    expect(block.top).toBe(2 * 52);
+    expect(block.height).toBe(26);
+    expect(block.showLabel).toBe(true);
+  });
+});
+
+describe("busyAriaLabel", () => {
+  it("names the busy time and where it's from", () => {
+    expect(busyAriaLabel({ startMinutes: 14 * 60, endMinutes: 15 * 60 })).toBe(
+      "Busy 14:00–15:00, Google Calendar",
+    );
+  });
+
+  it("ends a segment that reaches midnight at 24:00", () => {
+    expect(busyAriaLabel({ startMinutes: 1310, endMinutes: 1440 })).toBe(
+      "Busy 21:50–24:00, Google Calendar",
+    );
   });
 });
 

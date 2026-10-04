@@ -1,16 +1,19 @@
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import type {
   ReminderPreferences,
   SchedulePreferences,
 } from "@/lib/validation/user";
 
+type Db = PrismaClient | Prisma.TransactionClient;
+
 export const userRepository = {
-  findById(id: string) {
-    return prisma.user.findUnique({ where: { id } });
+  findById(id: string, db: Db = prisma) {
+    return db.user.findUnique({ where: { id } });
   },
 
-  updateTimezone(id: string, timezone: string) {
-    return prisma.user.update({
+  updateTimezone(id: string, timezone: string, db: Db = prisma) {
+    return db.user.update({
       where: { id },
       data: { timezone, timezoneConfirmedAt: new Date() },
     });

@@ -23,7 +23,12 @@ const taskFormFields = {
   title: z.string().trim().min(1, "Title is required").max(200),
   description: z.string().trim().max(2000).optional(),
   date: dateStringSchema,
-  time: timeStringSchema,
+  // sprint-18-tasks.md — optional: no time is a task without one ("Any
+  // time"). The forms send an empty field for that.
+  time: z.preprocess(
+    (value) => (value === "" || value === null ? undefined : value),
+    timeStringSchema.optional(),
+  ),
   durationMinutes: z.coerce
     .number()
     .int()
@@ -45,6 +50,13 @@ const taskFormFields = {
     .max(1440)
     .optional()
     .default(0),
+  // sprint-18-tasks.md п.11–12 — none, minutes before (OFFSET, with
+  // reminderOffsetMinutes), or a fixed hour for a task without a time. Not
+  // given: minutes before with a time, none without (TaskService).
+  reminderKind: z.preprocess(
+    (value) => (value === "" || value === null ? undefined : value),
+    z.enum(["NONE", "OFFSET", "MORNING_OF", "EVENING_BEFORE"]).optional(),
+  ),
   // Skips the conflict check for this one submission — see TaskService.
   // Sprint 4's dialog set it on "Create anyway"; since New task v2 and Edit
   // task v2 (S14-04) both forms always set it and show overlaps as a notice.

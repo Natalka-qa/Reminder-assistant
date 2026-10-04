@@ -5,7 +5,7 @@ import {
   addMinutes,
   formatDateInZone,
   formatTimeInZone,
-  zonedDateTimeToUtc,
+  startOfDayInZone,
 } from "@/lib/date";
 import { occurrenceRepository } from "@/features/scheduling/occurrence.repository";
 import {
@@ -28,7 +28,13 @@ import { generateOccurrenceDates } from "@/features/recurrence/occurrence-dates"
 import {
   buildCandidateIntervals,
   initialRecurringIntervals,
+  type CandidateInterval,
 } from "@/features/scheduling/occurrence-candidates";
+import { isAhead, reanchorUntimed } from "@/features/scheduling/untimed";
+import {
+  reminderRuleOf,
+  type ReminderRule,
+} from "@/features/notifications/reminder-rule";
 import type { Interval } from "@/features/scheduling/external-busy";
 import type { ScheduleChangePlan } from "@/features/scheduling/schedule-change";
 import {
@@ -41,9 +47,11 @@ type Db = PrismaClient | Prisma.TransactionClient;
 
 export type OccurrenceScheduleInput = {
   date: string;
-  time: string;
+  /** Null — a task without a time (sprint-18-tasks.md). */
+  time: string | null;
   durationMinutes: number;
-  reminderOffsetMinutes: number;
+  /** sprint-18-tasks.md п.11 — the task's reminder kind and minutes. */
+  reminder: ReminderRule;
 };
 
 export type RecurringOccurrenceInput = OccurrenceScheduleInput & {
@@ -58,9 +66,33 @@ type OccurrenceCandidate = {
   taskId: string;
   userId: string;
   scheduledStart: Date;
-  scheduledEnd: Date;
+  scheduledEnd: Date | null;
   status: "SCHEDULED";
 };
+
+// Every candidate with an interval against the user's other tasks, one
+// query each. Days without a time have none and overlap nothing
+// (sprint-18-tasks.md п.16).
+async function findCandidateConflicts(
+  userId: string,
+  candidates: OccurrenceCandidate[],
+  tx: Tx,
+) {
+  const conflicts = [];
+  for (const { scheduledStart, scheduledEnd } of candidates) {
+    if (scheduledEnd === null) continue;
+    conflicts.push(
+      ...(await conflictService.findConflicts(
+        userId,
+        scheduledStart,
+        scheduledEnd,
+        undefined,
+        tx,
+      )),
+    );
+  }
+  return conflicts;
+}
 
 // createMany doesn't return the ids of the rows it inserted (see
 // "Расхождения" п.4 in sprint-6-tasks.md), so after inserting a batch we
@@ -83,7 +115,7 @@ function matchCreatedOccurrences<
 function toCandidates(
   taskId: string,
   userId: string,
-  intervals: { scheduledStart: Date; scheduledEnd: Date }[],
+  intervals: CandidateInterval[],
 ): OccurrenceCandidate[] {
   return intervals.map((interval) => ({
     taskId,
@@ -121,17 +153,16 @@ export const occurrenceService = {
   // shared `prisma` singleton.
   async createForTask(
     task: { id: string; userId: string },
-    {
-      date,
-      time,
-      durationMinutes,
-      reminderOffsetMinutes,
-    }: OccurrenceScheduleInput,
+    { date, time, durationMinutes, reminder }: OccurrenceScheduleInput,
     timezone: string,
     tx: Tx,
   ) {
-    const scheduledStart = zonedDateTimeToUtc(date, time, timezone);
-    const scheduledEnd = addMinutes(scheduledStart, durationMinutes);
+    const [{ scheduledStart, scheduledEnd }] = buildCandidateIntervals(
+      [date],
+      time,
+      durationMinutes,
+      timezone,
+    );
 
     const occurrence = await occurrenceRepository.create(
       {
@@ -146,7 +177,8 @@ export const occurrenceService = {
 
     await notificationService.createForOccurrence(
       occurrence,
-      reminderOffsetMinutes,
+      reminder,
+      timezone,
       tx,
     );
 
@@ -166,7 +198,7 @@ export const occurrenceService = {
       date,
       time,
       durationMinutes,
-      reminderOffsetMinutes,
+      reminder,
       confirmConflicts,
       externalBusy,
     }: RecurringOccurrenceInput,
@@ -179,18 +211,7 @@ export const occurrenceService = {
       initialRecurringIntervals(rule, date, time, durationMinutes, timezone),
     );
 
-    const conflicts = [];
-    for (const candidate of candidates) {
-      conflicts.push(
-        ...(await conflictService.findConflicts(
-          task.userId,
-          candidate.scheduledStart,
-          candidate.scheduledEnd,
-          undefined,
-          tx,
-        )),
-      );
-    }
+    const conflicts = await findCandidateConflicts(task.userId, candidates, tx);
 
     if (
       (conflicts.length > 0 || externalBusy.length > 0) &&
@@ -208,7 +229,8 @@ export const occurrenceService = {
     );
     await notificationService.createForOccurrences(
       matchCreatedOccurrences(candidates, created),
-      reminderOffsetMinutes,
+      reminder,
+      timezone,
       tx,
     );
 
@@ -226,10 +248,13 @@ export const occurrenceService = {
     task: { id: string; userId: string },
     plan: ScheduleChangePlan,
     {
-      reminderOffsetMinutes,
+      reminder,
       confirmConflicts,
       externalBusy,
-    }: Omit<RecurringOccurrenceInput, "date" | "time" | "durationMinutes">,
+      timezone,
+    }: Omit<RecurringOccurrenceInput, "date" | "time" | "durationMinutes"> & {
+      timezone: string;
+    },
     tx: Tx,
   ) {
     await occurrenceRepository.deleteMany(
@@ -239,18 +264,11 @@ export const occurrenceService = {
 
     const candidates = toCandidates(task.id, task.userId, plan.candidates);
     if (!confirmConflicts) {
-      const conflicts = [];
-      for (const candidate of candidates) {
-        conflicts.push(
-          ...(await conflictService.findConflicts(
-            task.userId,
-            candidate.scheduledStart,
-            candidate.scheduledEnd,
-            undefined,
-            tx,
-          )),
-        );
-      }
+      const conflicts = await findCandidateConflicts(
+        task.userId,
+        candidates,
+        tx,
+      );
       if (conflicts.length > 0 || externalBusy.length > 0) {
         throw new ScheduleConflictError(conflicts, externalBusy);
       }
@@ -265,26 +283,30 @@ export const occurrenceService = {
     );
     await notificationService.createForOccurrences(
       matchCreatedOccurrences(candidates, created),
-      reminderOffsetMinutes,
+      reminder,
+      timezone,
       tx,
     );
   },
 
   // Stops a deactivated task's future reminders from lingering: everything
-  // still SCHEDULED after `after` is cancelled. Past/completed/skipped
-  // occurrences are history and are left untouched.
+  // still open and ahead (isAhead — for a task without a time, today's day
+  // too) is cancelled. Past/completed/skipped occurrences are history and
+  // are left untouched.
   async cancelFutureOccurrences(
-    taskId: string,
-    userId: string,
-    after: Date,
+    task: { id: string; userId: string; hasTime: boolean },
+    now: Date,
+    timezone: string,
     tx: Tx,
   ) {
     await occurrenceRepository.updateMany(
       {
-        taskId,
-        userId,
+        taskId: task.id,
+        userId: task.userId,
         status: { in: ["SCHEDULED", "SNOOZED"] },
-        scheduledStart: { gt: after },
+        scheduledStart: task.hasTime
+          ? { gt: now }
+          : { gte: startOfDayInZone(now, timezone) },
       },
       { status: "CANCELLED" },
       tx,
@@ -367,9 +389,12 @@ export const occurrenceService = {
       const anchorDate = minStart
         ? formatDateInZone(minStart, zone, "yyyy-LL-dd")
         : formatDateInZone(now, zone, "yyyy-LL-dd");
-      const time = maxStart
-        ? formatTimeInZone(maxStart, zone, "HH:mm")
-        : formatTimeInZone(now, zone, "HH:mm");
+      // A task without a time keeps generating days without one.
+      const time = !task.hasTime
+        ? null
+        : maxStart
+          ? formatTimeInZone(maxStart, zone, "HH:mm")
+          : formatTimeInZone(now, zone, "HH:mm");
       const fromDate = maxStart
         ? formatDateInZone(addDaysInZone(maxStart, 1, zone), zone, "yyyy-LL-dd")
         : formatDateInZone(now, zone, "yyyy-LL-dd");
@@ -398,14 +423,62 @@ export const occurrenceService = {
       );
       await notificationService.createForOccurrences(
         matchCreatedOccurrences(candidates, created),
-        task.reminderOffsetMinutes,
+        reminderRuleOf(task),
+        zone,
         db,
+        now,
       );
 
       extended += 1;
     }
 
     return extended;
+  },
+
+  // sprint-18-tasks.md п.5 — the user's timezone changed: every day of a
+  // task without a time that's still ahead moves to the first instant of
+  // the same local date in the new zone, so it stays on its day. The past
+  // is history and stays as it was.
+  async reanchorUntimedOccurrences(
+    userId: string,
+    fromZone: string,
+    toZone: string,
+    now: Date,
+    tx: Tx,
+  ) {
+    if (fromZone === toZone) return 0;
+    const occurrences = await occurrenceRepository.findUntimedForUser(
+      userId,
+      tx,
+    );
+    const ahead = occurrences.filter((occurrence) =>
+      isAhead(occurrence, false, now, fromZone),
+    );
+    for (const occurrence of ahead) {
+      await occurrenceRepository.update(
+        occurrence.id,
+        userId,
+        {
+          scheduledStart: reanchorUntimed(
+            occurrence.scheduledStart,
+            fromZone,
+            toZone,
+          ),
+        },
+        tx,
+      );
+    }
+    // A fixed-hour reminder is local time too: 09:00 in the new zone.
+    for (const task of await taskRepository.findUntimedByUserId(userId, tx)) {
+      await notificationService.rescheduleForTask(
+        task,
+        reminderRuleOf(task),
+        toZone,
+        tx,
+        now,
+      );
+    }
+    return ahead.length;
   },
 
   completeOccurrence(userId: string, occurrenceId: string) {
@@ -505,11 +578,16 @@ export const occurrenceService = {
     );
 
     await notificationService.cancelForOccurrence(occurrenceId, tx);
-    if (plan.reminderAt) {
+    const reminder = reminderRuleOf(occurrence.task);
+    // Minutes-before keeps the move's own rule (no reminder already past);
+    // a fixed-hour one skips a past moment by itself (sprint-18 п.13).
+    if (reminder.kind !== "OFFSET" || plan.reminderAt) {
       await notificationService.createForOccurrence(
         updated,
-        occurrence.task.reminderOffsetMinutes,
+        reminder,
+        timezone,
         tx,
+        now,
       );
     }
 

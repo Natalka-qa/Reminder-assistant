@@ -2,12 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   editTaskValues,
   importanceChoicesFor,
-  reminderChoicesFor,
   recurringOverlapNotice,
-  reminderLabel,
   type EditableTask,
 } from "./edit-task-fields";
-import { REMINDER_CHOICES } from "./new-task-fields";
 
 const TASK: EditableTask = {
   title: "Dentist",
@@ -17,6 +14,8 @@ const TASK: EditableTask = {
   priority: "NORMAL",
   recurrenceRule: null,
   reminderOffsetMinutes: 15,
+  reminderKind: "OFFSET",
+  hasTime: true,
 };
 // Wednesday.
 const LOCAL = { date: "2026-10-07", time: "09:30" };
@@ -33,8 +32,27 @@ describe("editTaskValues", () => {
       priority: "NORMAL",
       repeat: "NONE",
       repeatDays: [3],
-      reminderOffsetMinutes: 15,
+      reminder: { kind: "OFFSET", offsetMinutes: 15 },
       recurring: false,
+    });
+  });
+
+  it("shows no time for a task without one, and keeps its reminder", () => {
+    // LOCAL's time would be its stored midnight.
+    expect(
+      editTaskValues(
+        {
+          ...TASK,
+          hasTime: false,
+          reminderKind: "MORNING_OF",
+          flexibility: "FLEXIBLE",
+        },
+        { date: "2026-10-07", time: "00:00" },
+      ),
+    ).toMatchObject({
+      time: null,
+      flexibility: "FLEXIBLE",
+      reminder: { kind: "MORNING_OF", offsetMinutes: 15 },
     });
   });
 
@@ -70,7 +88,7 @@ describe("editTaskValues", () => {
     expect(values).toMatchObject({
       description: "Bring the X-ray",
       priority: "CRITICAL",
-      reminderOffsetMinutes: 45,
+      reminder: { kind: "OFFSET", offsetMinutes: 45 },
       repeat: "DAILY",
       repeatDays: [3],
       recurring: true,
@@ -94,32 +112,6 @@ describe("importanceChoicesFor", () => {
       "HIGH",
       "CRITICAL",
     ]);
-  });
-});
-
-describe("reminderChoicesFor", () => {
-  it("is the New task list when the offset is on it", () => {
-    expect(reminderChoicesFor(15)).toBe(REMINDER_CHOICES);
-    expect(reminderChoicesFor(0)).toBe(REMINDER_CHOICES);
-  });
-
-  it("adds an off-list offset in its place by length", () => {
-    const choices = reminderChoicesFor(45);
-    expect(choices.map((c) => c.value)).toEqual([
-      0, 5, 10, 15, 30, 45, 60, 1440,
-    ]);
-    expect(choices.find((c) => c.value === 45)?.label).toBe("45 min before");
-  });
-});
-
-describe("reminderLabel", () => {
-  it("names listed and off-list offsets", () => {
-    expect(reminderLabel(15)).toBe("15 min before");
-    expect(reminderLabel(0)).toBe("At start time");
-    expect(reminderLabel(20)).toBe("20 min before");
-    expect(reminderLabel(90)).toBe("1 h 30 min before");
-    expect(reminderLabel(120)).toBe("2 hours before");
-    expect(reminderLabel(1440)).toBe("1 day before");
   });
 });
 

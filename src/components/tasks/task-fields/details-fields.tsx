@@ -32,7 +32,7 @@ const WEEKDAYS = [
 // repeating task isn't offered "Does not repeat".
 export function TaskDetailsFields<P extends string>({
   ids,
-  reminderOffsetMinutes,
+  reminder,
   reminderChoices,
   onReminderChange,
   priority,
@@ -47,9 +47,10 @@ export function TaskDetailsFields<P extends string>({
   hideRepeat = false,
 }: {
   ids: { reminder: string; importance: string; repeat: string };
-  reminderOffsetMinutes: number;
-  reminderChoices: readonly { value: number; label: string }[];
-  onReminderChange: (minutes: number) => void;
+  /** A reminderValue: "NONE", "MORNING_OF", "EVENING_BEFORE" or minutes. */
+  reminder: string;
+  reminderChoices: readonly { value: string; label: string }[];
+  onReminderChange: (value: string) => void;
   priority: P;
   importanceChoices: readonly { value: P; label: string }[];
   onPriorityChange: (priority: P) => void;
@@ -77,8 +78,8 @@ export function TaskDetailsFields<P extends string>({
       <SelectRow
         id={ids.reminder}
         label="Reminder"
-        value={reminderOffsetMinutes}
-        onChange={(value) => onReminderChange(Number(value))}
+        value={reminder}
+        onChange={onReminderChange}
         options={reminderChoices}
       />
       <div

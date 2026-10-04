@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { formatIntervalLabel } from "./format";
+import { formatIntervalLabel, formatReminder } from "./format";
 
 const at = (iso: string) => new Date(iso);
+
+describe("formatReminder", () => {
+  it("names each kind of reminder", () => {
+    expect(formatReminder("NONE", 15)).toBe("No reminder");
+    expect(formatReminder("MORNING_OF", 0)).toBe("That morning, 09:00");
+    expect(formatReminder("EVENING_BEFORE", 0)).toBe("Evening before, 19:00");
+    expect(formatReminder("OFFSET", 30)).toBe("30 minutes before");
+    expect(formatReminder("OFFSET", 0)).toBe("At time of task");
+  });
+});
 
 describe("formatIntervalLabel", () => {
   it("shows one date and a time range within a day, in the user's zone", () => {

@@ -50,6 +50,21 @@ export const taskRepository = {
     });
   },
 
+  // sprint-18-tasks.md п.5 — the user's tasks without a time, whose
+  // fixed-hour reminders follow a timezone change.
+  findUntimedByUserId(userId: string, db: Db = prisma) {
+    return db.task.findMany({
+      where: { userId, active: true, hasTime: false },
+      select: {
+        id: true,
+        userId: true,
+        hasTime: true,
+        reminderKind: true,
+        reminderOffsetMinutes: true,
+      },
+    });
+  },
+
   // Powers the background window-extension job — needs the owner's timezone
   // since recurrence dates are always computed in the user's zone, not UTC.
   findActiveRecurring(db: Db = prisma) {

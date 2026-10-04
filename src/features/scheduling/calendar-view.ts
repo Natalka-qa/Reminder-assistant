@@ -101,6 +101,8 @@ export type CalendarOccurrenceInput = {
   recurrenceLabel: string | null;
   /** Belongs to a task that repeats every day — the busy line's baseline. */
   daily: boolean;
+  /** False — a task without a time (sprint-18-tasks.md); it's "Any time". */
+  hasTime: boolean;
 };
 
 export type CalendarEvent = {
@@ -122,6 +124,7 @@ export type CalendarEvent = {
   priority: Priority;
   recurrenceLabel: string | null;
   overdue: boolean;
+  hasTime: boolean;
 };
 
 export type CalendarDay = {
@@ -135,7 +138,10 @@ export type CalendarDay = {
   label: string;
   /** "3 tasks · 2 fixed · 1 flexible" or "Nothing planned". */
   countsLabel: string;
+  /** The day's tasks with a time — what the timeline lays out. */
   events: CalendarEvent[];
+  /** CALENDAR_V2_UPDATE.md § 2.3 — tasks without a time (sprint-18 п.19). */
+  anyTime: CalendarEvent[];
 };
 
 export function dayCountsLabel(total: number, fixed: number): string {
@@ -147,10 +153,12 @@ function toEvent(
   occurrence: CalendarOccurrenceInput,
   today: string,
 ): CalendarEvent {
-  const time = formatMinutes(occurrence.startMinutes);
+  const time = occurrence.hasTime
+    ? formatMinutes(occurrence.startMinutes)
+    : "Any time";
   const recurring = occurrence.recurrenceLabel !== null;
   const rangeLabel =
-    occurrence.durationMinutes > 0
+    occurrence.hasTime && occurrence.durationMinutes > 0
       ? `${time}–${formatMinutes(occurrence.startMinutes + occurrence.durationMinutes)}`
       : time;
   return {
@@ -186,6 +194,7 @@ function toEvent(
       !recurring &&
       occurrence.date < today &&
       (occurrence.status === "SCHEDULED" || occurrence.status === "SNOOZED"),
+    hasTime: occurrence.hasTime,
   };
 }
 
@@ -215,7 +224,10 @@ export function buildCalendarDays(
       busyLevel: busyLevel(own.length, daily),
       label: `${date === today ? "Today · " : ""}${day.toFormat("cccc, LLL d")}`,
       countsLabel: dayCountsLabel(own.length, fixed),
-      events: own.map((o) => toEvent(o, today)),
+      // The busy line and the counts are about every task; only the timed
+      // ones go on the timeline (sprint-18-tasks.md п.19).
+      events: own.filter((o) => o.hasTime).map((o) => toEvent(o, today)),
+      anyTime: own.filter((o) => !o.hasTime).map((o) => toEvent(o, today)),
     };
   });
 }

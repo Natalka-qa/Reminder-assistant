@@ -7,6 +7,10 @@ import {
   type BehaviorPatterns,
   type Tally,
 } from "@/features/analytics/behavior-stats";
+import {
+  usualWorkoutTime,
+  type UsualTime,
+} from "@/features/analytics/usual-time";
 
 // sprint-13-tasks.md "Расхождения" п.5.
 const RECENT_ACTIVITY_DAYS = 7;
@@ -32,18 +36,24 @@ export const analyticsService = {
     );
   },
 
-  /** The 30 whole days before today — steady through the day. */
+  /**
+   * The 30 whole days before today — steady through the day. With them,
+   * from the same rows, the usual workout time (sprint-17-tasks.md S17-05).
+   */
   async getBehaviorPatterns(
     userId: string,
     timezone: string,
     now = new Date(),
-  ): Promise<BehaviorPatterns> {
+  ): Promise<BehaviorPatterns & { usualWorkout: UsualTime | null }> {
     const todayStart = startOfDayInZone(now, timezone);
     const occurrences = await occurrenceRepository.findOutcomesBetween(
       userId,
       addDaysInZone(todayStart, -PATTERN_DAYS, timezone),
       todayStart,
     );
-    return behaviorPatterns(occurrences, { timezone, todayStart });
+    return {
+      ...behaviorPatterns(occurrences, { timezone, todayStart }),
+      usualWorkout: usualWorkoutTime(occurrences, timezone),
+    };
   },
 };
