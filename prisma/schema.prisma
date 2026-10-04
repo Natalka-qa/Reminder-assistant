@@ -135,6 +135,11 @@ model Task {
   // reminder at all.
   reminderKind ReminderKind @default(OFFSET)
 
+  // sprint-19-tasks.md п.12 — when the series was ended or the task
+  // archived (active = false); null while active. Not updatedAt: any later
+  // edit would move it. Old inactive tasks got their updatedAt (S19-01).
+  endedAt DateTime?
+
   user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   occurrences TaskOccurrence[]
 
@@ -155,6 +160,15 @@ model TaskOccurrence {
 
   snoozeCount Int       @default(0)
   completedAt DateTime?
+
+  // sprint-19-tasks.md п.1–2 — this day of a series was changed on its own:
+  // moved ("Only this day") or removed ("Remove this one"). Changes to the
+  // series' time, days or duration leave it as it is.
+  isException Boolean @default(false)
+  // п.18 — where a moved day was before its first move ("Only this day"):
+  // the series still counts that date as taken. Later moves keep it; null
+  // for a day never moved.
+  originalStart DateTime?
 
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

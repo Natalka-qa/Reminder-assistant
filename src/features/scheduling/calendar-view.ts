@@ -103,6 +103,8 @@ export type CalendarOccurrenceInput = {
   daily: boolean;
   /** False — a task without a time (sprint-18-tasks.md); it's "Any time". */
   hasTime: boolean;
+  /** sprint-19-tasks.md п.5 — a day of a series moved on its own. */
+  edited: boolean;
 };
 
 export type CalendarEvent = {
@@ -125,6 +127,9 @@ export type CalendarEvent = {
   recurrenceLabel: string | null;
   overdue: boolean;
   hasTime: boolean;
+  edited: boolean;
+  /** The task page, with this day in front (п.4 — Edit asks about it). */
+  href: string;
 };
 
 export type CalendarDay = {
@@ -175,6 +180,7 @@ function toEvent(
       occurrence.durationMinutes > 0
         ? formatDuration(occurrence.durationMinutes)
         : null,
+      occurrence.edited ? "Edited" : null,
     ]
       .filter(Boolean)
       .join(" · "),
@@ -182,6 +188,7 @@ function toEvent(
       rangeLabel,
       occurrence.flexibility === "FIXED" ? "Fixed" : "Flexible",
       recurring ? `↻ ${occurrence.recurrenceLabel}` : null,
+      occurrence.edited ? "Edited" : null,
     ]
       .filter(Boolean)
       .join(" · "),
@@ -195,6 +202,8 @@ function toEvent(
       occurrence.date < today &&
       (occurrence.status === "SCHEDULED" || occurrence.status === "SNOOZED"),
     hasTime: occurrence.hasTime,
+    edited: occurrence.edited,
+    href: `/tasks/${occurrence.taskId}?occurrence=${occurrence.id}`,
   };
 }
 

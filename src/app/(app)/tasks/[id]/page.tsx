@@ -21,10 +21,20 @@ import { GroupedRows, GroupedRow } from "@/components/ui/grouped-rows";
 import { SectionLabel } from "@/components/ui/section-label";
 import { TaskDetailActions } from "@/components/tasks/task-detail-actions";
 import { RemoveOccurrenceButton } from "@/components/tasks/remove-occurrence-button";
+import { EditDayChoice } from "@/components/tasks/edit-day-choice";
+import { RestoreOccurrenceButton } from "@/components/tasks/restore-occurrence-button";
+import { canRestoreOccurrence } from "@/features/scheduling/restore-occurrence";
+import { canRescheduleOccurrence } from "@/features/scheduling/reschedule-occurrence";
 import { TaskActions } from "./task-actions";
+import { endedLabel, taskEndKind } from "@/features/tasks/task-ending";
 import { CalendarCheckToast } from "./calendar-check-toast";
 
 const HISTORY_LIMIT = 10;
+
+// "Edit" and "Remove" on a row of "Next occurrences": quiet text, a 44 px
+// target around it.
+const ROW_ACTION_CLASS =
+  "text-text-tertiary hover:text-burgundy text-meta relative min-h-11 transition-colors after:absolute after:-inset-x-2 after:-inset-y-1";
 
 // design_handoff_reminder_assistant/README.md § Task detail.
 //
@@ -52,17 +62,39 @@ export default async function TaskDetailPage({
   }
 
   const { id } = await params;
-  const { calendarCheck } = await searchParams;
+  const { calendarCheck, occurrence: focusId } = await searchParams;
   const task = await taskService.getTask(user.id, id);
   if (!task) {
     notFound();
   }
 
   const rule = parseRecurrenceRule(task.recurrenceRule);
-  const heroOccurrence = pickCurrentOccurrence(task.occurrences, new Date(), {
-    hasTime: task.hasTime,
-    timezone: user.timezone,
-  });
+  // sprint-19-tasks.md п.4 — `?occurrence=` (a Calendar event, or back from
+  // editing one day) puts that day in front, so Edit asks about it.
+  const heroOccurrence =
+    task.occurrences.find((occurrence) => occurrence.id === focusId) ??
+    pickCurrentOccurrence(task.occurrences, new Date(), {
+      hasTime: task.hasTime,
+      timezone: user.timezone,
+    });
+  const dayLabel = (occurrence: { scheduledStart: Date }) =>
+    formatDateInZone(occurrence.scheduledStart, user.timezone, "LLL d");
+  // A day without a time shows none (sprint-18-tasks.md), not midnight.
+  const timeLabel = (occurrence: { scheduledStart: Date }) =>
+    task.hasTime
+      ? formatTimeInZone(occurrence.scheduledStart, user.timezone)
+      : "Any time";
+  // п.7 — a day's own length: one day of a series can differ.
+  const heroDuration = heroOccurrence?.scheduledEnd
+    ? Math.round(
+        (heroOccurrence.scheduledEnd.getTime() -
+          heroOccurrence.scheduledStart.getTime()) /
+          60_000,
+      )
+    : task.durationMinutes;
+  const heroEditable =
+    heroOccurrence !== undefined &&
+    canRescheduleOccurrence(heroOccurrence.status, !!rule);
 
   // task.occurrences is already ordered by scheduledStart ascending
   // (taskRepository.findByIdWithOccurrences), so filtering preserves order.
@@ -75,6 +107,17 @@ export default async function TaskDetailPage({
   );
   const nextOccurrences = upcoming.filter(
     (occurrence) => occurrence.id !== heroOccurrence?.id,
+  );
+  // sprint-19-tasks.md п.8 (в) — days taken out with "Remove this one"
+  // that can still come back: only those ahead.
+  const now = new Date();
+  const removedDays = task.occurrences.filter((occurrence) =>
+    canRestoreOccurrence(
+      occurrence,
+      { recurring: !!rule, active: task.active, hasTime: task.hasTime },
+      now,
+      user.timezone,
+    ),
   );
   const history = task.occurrences
     .filter((occurrence) => !isActionableOccurrenceStatus(occurrence.status))
@@ -94,8 +137,9 @@ export default async function TaskDetailPage({
     ]),
   );
 
+  // sprint-19-tasks.md п.12 — "Series ended Oct 2" / "Archived Oct 2".
   const subtitle = !task.active
-    ? "Deactivated"
+    ? endedLabel(taskEndKind(!!rule), task.endedAt, user.timezone, "page")
     : rule
       ? describeRecurrenceRule(rule)
       : undefined;
@@ -107,8 +151,8 @@ export default async function TaskDetailPage({
         <PriorityChip priority={task.priority} />
         {heroOccurrence && (
           <p className="text-text-secondary text-[14px] font-semibold">
-            {formatTimeInZone(heroOccurrence.scheduledStart, user.timezone)} ·{" "}
-            {formatDuration(task.durationMinutes)}
+            {timeLabel(heroOccurrence)} · {formatDuration(heroDuration)}
+            {heroOccurrence.isException && " · Edited"}
           </p>
         )}
         <h1 className="font-display text-[48px] leading-[1.04] font-light">
@@ -120,15 +164,27 @@ export default async function TaskDetailPage({
       </div>
 
       <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          nativeButton={false}
-          render={<Link href={`/tasks/${task.id}/edit`} />}
-        >
-          Edit
-        </Button>
-        <TaskActions taskId={task.id} active={task.active} />
+        {heroEditable ? (
+          <EditDayChoice
+            key={heroOccurrence.id}
+            taskId={task.id}
+            occurrenceId={heroOccurrence.id}
+            dateLabel={dayLabel(heroOccurrence)}
+            render={<Button variant="outline" size="sm" />}
+          >
+            Edit
+          </EditDayChoice>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            nativeButton={false}
+            render={<Link href={`/tasks/${task.id}/edit`} />}
+          >
+            Edit
+          </Button>
+        )}
+        <TaskActions taskId={task.id} active={task.active} recurring={!!rule} />
       </div>
 
       {heroOccurrence && (
@@ -146,11 +202,7 @@ export default async function TaskDetailPage({
             // one's state carried over.
             key={heroOccurrence.id}
             occurrenceId={heroOccurrence.id}
-            dateLabel={formatDateInZone(
-              heroOccurrence.scheduledStart,
-              user.timezone,
-              "LLL d",
-            )}
+            dateLabel={dayLabel(heroOccurrence)}
             variant="button"
           />
         </div>
@@ -160,7 +212,7 @@ export default async function TaskDetailPage({
         {heroOccurrence && (
           <GroupedRow
             label="Date & time"
-            value={`${formatDateInZone(heroOccurrence.scheduledStart, user.timezone, "LLL d")}, ${formatTimeInZone(heroOccurrence.scheduledStart, user.timezone)}`}
+            value={`${dayLabel(heroOccurrence)}, ${timeLabel(heroOccurrence)}`}
           />
         )}
         <GroupedRow label="Priority" value={PRIORITY_LABELS[task.priority]} />
@@ -187,28 +239,38 @@ export default async function TaskDetailPage({
                 className="border-separator flex items-center justify-between gap-4 border-b py-3 text-[15px] last:border-b-0"
               >
                 <span className="text-text-primary">
-                  {formatDateInZone(
-                    occurrence.scheduledStart,
-                    user.timezone,
-                    "LLL d",
-                  )}{" "}
-                  · {formatTimeInZone(occurrence.scheduledStart, user.timezone)}
+                  {dayLabel(occurrence)} · {timeLabel(occurrence)}
+                  {/* п.5 — moved on its own. */}
+                  {occurrence.isException && (
+                    <span className="text-text-secondary text-meta">
+                      {" "}
+                      · Edited
+                    </span>
+                  )}
                 </span>
                 <span className="flex items-center gap-4">
                   <span className="text-text-secondary text-meta">
                     {OCCURRENCE_STATUS_LABELS[occurrence.status]}
                   </span>
+                  {canRescheduleOccurrence(occurrence.status, !!rule) && (
+                    <EditDayChoice
+                      taskId={task.id}
+                      occurrenceId={occurrence.id}
+                      dateLabel={dayLabel(occurrence)}
+                      render={
+                        <button type="button" className={ROW_ACTION_CLASS} />
+                      }
+                    >
+                      Edit
+                    </EditDayChoice>
+                  )}
                   {canRemoveOccurrence(occurrence.status, !!rule) && (
                     <RemoveOccurrenceButton
                       occurrenceId={occurrence.id}
-                      dateLabel={formatDateInZone(
-                        occurrence.scheduledStart,
-                        user.timezone,
-                        "LLL d",
-                      )}
+                      dateLabel={dayLabel(occurrence)}
                       variant="text"
                       label="Remove"
-                      textClassName="text-text-tertiary hover:text-burgundy text-meta relative min-h-11 transition-colors after:absolute after:-inset-x-2 after:-inset-y-1"
+                      textClassName={ROW_ACTION_CLASS}
                     />
                   )}
                 </span>
@@ -216,6 +278,31 @@ export default async function TaskDetailPage({
             ))}
           </div>
         </div>
+      )}
+
+      {removedDays.length > 0 && (
+        <details>
+          <summary className="text-text-secondary cursor-pointer text-[15px] font-medium">
+            Removed days
+          </summary>
+          <div className="mt-3 flex flex-col">
+            {removedDays.map((occurrence) => (
+              <div
+                key={occurrence.id}
+                className="border-separator flex items-center justify-between gap-4 border-b py-3 text-[15px] last:border-b-0"
+              >
+                <span className="text-text-secondary">
+                  {dayLabel(occurrence)} · {timeLabel(occurrence)}
+                </span>
+                <RestoreOccurrenceButton
+                  occurrenceId={occurrence.id}
+                  dateLabel={dayLabel(occurrence)}
+                  className={ROW_ACTION_CLASS}
+                />
+              </div>
+            ))}
+          </div>
+        </details>
       )}
 
       <details>
@@ -234,12 +321,7 @@ export default async function TaskDetailPage({
                 className="border-separator flex items-center justify-between gap-4 border-b py-3 text-[15px] last:border-b-0"
               >
                 <span className="text-text-secondary">
-                  {formatDateInZone(
-                    occurrence.scheduledStart,
-                    user.timezone,
-                    "LLL d",
-                  )}{" "}
-                  · {formatTimeInZone(occurrence.scheduledStart, user.timezone)}
+                  {dayLabel(occurrence)} · {timeLabel(occurrence)}
                 </span>
                 <span className="text-text-secondary text-meta">
                   {OCCURRENCE_STATUS_LABELS[occurrence.status]}

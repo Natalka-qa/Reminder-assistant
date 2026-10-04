@@ -23,6 +23,7 @@ import {
 import type { SnoozeOption } from "@/features/notifications/notification.service";
 import { cn } from "@/lib/utils";
 import { RemoveOccurrenceButton } from "@/components/tasks/remove-occurrence-button";
+import { EditDayChoice } from "@/components/tasks/edit-day-choice";
 
 const SNOOZE_OPTIONS: { value: SnoozeOption; label: string }[] = [
   { value: "15m", label: "+15 minutes" },
@@ -323,9 +324,20 @@ export function TaskRow({
               onRemoved={() => setActionsOpen(false)}
             />
           )}
-          <Link href={`/tasks/${taskId}/edit`} className={actionClass}>
-            Edit
-          </Link>
+          {recurring && actionable ? (
+            <EditDayChoice
+              taskId={taskId}
+              occurrenceId={occurrenceId}
+              dateLabel={dateLabel}
+              render={<button type="button" className={actionClass} />}
+            >
+              Edit
+            </EditDayChoice>
+          ) : (
+            <Link href={`/tasks/${taskId}/edit`} className={actionClass}>
+              Edit
+            </Link>
+          )}
         </div>
       )}
     </li>

@@ -203,20 +203,28 @@ A task can have no time — "Buy groceries", "Plan the trip" — and just belong
 `/tasks/[id]/edit` is built from the same parts as New task (`components/tasks/task-fields/`), with what editing needs instead of the sentence:
 
 - **The title is a plain field.** It isn't read as a sentence — a saved "Call mom tomorrow" doesn't move the task when you touch it. Date, time and the rest are set with the same controls as in New task.
-- **Saving untouched changes nothing.** Every field starts at the task's own value. A **Critical** task keeps Critical among its choices (New task offers Low / Normal / High only), and a reminder outside the list — say 45 min, from the old form's "Custom…" — stays as its own choice.
+- **Saving untouched changes nothing.** Every field starts at the task's own value. A **Critical** task keeps Critical among its choices (New task offers Low / Normal / High only), and a reminder outside the list — say 45 min, set with "Custom…" — stays as its own choice.
 - **Overlaps are a notice, never a dialog**, and the task never overlaps itself. A one-off task gets "Free nearby", like New task.
 - **The time can be removed or added** (× / the time picker). On a repeating task that's a change of schedule, like changing its time: the days ahead are replaced. The reminder follows: a minutes-before one becomes "No reminder" without a time; a fixed-hour one becomes minutes before with one.
-- **A repeating task** keeps its start date and can't stop repeating (deactivate it instead). Changing its time or days replaces the occurrences still ahead; the notice checks every new day in the next 30 days — "Overlaps on 2 days: Oct 3 with Dentist at 07:30, …" — with one Google request, and offers no "Free nearby" (a time free on every day isn't looked for).
+- **A repeating task** keeps its start date and can't stop repeating (end the series instead, see below). Changing its time or days replaces the occurrences still ahead; the notice checks every new day in the next 30 days — "Overlaps on 2 days: Oct 3 with Dentist at 07:30, …" — with one Google request, and offers no "Free nearby" (a time free on every day isn't looked for).
 - Clearing the note clears it.
+
+**Only this day or the whole series.** Edit on a day of a repeating task — the task page's Edit, "Edit" next to each of its next days, a Tasks row's Edit, or a Calendar event (it opens the task page on that day) — asks first: **Only this day** or **Whole series**. Only this day (`/tasks/[id]/edit?occurrence=<id>`) changes that day's date, time and length (a series without a time: only its date), with the same overlap notice and "Free nearby" as a one-off task. Not into the past, and not onto a date that already has a day of the series. The day is marked **Edited** on the task page, in Tasks and in Calendar, and its reminder moves with it. Title, reminder, repeat and note belong to the whole series. Changing the series' time, days or length later leaves a day changed on its own as it is (if the series gains or loses its time, the day stays on its date and takes the series' kind), and never puts a second day on the date it was moved from.
 
 **One day of a repeating task** — "Remove this one" on the task's page (and "Remove" next to each of its next days), or in a Tasks row's `···` actions:
 
-|                 | What happens                                                                                                                                         |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Skip            | The day stays, marked Skipped. It counts as not done in "How it's going".                                                                            |
-| Remove this one | The day goes — from Home, Tasks and Calendar — with its reminder. It isn't counted anywhere. Changing the series' time or days later brings it back. |
-| Deactivate      | Every day ahead goes; the task stays for its history.                                                                                                |
-| Delete          | The task and all its history go.                                                                                                                     |
+|                 | What happens                                                                                                                                                                                                                                                                                 |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Skip            | The day stays, marked Skipped. It counts as not done in "How it's going".                                                                                                                                                                                                                    |
+| Remove this one | The day goes — from Home, Tasks and Calendar — with its reminder. It isn't counted anywhere. Changing the series' time or days later leaves it removed. **Undo** in the toast (10 s) brings it back; later, **Restore** under "Removed days" on the task page, while the day is still ahead. |
+
+**Stopping a task** — on the task page, each with a dialog that says what happens first:
+
+|                        | What happens                                                                                                                                                                                                                                                                                             |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| End series (repeating) | Every day from today on goes, with its reminders. Days done or skipped stay and still count in Progress. The task moves to **Tasks → Ended** ("Ended Oct 2"). **Resume series** brings back the days still ahead and fills the next 30 days again; days moved or removed on their own stay as they were. |
+| Archive (one-off)      | Its reminder is cancelled and it leaves Home, Tasks and Calendar; a mark it has stays in Progress. **Restore** brings it back — if its day has passed, as an overdue task with "Move to today".                                                                                                          |
+| Delete                 | The task, all its days and reminders go for good, and its history leaves Progress.                                                                                                                                                                                                                       |
 
 ## Reminders
 
@@ -229,10 +237,12 @@ Two settings on `/settings`, each user's own:
 
 **Kinds of reminder** (each task's own, in New task and Edit):
 
-| Task           | Choices                                                                    | Default          |
-| -------------- | -------------------------------------------------------------------------- | ---------------- |
-| With a time    | No reminder · At start time · 5 / 10 / 15 / 30 min · 1 hour · 1 day before | Default reminder |
-| Without a time | No reminder · That morning, 09:00 · Evening before, 19:00                  | No reminder      |
+| Task           | Choices                                                                              | Default          |
+| -------------- | ------------------------------------------------------------------------------------ | ---------------- |
+| With a time    | No reminder · At start time · 5 / 10 / 15 / 30 min · 1 hour · 1 day before · Custom… | Default reminder |
+| Without a time | No reminder · That morning, 09:00 · Evening before, 19:00                            | No reminder      |
+
+**Custom…** (tasks with a time): a number of minutes or hours before the start, from 1 minute to 24 hours — "2 hours before", "45 min before". The Default reminder on `/settings` stays a list.
 
 "That morning" and "Evening before" are **local wall-clock time** — 09:00 on the task's day and 19:00 the day before in your timezone, through clock changes (stored as a kind, `Task.reminderKind`, not as "minutes before midnight", which DST would turn into 08:00 or 10:00). One whose moment has already passed isn't sent — a task for today made at 10:00 with "That morning" gets none, and the form says so. A minutes-before reminder that's already late still goes out at once, as before. The reminder of a task without a time reads "Buy groceries is scheduled for today." (subject "Reminder: Buy groceries — today"); "Snooze → tomorrow" on it is 09:00 tomorrow. Changing a task's reminder, date or time moves its pending reminders, cancels them for "No reminder", and creates missing ones — never re-sending one that already went out.
 
@@ -244,7 +254,7 @@ Once a chat is connected (see "Telegram setup"), it works as a second way in, on
 
 - **Write a task** the way you'd say it — "Call mom tomorrow at 18", "Позвонить маме в пятницу в 10" — and it's added by the same rules as a sentence in New task, with your Default reminder. The reply shows what was added and when, and the same notices as the form ("Overlaps with …", "… has already passed today"). Under it: **+1 h** and **Tomorrow** to fix the time or day, **Undo**, **Open**. They work for 10 minutes and until something of the task is marked; +1 h only before 23:00 and only for a task with a time, Tomorrow only for a one-off task. A sentence without a time ("buy milk") adds a task without one, like New task (see "Tasks without a time"). A find-a-time sentence ("find an hour tomorrow evening") isn't searched in the chat — the reply links to New task. A repeat with its own time on each day — "Dance every Mon at 19 and Wed at 20", "Танцы по пн в 19 и по ср в 20" — becomes one task per day (a task has one time for all its days), each with its own reply; New task does the same, listing them under "Will be added as 2 tasks" and sharing scheduling, reminder, importance and the note between them.
 - **/today** — the day in your timezone, with how many tasks are overdue; **/next** — the next open task with a time still ahead, else the first open one without a time, else the earliest one passed and not marked. Tasks without a time show as "Anytime", after the timed ones. **Today** and **Next** are also on the keyboard under the message box.
-- **Reminders** come with **Done · Snooze 15 min · Skip**, then **Open** (and **Remove this one** for a repeating task). Pressing one changes the task exactly as the same button in the app does, and the message shows the outcome; a button for a task that's no longer open just says so.
+- **Reminders** come with **Done · Snooze 15 min · Skip**, then **Open** (and **Remove this one** for a repeating task; after it, **Undo** brings the day back for 10 minutes). Pressing one changes the task exactly as the same button in the app does, and the message shows the outcome; a button for a task that's no longer open just says so.
 - **Morning summary** — on `/settings`, under Telegram: Off (default), 07:00, 08:00, 09:00 or 10:00. The `/today` text with a **✓** button per open task (up to 8); pressing one marks it and redraws the summary. Sent once a day by the same 5-minute `send-notifications` run, so up to 5 minutes after the time you picked, and not at all if it couldn't go out within 2 hours or there's nothing planned or overdue.
 
 A chat that isn't connected gets "Connect it from Settings" and nothing else. The bot's messages are in English, like the app.

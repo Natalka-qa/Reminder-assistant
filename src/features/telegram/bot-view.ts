@@ -113,6 +113,15 @@ export function localNow(
 export const FIX_WINDOW_MINUTES = 10;
 
 /**
+ * sprint-19-tasks.md п.8 — Undo under "Removed this one": in the same 10
+ * minutes as Undo under a new task, counted from the removal (the day's
+ * last change). Whether the day can come back at all is restoreRefusal's.
+ */
+export function canUndoRemoval(removedAt: Date, now: Date): boolean {
+  return now.getTime() - removedAt.getTime() <= FIX_WINDOW_MINUTES * 60_000;
+}
+
+/**
  * п.8, п.15 — Undo, +1 h and Tomorrow under a task added from a message:
  * only while it's fresh (10 minutes) and none of it has been marked yet.
  * Ownership is the service's check (getTask by user).

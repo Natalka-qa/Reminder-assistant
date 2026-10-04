@@ -7,8 +7,10 @@ import {
 import {
   anchorDateOf,
   currentTimeOfDay,
+  durationCascadeTargets,
   isScheduleChange,
   planScheduleChange,
+  planWindowExtension,
   type ExistingOccurrence,
 } from "./schedule-change";
 
@@ -318,5 +320,260 @@ describe("the task's current schedule", () => {
         { rule: { frequency: "WEEKLY", daysOfWeek: [3, 1] }, time: "18:00" },
       ),
     ).toBe(false);
+  });
+});
+
+// sprint-19-tasks.md п.1–2 — days changed on their own. `changes` is keyed
+// by the day's id (its original date).
+function withExceptions(
+  occurrences: ExistingOccurrence[],
+  changes: Record<string, Partial<ExistingOccurrence>>,
+): ExistingOccurrence[] {
+  return occurrences.map((o) =>
+    changes[o.id] ? { ...o, isException: true, ...changes[o.id] } : o,
+  );
+}
+const removed = { status: "CANCELLED" as const };
+// A day of dailyAtNine moved to `start` (п.18 — it remembers its 09:00).
+const movedTo = (id: string, start: Date) => ({
+  scheduledStart: start,
+  originalStart: at(id, "09:00"),
+});
+const ids = (occurrences: { id: string }[]) => occurrences.map((o) => o.id);
+
+describe("planScheduleChange with days changed on their own", () => {
+  // Sunday, Oct 4, 2026, at noon.
+  const noon = at("2026-10-04", "12:00");
+
+  it("a new time leaves a moved day where it is and a removed day removed", () => {
+    const plan = planScheduleChange({
+      occurrences: withExceptions(dailyAtNine(), {
+        "2026-10-06": movedTo("2026-10-06", at("2026-10-06", "15:00")),
+        "2026-10-08": removed,
+      }),
+      hadTime: true,
+      rule: { frequency: "DAILY" },
+      anchorDate: "2026-09-21",
+      time: "18:00",
+      durationMinutes: 30,
+      timezone: TZ,
+      now: noon,
+    });
+    expect(plan.replaceIds).toContain("2026-10-05");
+    expect(plan.replaceIds).not.toContain("2026-10-06");
+    expect(plan.replaceIds).not.toContain("2026-10-08");
+    const dates = localDates(plan.candidates);
+    expect(dates).toContain("2026-10-07");
+    expect(dates).not.toContain("2026-10-06");
+    expect(dates).not.toContain("2026-10-08");
+    expect(plan.reshape).toEqual([]);
+  });
+
+  it("doesn't put a new day on the date a day was moved away from (п.18)", () => {
+    const plan = planScheduleChange({
+      occurrences: withExceptions(dailyAtNine(), {
+        "2026-10-06": movedTo("2026-10-06", at("2026-10-25", "15:00")),
+      }),
+      hadTime: true,
+      rule: { frequency: "DAILY" },
+      anchorDate: "2026-09-21",
+      time: "18:00",
+      durationMinutes: 30,
+      timezone: TZ,
+      now: noon,
+    });
+    const dates = localDates(plan.candidates);
+    expect(dates).toContain("2026-10-05");
+    expect(dates).not.toContain("2026-10-06");
+    expect(dates).not.toContain("2026-10-25");
+  });
+
+  it("new repeat days skip a date a day was moved to and a removed date", () => {
+    // Every day → Sundays; Oct 6 was moved to Sunday Oct 25, Sunday Oct 18
+    // was removed.
+    const plan = planScheduleChange({
+      occurrences: withExceptions(dailyAtNine(), {
+        "2026-10-06": movedTo("2026-10-06", at("2026-10-25", "15:00")),
+        "2026-10-18": removed,
+      }),
+      hadTime: true,
+      rule: { frequency: "WEEKLY", daysOfWeek: [7] },
+      anchorDate: "2026-09-21",
+      time: "18:00",
+      durationMinutes: 30,
+      timezone: TZ,
+      now: noon,
+    });
+    expect(localDates(plan.candidates)).toEqual(["2026-10-11", "2026-11-01"]);
+    expect(plan.replaceIds).not.toContain("2026-10-06");
+  });
+
+  it("taking the time away puts a moved day at the start of its own date", () => {
+    const plan = planScheduleChange({
+      occurrences: withExceptions(dailyAtNine(), {
+        "2026-10-06": movedTo("2026-10-06", at("2026-10-06", "15:00")),
+      }),
+      hadTime: true,
+      rule: { frequency: "DAILY" },
+      anchorDate: "2026-09-21",
+      time: null,
+      durationMinutes: 30,
+      timezone: TZ,
+      now: noon,
+    });
+    expect(plan.reshape).toEqual([
+      {
+        id: "2026-10-06",
+        scheduledStart: at("2026-10-06", "00:00"),
+        scheduledEnd: null,
+      },
+    ]);
+    expect(plan.replaceIds).not.toContain("2026-10-06");
+    expect(localDates(plan.candidates)).not.toContain("2026-10-06");
+  });
+
+  it("a series without a time gets one: a moved day takes it on its own date", () => {
+    const plan = planScheduleChange({
+      occurrences: withExceptions(dailyUntimed(), {
+        "2026-10-06": {
+          scheduledStart: at("2026-10-25", "00:00"),
+          originalStart: at("2026-10-06", "00:00"),
+        },
+      }),
+      hadTime: false,
+      rule: { frequency: "DAILY" },
+      anchorDate: "2026-09-21",
+      time: "18:00",
+      durationMinutes: 45,
+      timezone: TZ,
+      now: noon,
+    });
+    expect(plan.reshape).toEqual([
+      {
+        id: "2026-10-06",
+        scheduledStart: at("2026-10-25", "18:00"),
+        scheduledEnd: at("2026-10-25", "18:45"),
+      },
+    ]);
+    expect(localDates(plan.candidates)).not.toContain("2026-10-25");
+    expect(localDates(plan.candidates)).not.toContain("2026-10-06");
+  });
+
+  it("a new duration leaves a moved day's length alone", () => {
+    const occurrences = withExceptions(dailyAtNine(), {
+      "2026-10-06": movedTo("2026-10-06", at("2026-10-06", "15:00")),
+      "2026-10-08": removed,
+    });
+    const targets = ids(durationCascadeTargets(occurrences, noon));
+    expect(targets[0]).toBe("2026-10-05");
+    expect(targets).not.toContain("2026-10-04");
+    expect(targets).not.toContain("2026-10-06");
+    expect(targets).not.toContain("2026-10-08");
+  });
+});
+
+describe("the series' schedule with days changed on their own", () => {
+  it("never reads the time from a moved day, even the latest", () => {
+    const occurrences = withExceptions(dailyAtNine(), {
+      "2026-10-21": movedTo("2026-10-21", at("2026-10-21", "20:00")),
+    });
+    expect(currentTimeOfDay(occurrences, TZ)).toBe("09:00");
+  });
+
+  it("reads a series made only of moved days from them", () => {
+    const occurrences = withExceptions(dailyAtNine().slice(0, 1), {
+      "2026-09-21": movedTo("2026-09-21", at("2026-09-21", "20:00")),
+    });
+    expect(currentTimeOfDay(occurrences, TZ)).toBe("20:00");
+  });
+
+  it("keeps the anchor on a first day moved away or removed", () => {
+    const moved = withExceptions(dailyAtNine(), {
+      "2026-09-21": movedTo("2026-09-21", at("2026-10-25", "09:00")),
+    });
+    expect(anchorDateOf(moved, TZ)).toBe("2026-09-21");
+    const gone = withExceptions(dailyAtNine(), { "2026-09-21": removed });
+    expect(anchorDateOf(gone, TZ)).toBe("2026-09-21");
+  });
+});
+
+describe("planWindowExtension", () => {
+  // The 03:00 cron on Sunday, Oct 4: the window runs to Nov 3.
+  const cron = at("2026-10-04", "03:00");
+  const extend = (occurrences: ExistingOccurrence[], hasTime = true) =>
+    planWindowExtension({
+      occurrences,
+      rule: { frequency: "DAILY" },
+      hasTime,
+      durationMinutes: 30,
+      timezone: TZ,
+      now: cron,
+    });
+
+  it("tops the window up after the latest day, at the series' time", () => {
+    const candidates = extend(dailyAtNine());
+    expect(localDates(candidates)[0]).toBe("2026-10-22");
+    expect(localDates(candidates).at(-1)).toBe("2026-11-03");
+    expect(localTimes(candidates)).toEqual(["09:00"]);
+  });
+
+  it("doesn't take the time from a last day moved on its own", () => {
+    const candidates = extend(
+      withExceptions(dailyAtNine(), {
+        "2026-10-21": movedTo("2026-10-21", at("2026-10-21", "20:00")),
+      }),
+    );
+    expect(localDates(candidates)[0]).toBe("2026-10-22");
+    expect(localTimes(candidates)).toEqual(["09:00"]);
+  });
+
+  it("doesn't bring back a removed last day", () => {
+    const candidates = extend(
+      withExceptions(dailyAtNine(), { "2026-10-21": removed }),
+    );
+    expect(localDates(candidates)[0]).toBe("2026-10-22");
+  });
+
+  it("doesn't add a second day on a date a day was moved ahead to", () => {
+    const candidates = extend(
+      withExceptions(dailyAtNine(), {
+        "2026-10-06": movedTo("2026-10-06", at("2026-10-30", "15:00")),
+      }),
+    );
+    expect(localDates(candidates)).toContain("2026-10-29");
+    expect(localDates(candidates)).not.toContain("2026-10-30");
+  });
+
+  it("does nothing while the window is full", () => {
+    const full = planWindowExtension({
+      occurrences: dailyAtNine(),
+      rule: { frequency: "DAILY" },
+      hasTime: true,
+      durationMinutes: 30,
+      timezone: TZ,
+      now: at("2026-09-21", "03:00"),
+    });
+    expect(full).toEqual([]);
+  });
+
+  it("starts again from today for a series resumed long after (п.13)", () => {
+    const candidates = planWindowExtension({
+      occurrences: dailyAtNine(),
+      rule: { frequency: "DAILY" },
+      hasTime: true,
+      durationMinutes: 30,
+      timezone: TZ,
+      now: at("2026-11-20", "12:00"),
+    });
+    // 09:00 today has passed: tomorrow is the first.
+    expect(localDates(candidates)[0]).toBe("2026-11-21");
+    expect(localDates(candidates).at(-1)).toBe("2026-12-20");
+  });
+
+  it("keeps a series without a time without one", () => {
+    const candidates = extend(dailyUntimed(), false);
+    expect(localDates(candidates)[0]).toBe("2026-10-22");
+    expect(localTimes(candidates)).toEqual(["00:00"]);
+    expect(candidates.every((c) => c.scheduledEnd === null)).toBe(true);
   });
 });

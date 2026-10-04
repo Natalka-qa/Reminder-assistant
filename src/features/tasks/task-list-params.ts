@@ -3,7 +3,8 @@
 // can import it without pulling that module's luxon/zod dependencies into
 // the browser bundle.
 
-export type TaskTab = "all" | "today" | "upcoming" | "recurring";
+// "ended" — sprint-19-tasks.md п.12: ended series and archived tasks.
+export type TaskTab = "all" | "today" | "upcoming" | "recurring" | "ended";
 export type TaskSort = "smart" | "time" | "priority";
 
 export const TASK_TABS: { value: TaskTab; label: string }[] = [
@@ -11,6 +12,7 @@ export const TASK_TABS: { value: TaskTab; label: string }[] = [
   { value: "today", label: "Today" },
   { value: "upcoming", label: "Upcoming" },
   { value: "recurring", label: "Recurring" },
+  { value: "ended", label: "Ended" },
 ];
 
 export const TASK_SORTS: { value: TaskSort; label: string; hint: string }[] = [

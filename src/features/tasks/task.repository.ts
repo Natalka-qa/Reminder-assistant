@@ -91,7 +91,19 @@ export const taskRepository = {
     );
   },
 
-  setActive(id: string, userId: string, active: boolean, db: Db = prisma) {
-    return db.task.update({ where: { id, userId }, data: { active } });
+  // sprint-19-tasks.md п.12 — active, or ended / archived at `endedAt`.
+  setEnded(id: string, userId: string, endedAt: Date | null, db: Db = prisma) {
+    return db.task.update({
+      where: { id, userId },
+      data: { active: endedAt === null, endedAt },
+    });
+  },
+
+  // п.12 — Tasks → Ended.
+  findEndedByUserId(userId: string, db: Db = prisma) {
+    return db.task.findMany({
+      where: { userId, active: false },
+      orderBy: { updatedAt: "desc" },
+    });
   },
 };

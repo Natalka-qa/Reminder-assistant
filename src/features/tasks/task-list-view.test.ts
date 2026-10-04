@@ -52,6 +52,7 @@ function item(
     recurrence,
     status: "SCHEDULED",
     scheduledStart,
+    edited: false,
     ...classifyTask({ scheduledStart, recurrence }, NOW, TZ),
     ...overrides,
   };
@@ -673,6 +674,11 @@ describe("buildMeta", () => {
       "18:00",
     ]);
     expect(meta(byTitle("Take Bellara"), true)).toEqual(["↻ Daily"]);
+  });
+
+  it("Recurring, a day moved on its own: … · Edited (sprint-19 п.5)", () => {
+    const moved = { ...byTitle("English lesson"), edited: true };
+    expect(meta(moved)).toEqual(["↻ Weekly on Thu", "18:00", "Edited"]);
   });
 
   it("Upcoming / Later: date · time · duration", () => {

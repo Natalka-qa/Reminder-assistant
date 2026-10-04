@@ -1,5 +1,12 @@
+import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { SelectRow } from "./shared";
+import {
+  CUSTOM_REMINDER,
+  customReminderMinutes,
+  customReminderParts,
+  type ReminderUnit,
+} from "@/features/tasks/new-task-fields";
+import { Chevron, SelectRow } from "./shared";
 
 type Repeat = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
 
@@ -63,6 +70,40 @@ export function TaskDetailsFields<P extends string>({
   /** New task split into one task per day (split.ts): each has its own. */
   hideRepeat?: boolean;
 }) {
+  // sprint-19-tasks.md п.9 — "Custom…" opens a number and a unit under
+  // the select; each valid entry (1 min – 24 h) is the reminder at once,
+  // and leaving an invalid one puts back the last valid.
+  const [custom, setCustom] = useState<{
+    amount: string;
+    unit: ReminderUnit;
+  } | null>(null);
+  const customOpen =
+    custom !== null &&
+    reminderChoices.some((choice) => choice.value === CUSTOM_REMINDER);
+  const currentMinutes = /^\d+$/.test(reminder) ? Number(reminder) : 0;
+  const customValid =
+    custom !== null &&
+    customReminderMinutes(custom.amount, custom.unit) !== null;
+
+  function changeReminder(value: string) {
+    if (value === CUSTOM_REMINDER) {
+      setCustom(
+        currentMinutes > 0
+          ? customReminderParts(currentMinutes)
+          : { amount: "", unit: "minutes" },
+      );
+      return;
+    }
+    setCustom(null);
+    onReminderChange(value);
+  }
+
+  function changeCustom(next: { amount: string; unit: ReminderUnit }) {
+    setCustom(next);
+    const minutes = customReminderMinutes(next.amount, next.unit);
+    if (minutes !== null) onReminderChange(String(minutes));
+  }
+
   function toggleWeekday(day: number) {
     const days = repeatDays.includes(day)
       ? repeatDays.filter((d) => d !== day)
@@ -78,10 +119,58 @@ export function TaskDetailsFields<P extends string>({
       <SelectRow
         id={ids.reminder}
         label="Reminder"
-        value={reminder}
-        onChange={onReminderChange}
+        value={customOpen ? CUSTOM_REMINDER : reminder}
+        onChange={changeReminder}
         options={reminderChoices}
       />
+      {customOpen && (
+        <div
+          role="group"
+          aria-label="Custom reminder"
+          className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 pb-2.5"
+        >
+          <input
+            type="text"
+            inputMode="numeric"
+            aria-label={`Reminder, ${custom.unit} before`}
+            aria-invalid={!customValid}
+            value={custom.amount}
+            onChange={(event) =>
+              changeCustom({ ...custom, amount: event.target.value })
+            }
+            onBlur={() => {
+              if (!customValid && currentMinutes > 0) {
+                setCustom(customReminderParts(currentMinutes));
+              }
+            }}
+            placeholder="30"
+            className="border-newtask-input-rule text-text-primary placeholder:text-placeholder-text focus:border-burgundy min-h-11 w-16 rounded-none border-0 border-b bg-transparent text-right text-[15px] tabular-nums outline-none"
+          />
+          <div className="relative">
+            <select
+              aria-label="Unit"
+              value={custom.unit}
+              onChange={(event) =>
+                changeCustom({
+                  ...custom,
+                  unit: event.target.value as ReminderUnit,
+                })
+              }
+              className="text-text-primary hover:bg-newtask-control-hover min-h-11 cursor-pointer appearance-none rounded-[10px] bg-transparent py-2.5 pr-[30px] pl-3 text-[15px] transition-colors"
+            >
+              <option value="minutes">minutes</option>
+              <option value="hours">hours</option>
+            </select>
+            <Chevron />
+          </div>
+          <span className="text-text-primary text-[15px]">before</span>
+          {!customValid && (
+            <p className="text-newtask-quiet-text w-full text-right text-[13px]">
+              From 1 minute to 24 hours.
+            </p>
+          )}
+        </div>
+      )}
       <div
         role="group"
         aria-labelledby={ids.importance}
