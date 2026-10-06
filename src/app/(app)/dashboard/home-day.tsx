@@ -3,6 +3,8 @@ import type { DateTime } from "luxon";
 import Link from "next/link";
 import { formatDateInZone, formatTimeInZone } from "@/lib/date";
 import { formatDuration } from "@/lib/format";
+import { dueLabel } from "@/features/scheduling/untimed";
+import { dueTimeOf } from "@/features/tasks/new-task-fields";
 import type { dashboardService } from "@/features/scheduling/dashboard.service";
 import type { calendarService } from "@/features/scheduling/calendar.service";
 import type { BusyBetween } from "@/features/scheduling/calendar.service";
@@ -50,9 +52,41 @@ const FLEXIBILITY_LABELS: Record<Flexibility, string> = {
 // No "0 min" for a task without a duration (most tasks without a time).
 function metaLabel(occurrence: HomeOccurrence): string {
   const flexibility = FLEXIBILITY_LABELS[occurrence.task.flexibility];
-  return occurrence.task.durationMinutes > 0
-    ? `${formatDuration(occurrence.task.durationMinutes)} · ${flexibility}`
-    : flexibility;
+  // sprint-20-tasks.md п.7 — a deadline leads: "by 12:00 · Flexible".
+  const due = dueLabel({
+    hasTime: occurrence.task.hasTime ?? true,
+    dueMinutes: occurrence.task.dueMinutes ?? null,
+  });
+  return [
+    due,
+    occurrence.task.durationMinutes > 0
+      ? formatDuration(occurrence.task.durationMinutes)
+      : null,
+    flexibility,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+// "Overdue since Oct 5, 09:00", "Overdue since Oct 5" — and for a
+// deadline (sprint-20-tasks.md п.9), its time: "Overdue since 12:00"
+// today, "Overdue since Oct 5, 12:00" before.
+function overdueSince(
+  occurrence: HomeOccurrence,
+  now: DateTime,
+  timezone: string,
+): string {
+  const date = formatDateInZone(occurrence.scheduledStart, timezone, "LLL d");
+  if (occurrence.task.hasTime ?? true) {
+    return `Overdue since ${date}, ${formatTimeInZone(occurrence.scheduledStart, timezone)}`;
+  }
+  const dueMinutes = occurrence.task.dueMinutes ?? null;
+  if (dueMinutes === null) return `Overdue since ${date}`;
+  const due = dueTimeOf(dueMinutes);
+  const today =
+    formatDateInZone(occurrence.scheduledStart, timezone, "yyyy-LL-dd") ===
+    now.toISODate();
+  return today ? `Overdue since ${due}` : `Overdue since ${date}, ${due}`;
 }
 
 function emphasisFor(occurrence: HomeOccurrence): "normal" | "important" {
@@ -95,7 +129,7 @@ export async function HomeDayWithBusy({
 // here that depends on free time takes Google busy time into account when
 // `busy` has it (sprint-17-tasks.md п.7).
 export function HomeDay({
-  todayTasks,
+  todayTasks: allTodayTasks,
   overdueTasks,
   preferences,
   patterns,
@@ -112,6 +146,10 @@ export function HomeDay({
    */
   waitingForGoogle?: boolean;
 }) {
+  // sprint-20-tasks.md п.9 — a day past its deadline is under Overdue,
+  // not still in the day.
+  const overdueIds = new Set(overdueTasks.map((o) => o.id));
+  const todayTasks = allTodayTasks.filter((o) => !overdueIds.has(o.id));
   const busyRows =
     busy?.status === "ok"
       ? busyRowsForToday(busy.busy, {
@@ -265,15 +303,7 @@ export function HomeDay({
               status={occurrence.status}
               taskId={occurrence.task.id}
               title={occurrence.task.title}
-              sinceLabel={`Overdue since ${formatDateInZone(
-                occurrence.scheduledStart,
-                timezone,
-                "LLL d",
-              )}${
-                occurrence.task.hasTime
-                  ? `, ${formatTimeInZone(occurrence.scheduledStart, timezone)}`
-                  : ""
-              }`}
+              sinceLabel={overdueSince(occurrence, now, timezone)}
             />
           ))}
         </div>

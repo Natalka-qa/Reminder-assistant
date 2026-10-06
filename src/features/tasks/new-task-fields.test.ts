@@ -23,6 +23,9 @@ import {
   reminderOptions,
   reminderPastNotice,
   reminderValue,
+  defaultRepeatUntil,
+  repeatEndHint,
+  repeatShapeInput,
 } from "./new-task-fields";
 import { REMINDER_OFFSET_MINUTES } from "@/lib/validation/user";
 
@@ -232,10 +235,14 @@ describe("resolveTaskFields", () => {
       time: "15:00",
       timeGiven: false,
       durationMinutes: 0,
+      durationGuessed: false,
       flexibility: "FLEXIBLE",
       priority: "NORMAL",
       repeat: "NONE",
       repeatDays: [5],
+      repeatInterval: 1,
+      repeatEnd: { kind: "NEVER" },
+      due: null,
       reminder: { kind: "OFFSET", offsetMinutes: 15 },
     });
   });
@@ -512,5 +519,77 @@ describe("Custom… reminder (sprint-19-tasks.md п.9)", () => {
     expect(customReminderParts(120)).toEqual({ amount: "2", unit: "hours" });
     expect(customReminderParts(90)).toEqual({ amount: "90", unit: "minutes" });
     expect(customReminderParts(45)).toEqual({ amount: "45", unit: "minutes" });
+  });
+});
+
+describe("how a series ends and steps (sprint-20 п.3–4)", () => {
+  it("starts On a date a month on", () => {
+    expect(defaultRepeatUntil("2026-09-25")).toBe("2026-10-24");
+    expect(defaultRepeatUntil("2026-01-31")).toBe("2026-02-27");
+  });
+
+  it("reads a last day from the text as On a date", () => {
+    expect(
+      resolveTaskFields(
+        { repeat: "DAILY", repeatInterval: 2, repeatUntil: "2026-10-24" },
+        {},
+        DEFAULTS,
+      ),
+    ).toMatchObject({
+      repeatInterval: 2,
+      repeatEnd: { kind: "ON_DATE", until: "2026-10-24" },
+    });
+  });
+
+  it("a hand-picked end wins over the text", () => {
+    expect(
+      resolveTaskFields(
+        { repeat: "DAILY", repeatUntil: "2026-10-24" },
+        { repeatEnd: { kind: "NEVER" } },
+        DEFAULTS,
+      ).repeatEnd,
+    ).toEqual({ kind: "NEVER" });
+  });
+
+  it("saves the step only for a daily repeat, the end only for a repeat", () => {
+    const end = { kind: "ON_DATE", until: "2026-10-24" } as const;
+    expect(repeatShapeInput("DAILY", 2, end)).toEqual({
+      repeatInterval: 2,
+      repeatEnd: "ON_DATE",
+      repeatUntil: "2026-10-24",
+      repeatCount: undefined,
+    });
+    expect(repeatShapeInput("WEEKLY", 2, end).repeatInterval).toBe(1);
+    expect(repeatShapeInput("NONE", 2, end)).toMatchObject({
+      repeatInterval: 1,
+      repeatEnd: "NEVER",
+      repeatUntil: undefined,
+    });
+  });
+
+  it("names the last day of After N times", () => {
+    const after = (count: number) => ({ kind: "AFTER_COUNT" as const, count });
+    expect(repeatEndHint("DAILY", [], 2, after(5), "2026-09-25")).toBe(
+      "Last day Oct 3",
+    );
+    expect(repeatEndHint("MONTHLY", [], 1, after(6), "2026-09-25")).toBe(
+      "Last day Feb 25, 2027",
+    );
+    expect(repeatEndHint("DAILY", [], 1, { kind: "NEVER" }, TODAY)).toBeNull();
+  });
+});
+
+describe("a usual length guessed from the title", () => {
+  it("sits under the text's and a hand-picked duration", () => {
+    expect(
+      resolveTaskFields({ durationGuess: 60 }, {}, DEFAULTS),
+    ).toMatchObject({ durationMinutes: 60, durationGuessed: true });
+    expect(
+      resolveTaskFields(
+        { durationGuess: 60 },
+        { durationMinutes: 45 },
+        DEFAULTS,
+      ),
+    ).toMatchObject({ durationMinutes: 45, durationGuessed: false });
   });
 });

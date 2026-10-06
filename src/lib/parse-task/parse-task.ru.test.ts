@@ -71,6 +71,7 @@ describe("Russian", () => {
       hits: [],
       kind: "remote",
       language: "ru",
+      durationGuess: 5,
     });
   });
 

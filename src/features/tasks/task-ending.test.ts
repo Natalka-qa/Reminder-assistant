@@ -7,6 +7,8 @@ import {
   endDialog,
   endedLabel,
   endedRows,
+  finishedSeriesEndedAt,
+  resumedRecurrenceRule,
   taskEndKind,
 } from "./task-ending";
 
@@ -150,5 +152,41 @@ describe("daysToReopen (п.13)", () => {
         timezone: TZ,
       }),
     ).toEqual([]);
+  });
+});
+
+describe("a series that runs to its last day (sprint-20 п.2)", () => {
+  const rule = '{"frequency":"DAILY","until":"2026-11-02"}';
+
+  it("ends the day after its last day, in the user's zone", () => {
+    // 23:30 on Nov 2 in Kyiv — still its last day.
+    expect(
+      finishedSeriesEndedAt(rule, at("2026-11-02", "23:30"), TZ),
+    ).toBeNull();
+    expect(finishedSeriesEndedAt(rule, at("2026-11-03", "00:10"), TZ)).toEqual(
+      at("2026-11-03", "00:00"),
+    );
+  });
+
+  it("never ends a series with no last day, or a one-off", () => {
+    const now = at("2027-01-01", "12:00");
+    expect(finishedSeriesEndedAt('{"frequency":"DAILY"}', now, TZ)).toBeNull();
+    expect(finishedSeriesEndedAt(null, now, TZ)).toBeNull();
+  });
+
+  it("Resume drops a last day that's passed, keeps one still ahead", () => {
+    expect(resumedRecurrenceRule(rule, at("2026-11-05", "10:00"), TZ)).toBe(
+      '{"frequency":"DAILY"}',
+    );
+    expect(
+      resumedRecurrenceRule(rule, at("2026-11-02", "10:00"), TZ),
+    ).toBeNull();
+    expect(
+      resumedRecurrenceRule(
+        '{"frequency":"DAILY"}',
+        at("2026-11-05", "10:00"),
+        TZ,
+      ),
+    ).toBeNull();
   });
 });

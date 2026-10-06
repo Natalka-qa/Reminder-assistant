@@ -5,6 +5,8 @@ import type { DayItem, DayItemStatus } from "@/lib/telegram/bot-messages";
 import { shiftDate } from "@/lib/date/calendar-date";
 import type { UpdateTaskInput } from "@/lib/validation/task";
 import type { EditTaskValues } from "@/features/tasks/edit-task-fields";
+import { repeatShapeInput } from "@/features/tasks/new-task-fields";
+import { dueLabel } from "@/features/scheduling/untimed";
 
 // sprint-15-tasks.md S15-05 — what the bot shows, from the same
 // occurrences Home reads (dashboardService). Pure, apart from formatting
@@ -20,6 +22,8 @@ type BotOccurrence = {
     flexibility: Flexibility;
     /** False — a task without a time (sprint-18-tasks.md); missing: has one. */
     hasTime?: boolean;
+    /** sprint-20-tasks.md п.7 — "by 12:00"; missing or null — none. */
+    dueMinutes?: number | null;
   };
 };
 
@@ -42,10 +46,14 @@ export function dayItem(
   const status = DAY_STATUS[occurrence.status];
   if (!status) return null;
   return {
-    // "Anytime" in the message for a task without a time (п.20).
+    // "Anytime" in the message for a task without a time (п.20) — or its
+    // deadline, "by 12:00" (sprint-20-tasks.md п.7).
     time: timed(occurrence)
       ? formatTimeInZone(occurrence.scheduledStart, timezone)
-      : null,
+      : dueLabel({
+          hasTime: false,
+          dueMinutes: occurrence.task.dueMinutes ?? null,
+        }),
     title: occurrence.task.title,
     durationMinutes: occurrence.task.durationMinutes,
     status,
@@ -173,6 +181,9 @@ export function shiftedTaskInput(
     flexibility,
     repeatFrequency: values.repeat,
     repeatDaysOfWeek: values.repeat === "WEEKLY" ? values.repeatDays : [],
+    // sprint-20-tasks.md п.2 — the series keeps its step and last day.
+    ...repeatShapeInput(values.repeat, values.repeatInterval, values.repeatEnd),
+    dueTime: time === null ? (values.due ?? undefined) : undefined,
     reminderKind: values.reminder.kind,
     reminderOffsetMinutes: values.reminder.offsetMinutes,
     confirmConflicts: true,

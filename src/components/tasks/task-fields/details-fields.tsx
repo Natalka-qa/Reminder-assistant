@@ -5,7 +5,9 @@ import {
   customReminderMinutes,
   customReminderParts,
   type ReminderUnit,
+  type RepeatEndChoice,
 } from "@/features/tasks/new-task-fields";
+import { RepeatEndField, RepeatIntervalField } from "./repeat-shape-fields";
 import { Chevron, SelectRow } from "./shared";
 
 type Repeat = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
@@ -22,6 +24,10 @@ export const REPEAT_CHOICES: readonly { value: Repeat; label: string }[] = [
   { value: "WEEKLY", label: "Every week" },
   { value: "MONTHLY", label: "Every month" },
 ];
+
+// sprint-20-tasks.md п.4 — "Every N days" is a daily repeat with a step:
+// a choice of its own in the select, offered right after Every day.
+const EVERY_N_DAYS = "EVERY_N_DAYS";
 
 const WEEKDAYS = [
   { value: 1, label: "Mo", name: "Monday" },
@@ -51,6 +57,13 @@ export function TaskDetailsFields<P extends string>({
   repeatDays,
   onRepeatDaysChange,
   repeatHint,
+  repeatInterval,
+  onRepeatIntervalChange,
+  repeatEnd,
+  onRepeatEndChange,
+  repeatEndHint,
+  repeatStart,
+  repeatEndByCount = true,
   hideRepeat = false,
 }: {
   ids: { reminder: string; importance: string; repeat: string };
@@ -67,6 +80,17 @@ export function TaskDetailsFields<P extends string>({
   repeatDays: number[];
   onRepeatDaysChange: (days: number[]) => void;
   repeatHint: string | null;
+  /** sprint-20-tasks.md п.4 — 1 unless every N days. */
+  repeatInterval: number;
+  onRepeatIntervalChange: (interval: number) => void;
+  /** п.3 — how the series ends. */
+  repeatEnd: RepeatEndChoice;
+  onRepeatEndChange: (end: RepeatEndChoice) => void;
+  repeatEndHint: string | null;
+  /** The series' first day — the earliest last day it can have. */
+  repeatStart: string;
+  /** Offer "After a number of times" — not when editing (п.3). */
+  repeatEndByCount?: boolean;
   /** New task split into one task per day (split.ts): each has its own. */
   hideRepeat?: boolean;
 }) {
@@ -102,6 +126,23 @@ export function TaskDetailsFields<P extends string>({
     setCustom(next);
     const minutes = customReminderMinutes(next.amount, next.unit);
     if (minutes !== null) onReminderChange(String(minutes));
+  }
+
+  const everyNDays = repeat === "DAILY" && repeatInterval > 1;
+  const repeatOptions = repeatChoices.flatMap((choice) =>
+    choice.value === "DAILY"
+      ? [choice, { value: EVERY_N_DAYS, label: "Every few days" }]
+      : [choice],
+  );
+
+  function changeRepeat(value: string) {
+    if (value === EVERY_N_DAYS) {
+      onRepeatChange("DAILY");
+      if (repeatInterval < 2) onRepeatIntervalChange(2);
+      return;
+    }
+    onRepeatChange(value as Repeat);
+    if (repeatInterval !== 1) onRepeatIntervalChange(1);
   }
 
   function toggleWeekday(day: number) {
@@ -208,11 +249,17 @@ export function TaskDetailsFields<P extends string>({
           <SelectRow
             id={ids.repeat}
             label="Repeat"
-            value={repeat}
-            onChange={(value) => onRepeatChange(value as Repeat)}
-            options={repeatChoices}
+            value={everyNDays ? EVERY_N_DAYS : repeat}
+            onChange={changeRepeat}
+            options={repeatOptions}
             bordered={false}
           />
+          {everyNDays && (
+            <RepeatIntervalField
+              interval={repeatInterval}
+              onChange={onRepeatIntervalChange}
+            />
+          )}
           {repeat === "WEEKLY" && (
             <div
               role="group"
@@ -245,6 +292,16 @@ export function TaskDetailsFields<P extends string>({
             <p className="text-newtask-quiet-text pb-3.5 text-[13px]">
               {repeatHint}
             </p>
+          )}
+          {repeat !== "NONE" && (
+            <RepeatEndField
+              id={`${ids.repeat}-end`}
+              end={repeatEnd}
+              start={repeatStart}
+              hint={repeatEndHint}
+              byCount={repeatEndByCount}
+              onChange={onRepeatEndChange}
+            />
           )}
         </div>
       )}

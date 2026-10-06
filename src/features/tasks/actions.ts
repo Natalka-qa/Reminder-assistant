@@ -10,6 +10,7 @@ import { formatIntervalLabel } from "@/lib/format";
 import {
   createTaskSchema,
   dateStringSchema,
+  repeatShapeFields,
   timeStringSchema,
 } from "@/lib/validation/task";
 import { taskService } from "@/features/tasks/task.service";
@@ -62,6 +63,12 @@ function readTaskForm(formData: FormData) {
     flexibility: formData.get("flexibility"),
     repeatFrequency: formData.get("repeatFrequency") || undefined,
     repeatDaysOfWeek: formData.getAll("repeatDaysOfWeek"),
+    // sprint-20-tasks.md п.3–4.
+    repeatInterval: formData.get("repeatInterval") || undefined,
+    repeatEnd: formData.get("repeatEnd") || undefined,
+    repeatUntil: formData.get("repeatUntil"),
+    repeatCount: formData.get("repeatCount"),
+    dueTime: formData.get("dueTime"),
     reminderOffsetMinutes: formData.get("reminderOffsetMinutes") || undefined,
     // sprint-18-tasks.md п.11 — none, minutes before or a fixed hour.
     reminderKind: formData.get("reminderKind") || undefined,
@@ -312,6 +319,7 @@ const editOverlapPreviewInput = overlapPreviewInput.extend({
   taskId: z.string().min(1),
   repeatFrequency: z.enum(["NONE", "DAILY", "WEEKLY", "MONTHLY"]),
   repeatDaysOfWeek: z.array(z.number().int().min(1).max(7)),
+  ...repeatShapeFields,
   // sprint-19-tasks.md п.4 — "Only this day": one day of a series is
   // checked like a one-off, "Free nearby" included.
   singleDay: z.boolean().optional(),
@@ -334,8 +342,17 @@ export async function previewTaskEditOverlapsAction(
   if (!user || !parsed.success) {
     return null;
   }
-  const { taskId, repeatFrequency, repeatDaysOfWeek, singleDay, ...when } =
-    parsed.data;
+  const {
+    taskId,
+    repeatFrequency,
+    repeatDaysOfWeek,
+    repeatInterval,
+    repeatEnd,
+    repeatUntil,
+    repeatCount,
+    singleDay,
+    ...when
+  } = parsed.data;
   try {
     const task = await taskService.getTask(user.id, taskId);
     if (!task) return null;
@@ -346,7 +363,15 @@ export async function previewTaskEditOverlapsAction(
           user.id,
           taskId,
           user.timezone,
-          { ...when, repeatFrequency, repeatDaysOfWeek },
+          {
+            ...when,
+            repeatFrequency,
+            repeatDaysOfWeek,
+            repeatInterval,
+            repeatEnd,
+            repeatUntil,
+            repeatCount,
+          },
         ),
       };
     }

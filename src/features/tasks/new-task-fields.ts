@@ -1,5 +1,9 @@
 import type { CreateTaskInput } from "@/lib/validation/task";
 import {
+  describeRecurrenceRule,
+  nthOccurrenceDate,
+} from "@/features/recurrence/recurrence-rule";
+import {
   daysBetween,
   formatCalendarDate as format,
   isoWeekday,
@@ -7,6 +11,44 @@ import {
 } from "@/lib/date/calendar-date";
 
 type RepeatFrequency = CreateTaskInput["repeatFrequency"];
+
+/** sprint-20-tasks.md п.3 — how a series ends, as the form holds it. */
+export type RepeatEndChoice =
+  | { kind: "NEVER" }
+  | { kind: "ON_DATE"; until: string }
+  | { kind: "AFTER_COUNT"; count: number };
+
+export const NEVER_ENDS: RepeatEndChoice = { kind: "NEVER" };
+
+/** sprint-20-tasks.md п.7 — a deadline's minutes of the day as "12:00". */
+export function dueTimeOf(dueMinutes: number): string {
+  const hours = Math.floor(dueMinutes / 60);
+  const minutes = dueMinutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+/**
+ * п.3–4 — a repeat's step and end as the save fields: the step only for a
+ * daily repeat. Shared by New task, Edit task and the bot's buttons, so a
+ * save never drops a series' end.
+ */
+export function repeatShapeInput(
+  repeat: RepeatFrequency,
+  interval: number,
+  end: RepeatEndChoice,
+): Pick<
+  CreateTaskInput,
+  "repeatInterval" | "repeatEnd" | "repeatUntil" | "repeatCount"
+> {
+  return {
+    repeatInterval: repeat === "DAILY" ? interval : 1,
+    repeatEnd: repeat === "NONE" ? "NEVER" : end.kind,
+    repeatUntil:
+      repeat !== "NONE" && end.kind === "ON_DATE" ? end.until : undefined,
+    repeatCount:
+      repeat !== "NONE" && end.kind === "AFTER_COUNT" ? end.count : undefined,
+  };
+}
 
 // NEW_TASK_V2_UPDATE.md — the New task form's field rules as plain
 // functions: defaults, which value wins (a hand edit over what the text
@@ -27,6 +69,16 @@ export type ParsedTaskFields = {
   durationMinutes?: number;
   repeat?: RepeatFrequency;
   repeatDays?: number[];
+  /** sprint-20-tasks.md п.4 — "every other day": 2. */
+  repeatInterval?: number;
+  /** п.3 — "for a month", "until Nov 3": the series' last day. */
+  repeatUntil?: string;
+  /** п.6 — a dose of a course: its time is a default, not a given one. */
+  course?: boolean;
+  /** п.7 — "by 12:00": a deadline, "HH:mm", for a task without a time. */
+  due?: string;
+  /** The usual length for the title's words, when the text gives none. */
+  durationGuess?: number;
   priority?: Importance;
   /** sprint-12-tasks.md S12-04 — the text asks to find a time. */
   timeSearch?: { partOfDay: PartOfDay };
@@ -47,7 +99,13 @@ export type FoundSlot = {
 export const SEARCH_DEFAULT_DURATION_MINUTES = 30;
 
 /** sprint-18-tasks.md п.11 — a task's reminder, as the form holds it. */
-export type ReminderKind = "NONE" | "OFFSET" | "MORNING_OF" | "EVENING_BEFORE";
+export type ReminderKind =
+  | "NONE"
+  | "OFFSET"
+  | "MORNING_OF"
+  | "EVENING_BEFORE"
+  // sprint-20-tasks.md п.8 — minutes before the deadline ("by 12:00").
+  | "BEFORE_DUE";
 export type ReminderChoice = { kind: ReminderKind; offsetMinutes: number };
 
 /** Fields the user changed by hand — never overwritten by typing (§ 8). */
@@ -60,6 +118,10 @@ export type TaskFieldOverrides = {
   priority?: Importance;
   repeat?: RepeatFrequency;
   repeatDays?: number[];
+  repeatInterval?: number;
+  repeatEnd?: RepeatEndChoice;
+  /** sprint-20-tasks.md п.7 — null: the deadline removed by hand. */
+  due?: string | null;
   reminder?: ReminderChoice;
 };
 
@@ -95,11 +157,26 @@ const UNTIMED_REMINDERS: { value: string; label: string }[] = [
   { value: "EVENING_BEFORE", label: "Evening before, 19:00" },
 ];
 
+// sprint-20-tasks.md п.8 — "30 min before the deadline" is
+// "BEFORE_DUE:30" in the select.
+const BEFORE_DUE_PREFIX = "BEFORE_DUE:";
+
+/** п.8 — the minutes before a deadline offered; 30 unless picked. */
+export const DUE_REMINDER_CHOICES = [15, 30, 60, 120];
+export const DEFAULT_DUE_REMINDER_MINUTES = 30;
+
 export function reminderValue({ kind, offsetMinutes }: ReminderChoice): string {
+  if (kind === "BEFORE_DUE") return `${BEFORE_DUE_PREFIX}${offsetMinutes}`;
   return kind === "OFFSET" ? String(offsetMinutes) : kind;
 }
 
 export function parseReminderValue(value: string): ReminderChoice {
+  if (value.startsWith(BEFORE_DUE_PREFIX)) {
+    return {
+      kind: "BEFORE_DUE",
+      offsetMinutes: Number(value.slice(BEFORE_DUE_PREFIX.length)),
+    };
+  }
   if (
     value === "NONE" ||
     value === "MORNING_OF" ||
@@ -134,7 +211,7 @@ export function reminderOptions(
   hasTime: boolean,
   ...keep: (ReminderChoice | undefined)[]
 ): { value: string; label: string }[] {
-  if (!hasTime) return UNTIMED_REMINDERS;
+  if (!hasTime) return untimedReminderOptions(false, ...keep);
   const extra = [
     ...new Set(
       keep
@@ -160,6 +237,38 @@ export function reminderOptions(
       label: choice.label,
     })),
     { value: CUSTOM_REMINDER, label: "Custom…" },
+  ];
+}
+
+/** п.8 — "30 min before 12:00" without the time: "30 min before deadline". */
+export function dueReminderLabel(minutes: number): string {
+  return reminderLabel(minutes).replace(/ before$/, " before deadline");
+}
+
+/**
+ * sprint-18-tasks.md п.12, sprint-20-tasks.md п.8 — a task without a
+ * time: none or a fixed hour, and with a deadline also minutes before it
+ * (plus `keep`'s own minutes not on the list).
+ */
+export function untimedReminderOptions(
+  hasDue: boolean,
+  ...keep: (ReminderChoice | undefined)[]
+): { value: string; label: string }[] {
+  if (!hasDue) return UNTIMED_REMINDERS;
+  const minutes = [
+    ...new Set([
+      ...DUE_REMINDER_CHOICES,
+      ...keep
+        .filter((choice) => choice?.kind === "BEFORE_DUE")
+        .map((choice) => choice!.offsetMinutes),
+    ]),
+  ].sort((a, b) => a - b);
+  return [
+    ...UNTIMED_REMINDERS,
+    ...minutes.map((value) => ({
+      value: reminderValue({ kind: "BEFORE_DUE", offsetMinutes: value }),
+      label: dueReminderLabel(value),
+    })),
   ];
 }
 
@@ -198,15 +307,20 @@ export function fittingReminder(
   reminder: ReminderChoice,
   hasTime: boolean,
   offset: number,
+  hasDue = false,
 ): ReminderChoice {
   const fits =
     reminder.kind === "NONE" ||
     (hasTime
       ? reminder.kind === "OFFSET"
-      : reminder.kind === "MORNING_OF" || reminder.kind === "EVENING_BEFORE");
+      : reminder.kind === "MORNING_OF" ||
+        reminder.kind === "EVENING_BEFORE" ||
+        (reminder.kind === "BEFORE_DUE" && hasDue));
   if (fits) return reminder;
-  return hasTime
-    ? { kind: "OFFSET", offsetMinutes: offset }
+  if (hasTime) return { kind: "OFFSET", offsetMinutes: offset };
+  // sprint-20-tasks.md п.8 — a deadline is reminded 30 min before it.
+  return hasDue
+    ? { kind: "BEFORE_DUE", offsetMinutes: DEFAULT_DUE_REMINDER_MINUTES }
     : { kind: "NONE", offsetMinutes: 0 };
 }
 
@@ -300,6 +414,61 @@ export function repeatHint(
 }
 
 /**
+ * sprint-20-tasks.md п.5 — a split part's repeat in a few words: "Every 2
+ * days until Oct 25", "Daily". Null for a one-off.
+ */
+export function repeatSummary(fields: ResolvedTaskFields): string | null {
+  if (fields.repeat === "NONE") return null;
+  const end = fields.repeatEnd;
+  const base =
+    fields.repeat === "WEEKLY"
+      ? { frequency: "WEEKLY" as const, daysOfWeek: fields.repeatDays }
+      : fields.repeat === "DAILY"
+        ? { frequency: "DAILY" as const, interval: fields.repeatInterval }
+        : { frequency: "MONTHLY" as const };
+  const until =
+    end.kind === "ON_DATE"
+      ? end.until
+      : end.kind === "AFTER_COUNT"
+        ? (nthOccurrenceDate(base, fields.date, end.count) ?? undefined)
+        : undefined;
+  return describeRecurrenceRule({ ...base, until });
+}
+
+/** sprint-20-tasks.md п.3 — "On date" starts a month on: its last day. */
+export function defaultRepeatUntil(start: string): string {
+  const monthOn = nthOccurrenceDate({ frequency: "MONTHLY" }, start, 2);
+  return shiftDate(monthOn ?? shiftDate(start, 30), -1);
+}
+
+/** п.3 — "After N times" starts at 10. */
+export const DEFAULT_REPEAT_COUNT = 10;
+
+/**
+ * п.3 — the line under Ends: "Last day Oct 15" for after N times, so the
+ * count reads as a date; null otherwise or for a count out of range.
+ */
+export function repeatEndHint(
+  repeat: RepeatFrequency,
+  repeatDays: number[],
+  interval: number,
+  end: RepeatEndChoice,
+  start: string,
+): string | null {
+  if (repeat === "NONE" || end.kind !== "AFTER_COUNT") return null;
+  const rule =
+    repeat === "WEEKLY"
+      ? { frequency: "WEEKLY" as const, daysOfWeek: repeatDays }
+      : repeat === "DAILY"
+        ? { frequency: "DAILY" as const, interval }
+        : { frequency: "MONTHLY" as const };
+  const last = nthOccurrenceDate(rule, start, end.count);
+  return last
+    ? `Last day ${format(last, { month: "short", day: "numeric", ...(last.slice(0, 4) !== start.slice(0, 4) ? { year: "numeric" } : {}) })}`
+    : null;
+}
+
+/**
  * NEW_TASK_V2_UPDATE.md § 4 — with no input the date is today and there's
  * no time (sprint-18-tasks.md п.6, replacing decision A of 2026-09-25 and
  * its "next full hour").
@@ -315,10 +484,17 @@ export type ResolvedTaskFields = {
   /** The time came from the text or a hand edit, not the default. */
   timeGiven: boolean;
   durationMinutes: number;
+  /** The duration is the usual one for the title, not given or picked. */
+  durationGuessed: boolean;
   flexibility: Flexibility;
   priority: Importance;
   repeat: RepeatFrequency;
   repeatDays: number[];
+  /** sprint-20-tasks.md п.4 — 1 unless every N days. */
+  repeatInterval: number;
+  repeatEnd: RepeatEndChoice;
+  /** sprint-20-tasks.md п.7 — "HH:mm"; null without one, always with a time. */
+  due: string | null;
   reminder: ReminderChoice;
 };
 
@@ -346,19 +522,35 @@ export function resolveTaskFields(
     overrides.time !== undefined
       ? overrides.time
       : (found?.time ?? parsed.time ?? defaults.time);
+  // sprint-20-tasks.md п.6 — a course's dose time is the app's default
+  // for that part of the day: Flexible, reminded at its start.
   const timeGiven =
     overrides.time !== undefined
       ? overrides.time !== null
-      : parsed.time !== undefined;
+      : parsed.time !== undefined && !parsed.course;
   const offset = defaults.reminderOffsetMinutes ?? DEFAULT_REMINDER_MINUTES;
+  // sprint-20-tasks.md п.7 — a deadline only without a time.
+  const due =
+    time !== null
+      ? null
+      : overrides.due !== undefined
+        ? overrides.due
+        : (parsed.due ?? null);
   return {
     date,
     time,
     timeGiven,
+    // A guess from the title's words sits under what the text says and a
+    // hand edit, above the defaults.
     durationMinutes:
       overrides.durationMinutes ??
       parsed.durationMinutes ??
+      parsed.durationGuess ??
       (parsed.timeSearch ? SEARCH_DEFAULT_DURATION_MINUTES : 0),
+    durationGuessed:
+      overrides.durationMinutes === undefined &&
+      parsed.durationMinutes === undefined &&
+      parsed.durationGuess !== undefined,
     flexibility:
       time === null
         ? "FLEXIBLE"
@@ -366,13 +558,26 @@ export function resolveTaskFields(
     priority: overrides.priority ?? parsed.priority ?? "NORMAL",
     repeat: overrides.repeat ?? parsed.repeat ?? "NONE",
     repeatDays: overrides.repeatDays ?? parsed.repeatDays ?? [isoWeekday(date)],
+    repeatInterval: overrides.repeatInterval ?? parsed.repeatInterval ?? 1,
+    repeatEnd:
+      overrides.repeatEnd ??
+      (parsed.repeatUntil
+        ? { kind: "ON_DATE", until: parsed.repeatUntil }
+        : NEVER_ENDS),
+    due,
     reminder: fittingReminder(
       overrides.reminder ??
         (time === null
-          ? { kind: "NONE", offsetMinutes: 0 }
-          : { kind: "OFFSET", offsetMinutes: offset }),
+          ? due === null
+            ? { kind: "NONE", offsetMinutes: 0 }
+            : {
+                kind: "BEFORE_DUE",
+                offsetMinutes: DEFAULT_DUE_REMINDER_MINUTES,
+              }
+          : { kind: "OFFSET", offsetMinutes: parsed.course ? 0 : offset }),
       time !== null,
       offset,
+      due !== null,
     ),
   };
 }
@@ -406,7 +611,16 @@ export function reminderPastNotice(
   reminder: ReminderChoice,
   today: string,
   nowMinutes: number,
+  /** sprint-20-tasks.md п.8 — the deadline a BEFORE_DUE counts back from. */
+  due: string | null = null,
 ): string | null {
+  if (reminder.kind === "BEFORE_DUE" && due !== null) {
+    const [hours, minutes] = due.split(":").map(Number);
+    const at = hours * 60 + minutes - reminder.offsetMinutes;
+    return date < today || (date === today && nowMinutes >= at)
+      ? `${dueReminderLabel(reminder.offsetMinutes).replace(/^./, (c) => c.toUpperCase())} has already passed — no reminder.`
+      : null;
+  }
   if (reminder.kind === "MORNING_OF") {
     return date < today || (date === today && nowMinutes >= 9 * 60)
       ? "09:00 that morning has already passed — no reminder."
@@ -564,6 +778,8 @@ export function taskInput(
     flexibility: fields.flexibility,
     repeatFrequency: fields.repeat,
     repeatDaysOfWeek: fields.repeat === "WEEKLY" ? fields.repeatDays : [],
+    ...repeatShapeInput(fields.repeat, fields.repeatInterval, fields.repeatEnd),
+    dueTime: fields.due ?? undefined,
     reminderKind: fields.reminder.kind,
     reminderOffsetMinutes: fields.reminder.offsetMinutes,
     confirmConflicts: true,

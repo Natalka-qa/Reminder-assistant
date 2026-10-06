@@ -577,3 +577,65 @@ describe("planWindowExtension", () => {
     expect(candidates.every((c) => c.scheduledEnd === null)).toBe(true);
   });
 });
+
+describe("a series with a last day (sprint-20 п.2)", () => {
+  it("counts a new or moved last day, or a new step, as a change", () => {
+    const stored = '{"frequency":"DAILY"}';
+    const daily = { frequency: "DAILY" as const };
+    const same = { rule: stored, time: "09:00" };
+    expect(
+      isScheduleChange(same, {
+        rule: { ...daily, interval: 1 },
+        time: "09:00",
+      }),
+    ).toBe(false);
+    expect(
+      isScheduleChange(same, {
+        rule: { ...daily, until: "2026-10-05" },
+        time: "09:00",
+      }),
+    ).toBe(true);
+    expect(
+      isScheduleChange(same, {
+        rule: { ...daily, interval: 2 },
+        time: "09:00",
+      }),
+    ).toBe(true);
+  });
+
+  it("an earlier last day drops the open days after it", () => {
+    const plan = planScheduleChange({
+      hadTime: true,
+      occurrences: dailyAtNine(),
+      rule: { frequency: "DAILY", until: "2026-10-05" },
+      anchorDate: "2026-09-21",
+      time: "09:00",
+      durationMinutes: 30,
+      timezone: TZ,
+      now: at("2026-09-28", "12:00"),
+    });
+    expect(plan.replaceIds[0]).toBe("2026-09-29");
+    expect(localDates(plan.candidates)).toEqual([
+      "2026-09-29",
+      "2026-09-30",
+      "2026-10-01",
+      "2026-10-02",
+      "2026-10-03",
+      "2026-10-04",
+      "2026-10-05",
+    ]);
+  });
+
+  it("the cron adds nothing past the last day", () => {
+    expect(
+      planWindowExtension({
+        occurrences: dailyAtNine(),
+        rule: { frequency: "DAILY", until: "2026-10-25" },
+        hasTime: true,
+        durationMinutes: 30,
+        timezone: TZ,
+        now: at("2026-10-04", "03:00"),
+      }).map((c) => formatDateInZone(c.scheduledStart, TZ, "yyyy-LL-dd")),
+    ).toEqual(["2026-10-22", "2026-10-23", "2026-10-24", "2026-10-25"]);
+  });
+});

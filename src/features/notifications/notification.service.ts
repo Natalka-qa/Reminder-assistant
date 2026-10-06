@@ -19,7 +19,7 @@ import { buildReminderTelegramMessage } from "@/lib/telegram/reminder-telegram-m
 import { notificationRepository } from "@/features/notifications/notification.repository";
 import { occurrenceRepository } from "@/features/scheduling/occurrence.repository";
 import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-status";
-import { isAhead } from "@/features/scheduling/untimed";
+import { dueLabel, isAhead } from "@/features/scheduling/untimed";
 import {
   MORNING_OF_TIME,
   computeSendAt,
@@ -212,9 +212,15 @@ export const notificationService = {
       const { task } = occurrence;
       // sprint-18-tasks.md п.14 — "today" / "tomorrow" for a task without a
       // time, instead of its stored midnight.
+      // sprint-20-tasks.md п.8 — with a deadline: "today by 12:00".
       const timeLabel = task.hasTime
         ? formatTimeInZone(occurrence.scheduledStart, user.timezone)
-        : reminderDayLabel(occurrence.scheduledStart, now, user.timezone);
+        : [
+            reminderDayLabel(occurrence.scheduledStart, now, user.timezone),
+            dueLabel(task),
+          ]
+            .filter(Boolean)
+            .join(" ");
 
       if (notification.attemptCount === 0) {
         results.push({

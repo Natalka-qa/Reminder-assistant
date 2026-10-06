@@ -49,6 +49,7 @@ function item(
     flexibility: "FLEXIBLE",
     durationMinutes: 0,
     hasTime: true,
+    dueMinutes: null,
     recurrence,
     status: "SCHEDULED",
     scheduledStart,
@@ -300,6 +301,7 @@ describe("buildTaskListItems", () => {
     durationMinutes: 30,
     recurrenceRule: null,
     hasTime: true,
+    dueMinutes: null,
     occurrences: [],
     ...overrides,
   });
@@ -826,5 +828,102 @@ describe("tasks without a time (sprint-18-tasks.md п.18)", () => {
     ];
     expect(findConflicts(items).size).toBe(0);
     expect(findRepeatedTimes(items).size).toBe(0);
+  });
+});
+
+describe("a deadline on a task without a time (sprint-20 п.7–9)", () => {
+  const untimed = (
+    dueMinutes: number | null,
+    overrides: Partial<TaskListItem> = {},
+  ) =>
+    item("Send report", "2026-04-26", "00:00", {
+      hasTime: false,
+      dueMinutes,
+      ...overrides,
+    });
+
+  it("shows by 12:00 where a time would be", () => {
+    expect(
+      buildMeta(untimed(720), { timeInColumn: false, ...CONTEXT }),
+    ).toEqual(["by 12:00", "Flexible"]);
+    expect(
+      buildMeta(
+        item("Send report", "2026-04-28", "00:00", {
+          hasTime: false,
+          dueMinutes: 720,
+        }),
+        { timeInColumn: false, ...CONTEXT },
+      )[1],
+    ).toBe("by 12:00");
+  });
+
+  it("is overdue once the deadline passes, but stays today", () => {
+    expect(
+      classifyTask(
+        {
+          scheduledStart: at("2026-04-26", "00:00"),
+          recurrence: null,
+          pastDue: true,
+        },
+        NOW,
+        TZ,
+      ),
+    ).toMatchObject({ timing: "overdue", dayOffset: 0 });
+    // Moving it to today makes no sense: it is today.
+    expect(
+      canMoveToToday({
+        timing: "overdue",
+        isRecurring: false,
+        status: "SCHEDULED",
+        dayOffset: 0,
+      }),
+    ).toBe(false);
+  });
+
+  it("reads past due from the task's deadline (10:00 now)", () => {
+    const [early, late] = buildTaskListItems(
+      [
+        {
+          id: "early",
+          title: "early",
+          priority: "NORMAL",
+          flexibility: "FLEXIBLE",
+          durationMinutes: 0,
+          recurrenceRule: null,
+          hasTime: false,
+          dueMinutes: 9 * 60,
+          occurrences: [
+            {
+              id: "e",
+              status: "SCHEDULED",
+              scheduledStart: at("2026-04-26", "00:00"),
+              updatedAt: at("2026-04-20", "00:00"),
+            },
+          ],
+        },
+        {
+          id: "late",
+          title: "late",
+          priority: "NORMAL",
+          flexibility: "FLEXIBLE",
+          durationMinutes: 0,
+          recurrenceRule: null,
+          hasTime: false,
+          dueMinutes: 12 * 60,
+          occurrences: [
+            {
+              id: "l",
+              status: "SCHEDULED",
+              scheduledStart: at("2026-04-26", "00:00"),
+              updatedAt: at("2026-04-20", "00:00"),
+            },
+          ],
+        },
+      ],
+      NOW,
+      TZ,
+    );
+    expect(early.timing).toBe("overdue");
+    expect(late.timing).toBe("today");
   });
 });

@@ -29,7 +29,9 @@ const EN: PairSyntax = {
 const CYRILLIC_SYNTAX: PairSyntax = {
   prefix: "по|каждый|каждую|каждое|кожного|кожної|кожен|кожну|во|в|у",
   weekday: `(?:${RU_WEEKDAY}|${UK_WEEKDAY})`,
-  time: "(?:в|о|об) \\d{1,2}(?:[:.]\\d{2})?|\\d{1,2}[:.]\\d{2}",
+  // "по средам 19" — a bare hour right after the day counts too
+  // (the weekly rule reads it as the time).
+  time: "(?:в|о|об) \\d{1,2}(?:[:.]\\d{2})?|\\d{1,2}[:.]\\d{2}|(?:[01]?\\d|2[0-3])(?![:.]?\\d)(?! ?(?:час|мин|ч|год|хв|г))",
 };
 
 // Nothing but a connector between two pairs: "and", "и", "і", a comma.

@@ -67,11 +67,14 @@ describe("taskInputFromPhrase", () => {
       description: undefined,
       date: "2026-10-02",
       time: "18:00",
-      durationMinutes: 0,
+      // A call — 5 min, guessed from the title.
+      durationMinutes: 5,
       priority: "NORMAL",
       flexibility: "FIXED",
       repeatFrequency: "NONE",
       repeatDaysOfWeek: [],
+      repeatInterval: 1,
+      repeatEnd: "NEVER",
       reminderKind: "OFFSET",
       reminderOffsetMinutes: 30,
       confirmConflicts: true,
@@ -160,5 +163,72 @@ describe("taskInputsFromPhrase", () => {
     expect(taskInputsFromPhrase("Call mom tomorrow at 18", context)).toEqual([
       taskInputFromPhrase("Call mom tomorrow at 18", context),
     ]);
+  });
+});
+
+describe("a course, one task per dose (sprint-20 п.5–6)", () => {
+  it("saves each dose Flexible, reminded at its start, ending with the course", () => {
+    const inputs = taskInputsFromPhrase(
+      "Таблетки 2 раза в день утром и вечером на месяц",
+      context,
+    ).map((result) => {
+      if (result.status !== "ready") throw new Error(result.status);
+      return result.input;
+    });
+    expect(inputs).toHaveLength(2);
+    expect(inputs[0]).toMatchObject({
+      title: "Таблетки — утро",
+      date: "2026-10-01",
+      time: "09:00",
+      flexibility: "FLEXIBLE",
+      repeatFrequency: "DAILY",
+      repeatEnd: "ON_DATE",
+      repeatUntil: "2026-10-31",
+      reminderKind: "OFFSET",
+      reminderOffsetMinutes: 0,
+    });
+    expect(inputs[1]).toMatchObject({
+      title: "Таблетки — вечер",
+      time: "20:00",
+    });
+  });
+
+  it("keeps every other day as a step of 2", () => {
+    expect(ready("Medicine every other day for a month")).toMatchObject({
+      repeatFrequency: "DAILY",
+      repeatInterval: 2,
+      repeatEnd: "ON_DATE",
+      repeatUntil: "2026-10-31",
+    });
+  });
+});
+
+describe("a usual length from the title", () => {
+  it("adds dance on Wed 19 and Fri 20 as two tasks of an hour", () => {
+    const inputs = taskInputsFromPhrase(
+      "танцы по средам 19 и пятницам в 20",
+      context,
+    ).map((result) => {
+      if (result.status !== "ready") throw new Error(result.status);
+      return result.input;
+    });
+    expect(
+      inputs.map((input) => [
+        input.title,
+        input.repeatDaysOfWeek,
+        input.time,
+        input.durationMinutes,
+      ]),
+    ).toEqual([
+      ["Танцы", [3], "19:00", 60],
+      ["Танцы", [5], "20:00", 60],
+    ]);
+  });
+
+  it("a duration in the text wins over the guess", () => {
+    expect(ready("Massage tomorrow at 18 for 90 minutes").durationMinutes).toBe(
+      90,
+    );
+    expect(ready("Doctor tomorrow at 10").durationMinutes).toBe(30);
   });
 });

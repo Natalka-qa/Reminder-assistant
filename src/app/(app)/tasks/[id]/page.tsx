@@ -8,6 +8,7 @@ import {
   OCCURRENCE_STATUS_LABELS,
 } from "@/features/scheduling/occurrence-status";
 import { pickCurrentOccurrence } from "@/features/scheduling/occurrence-selection";
+import { dueLabel } from "@/features/scheduling/untimed";
 import { notificationService } from "@/features/notifications/notification.service";
 import { formatDateInZone, formatTimeInZone } from "@/lib/date";
 import { formatDuration, formatReminder } from "@/lib/format";
@@ -83,7 +84,8 @@ export default async function TaskDetailPage({
   const timeLabel = (occurrence: { scheduledStart: Date }) =>
     task.hasTime
       ? formatTimeInZone(occurrence.scheduledStart, user.timezone)
-      : "Any time";
+      : // sprint-20-tasks.md п.7 — "by 12:00" for a deadline.
+        (dueLabel(task) ?? "Any time");
   // п.7 — a day's own length: one day of a series can differ.
   const heroDuration = heroOccurrence?.scheduledEnd
     ? Math.round(

@@ -40,6 +40,8 @@ export type HomeOccurrence = {
      * at its local midnight and holds no time. Missing means it has one.
      */
     hasTime?: boolean;
+    /** sprint-20-tasks.md п.7 — "by 12:00" (720); missing or null — none. */
+    dueMinutes?: number | null;
   };
 };
 

@@ -1,10 +1,13 @@
 import type { CreateTaskInput } from "@/lib/validation/task";
 import { parseRecurrenceRule } from "@/features/recurrence/recurrence-rule";
 import { formatCalendarDate, isoWeekday } from "@/lib/date/calendar-date";
-import type {
-  Flexibility,
-  ReminderChoice,
-  ReminderKind,
+import {
+  NEVER_ENDS,
+  dueTimeOf,
+  type Flexibility,
+  type ReminderChoice,
+  type ReminderKind,
+  type RepeatEndChoice,
 } from "@/features/tasks/new-task-fields";
 
 // sprint-14-tasks.md S14-01 — the edit form's starting values and the
@@ -28,6 +31,11 @@ export type EditTaskValues = {
   priority: Priority;
   repeat: RepeatFrequency;
   repeatDays: number[];
+  /** sprint-20-tasks.md п.3–4 — kept as saved; "after N" was saved as a date. */
+  repeatInterval: number;
+  repeatEnd: RepeatEndChoice;
+  /** sprint-20-tasks.md п.7 — the deadline "HH:mm"; null — none. */
+  due: string | null;
   reminder: ReminderChoice;
   /** Date read-only, no "Does not repeat" (PR #20, schedule-change.ts). */
   recurring: boolean;
@@ -43,6 +51,7 @@ export type EditableTask = {
   reminderOffsetMinutes: number;
   reminderKind: ReminderKind;
   hasTime: boolean;
+  dueMinutes: number | null;
 };
 
 /**
@@ -68,6 +77,14 @@ export function editTaskValues(
     repeat: rule?.frequency ?? "NONE",
     repeatDays:
       rule?.frequency === "WEEKLY" ? rule.daysOfWeek : [isoWeekday(local.date)],
+    repeatInterval: rule?.frequency === "DAILY" ? (rule.interval ?? 1) : 1,
+    repeatEnd: rule?.until
+      ? { kind: "ON_DATE", until: rule.until }
+      : NEVER_ENDS,
+    due:
+      !task.hasTime && task.dueMinutes !== null
+        ? dueTimeOf(task.dueMinutes)
+        : null,
     reminder: {
       kind: task.reminderKind,
       offsetMinutes: task.reminderOffsetMinutes,

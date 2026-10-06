@@ -59,3 +59,12 @@ describe("splitTaskPhrase", () => {
     }
   });
 });
+
+describe("a bare hour after the day (по средам 19)", () => {
+  it("splits and reads it as the time", () => {
+    expect(splitTaskPhrase("танцы по средам 19 и пятницам в 20")).toEqual([
+      "танцы по средам 19",
+      "танцы по пятницам в 20",
+    ]);
+  });
+});

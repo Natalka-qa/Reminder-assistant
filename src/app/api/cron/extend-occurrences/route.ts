@@ -1,4 +1,5 @@
 import { occurrenceService } from "@/features/scheduling/occurrence.service";
+import { taskService } from "@/features/tasks/task.service";
 import { env } from "@/lib/env";
 
 // Vercel Cron (vercel.json) hits this daily; a manual/local call needs the
@@ -11,10 +12,13 @@ export async function GET(request: Request) {
   }
 
   try {
-    const extended = await occurrenceService.extendOccurrencesForAllActiveTasks(
-      new Date(),
-    );
-    return Response.json({ extended });
+    const now = new Date();
+    // sprint-20-tasks.md п.2 — series past their last day end first, so
+    // the extension only tops up the ones still running.
+    const ended = await taskService.endFinishedSeries(now);
+    const extended =
+      await occurrenceService.extendOccurrencesForAllActiveTasks(now);
+    return Response.json({ ended, extended });
   } catch (error) {
     console.error("extend-occurrences cron failed:", error);
     return Response.json(

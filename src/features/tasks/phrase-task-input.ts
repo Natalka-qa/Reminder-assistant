@@ -1,5 +1,5 @@
-import { parseTask, type ParsedTask } from "@/lib/parse-task";
-import { splitTaskPhrase } from "@/lib/parse-task/split";
+import type { ParsedTask } from "@/lib/parse-task";
+import { parseTaskText, readTaskParts } from "@/lib/parse-task/course";
 import type { CreateTaskInput } from "@/lib/validation/task";
 import {
   newTaskDefaults,
@@ -35,7 +35,16 @@ export function taskInputFromPhrase(
     defaultReminderMinutes: number;
   },
 ): PhraseTaskInput {
-  const parsed = parseTask(text.trim(), context.today);
+  return taskInputFromParsed(
+    parseTaskText(text.trim(), context.today),
+    context,
+  );
+}
+
+function taskInputFromParsed(
+  parsed: ParsedTask,
+  context: Parameters<typeof taskInputFromPhrase>[1],
+): PhraseTaskInput {
   if (parsed.timeSearch) return { status: "needs-search" };
   if (parsed.title.length === 0) return { status: "empty" };
 
@@ -58,16 +67,17 @@ export function taskInputFromPhrase(
 /**
  * "Dance every Mon at 19 and Wed at 20" — a repeat with its own time on
  * each day is one task per day (splitTaskPhrase), since a task has one
- * time for all its days. Each part is read like any phrase; anything that
- * can't be split is the one-task reading above.
+ * time for all its days; "Pills twice a day for a month" is one task per
+ * dose (sprint-20-tasks.md п.5, course.ts). Each part is read like any
+ * phrase; anything that can't be split is the one-task reading above.
  */
 export function taskInputsFromPhrase(
   text: string,
   context: Parameters<typeof taskInputFromPhrase>[1],
 ): PhraseTaskInput[] {
-  const parts = splitTaskPhrase(text);
+  const parts = readTaskParts(text.trim(), context.today);
   if (parts) {
-    const read = parts.map((part) => taskInputFromPhrase(part, context));
+    const read = parts.map((part) => taskInputFromParsed(part, context));
     if (read.every((part) => part.status === "ready")) return read;
   }
   return [taskInputFromPhrase(text, context)];

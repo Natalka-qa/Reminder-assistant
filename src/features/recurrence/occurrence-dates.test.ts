@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { generateOccurrenceDates } from "./occurrence-dates";
-import type { RecurrenceRule } from "./recurrence-rule";
+import { nthOccurrenceDate, type RecurrenceRule } from "./recurrence-rule";
 
 describe("generateOccurrenceDates", () => {
   it("DAILY: produces every calendar day in the window", () => {
@@ -88,17 +88,126 @@ describe("generateOccurrenceDates", () => {
     ).toEqual([]);
   });
 
-  it("MONTHLY: starting on the 31st does not throw or duplicate across shorter months", () => {
-    // Jan 31 -> Feb 28 (2026 is not a leap year, so clamped, not skipped or
-    // duplicated) -> Mar 28 (steps from the clamped date, per addMonthsInZone).
+  it("MONTHLY: the 31st comes back after a short month (sprint-20 S20-00)", () => {
+    // Jan 31 -> Feb 28 (2026 is not a leap year: clamped, not skipped or
+    // duplicated) -> Mar 31: each month counts from the anchor, so the
+    // clamp doesn't carry over.
     expect(
       generateOccurrenceDates(
         { frequency: "MONTHLY" },
         "2026-01-31",
         "2026-01-31",
-        "2026-03-28",
+        "2026-04-30",
         "UTC",
       ),
-    ).toEqual(["2026-01-31", "2026-02-28", "2026-03-28"]);
+    ).toEqual(["2026-01-31", "2026-02-28", "2026-03-31", "2026-04-30"]);
+  });
+});
+
+describe("generateOccurrenceDates — until and every N days (sprint-20 п.1–4)", () => {
+  it("stops on the last day, inclusive, whatever the window", () => {
+    expect(
+      generateOccurrenceDates(
+        { frequency: "DAILY", until: "2026-09-03" },
+        "2026-09-01",
+        "2026-09-01",
+        "2026-09-30",
+        "UTC",
+      ),
+    ).toEqual(["2026-09-01", "2026-09-02", "2026-09-03"]);
+    expect(
+      generateOccurrenceDates(
+        { frequency: "WEEKLY", daysOfWeek: [1], until: "2026-09-14" },
+        "2026-09-01",
+        "2026-09-01",
+        "2026-09-30",
+        "UTC",
+      ),
+    ).toEqual(["2026-09-07", "2026-09-14"]);
+  });
+
+  it("gives nothing once the window starts after the last day", () => {
+    expect(
+      generateOccurrenceDates(
+        { frequency: "MONTHLY", until: "2026-09-30" },
+        "2026-09-01",
+        "2026-10-01",
+        "2026-10-31",
+        "UTC",
+      ),
+    ).toEqual([]);
+  });
+
+  it("steps every N days from the first day, wherever the window starts", () => {
+    const rule: RecurrenceRule = { frequency: "DAILY", interval: 2 };
+    expect(
+      generateOccurrenceDates(
+        rule,
+        "2026-09-01",
+        "2026-09-01",
+        "2026-09-07",
+        "UTC",
+      ),
+    ).toEqual(["2026-09-01", "2026-09-03", "2026-09-05", "2026-09-07"]);
+    // A window from an "off" day keeps the series' own days.
+    expect(
+      generateOccurrenceDates(
+        rule,
+        "2026-09-01",
+        "2026-09-04",
+        "2026-09-08",
+        "UTC",
+      ),
+    ).toEqual(["2026-09-05", "2026-09-07"]);
+  });
+
+  it("keeps every other day across a DST change", () => {
+    expect(
+      generateOccurrenceDates(
+        { frequency: "DAILY", interval: 2 },
+        "2026-10-23",
+        "2026-10-23",
+        "2026-10-29",
+        "Europe/Kyiv",
+      ),
+    ).toEqual(["2026-10-23", "2026-10-25", "2026-10-27", "2026-10-29"]);
+  });
+});
+
+describe("nthOccurrenceDate — Ends after N times (п.1)", () => {
+  it("is the date of the Nth day, the first counting as 1", () => {
+    expect(nthOccurrenceDate({ frequency: "DAILY" }, "2026-09-01", 10)).toBe(
+      "2026-09-10",
+    );
+    expect(
+      nthOccurrenceDate({ frequency: "DAILY", interval: 2 }, "2026-09-01", 3),
+    ).toBe("2026-09-05");
+    // Sep 1 2026 is a Tuesday: Wed 2, Fri 4, Wed 9, Fri 11.
+    expect(
+      nthOccurrenceDate(
+        { frequency: "WEEKLY", daysOfWeek: [3, 5] },
+        "2026-09-01",
+        4,
+      ),
+    ).toBe("2026-09-11");
+    expect(nthOccurrenceDate({ frequency: "MONTHLY" }, "2026-01-31", 2)).toBe(
+      "2026-02-28",
+    );
+  });
+
+  it("ignores an end already on the rule, and rejects a count out of range", () => {
+    expect(
+      nthOccurrenceDate(
+        { frequency: "DAILY", until: "2026-09-02" },
+        "2026-09-01",
+        5,
+      ),
+    ).toBe("2026-09-05");
+    expect(
+      nthOccurrenceDate({ frequency: "DAILY" }, "2026-09-01", 0),
+    ).toBeNull();
+    expect(
+      nthOccurrenceDate({ frequency: "DAILY" }, "2026-09-01", 1000),
+    ).toBeNull();
   });
 });

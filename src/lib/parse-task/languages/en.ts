@@ -1,11 +1,20 @@
 import {
+  countOf,
   decimal,
+  monthDayDate,
+  NUMERIC_DATE,
+  numericDateOf,
+  numericDateRule,
   rule,
+  setDailyInterval,
   setDaysAhead,
+  setDue,
   setDuration,
   setMonthDay,
   setNextWeekday,
   setPartOfDay,
+  setRepeatFor,
+  setRepeatUntil,
   setTime,
   setWeekly,
   startTimeSearch,
@@ -55,6 +64,10 @@ const meridiemOf = (value: string | undefined) =>
 /** Weekday words, for splitting "Mon at 19 and Wed at 20" (split.ts). */
 export const WEEKDAY_PATTERN = WEEKDAY;
 
+// sprint-20-tasks.md п.3 — the unit of "for a month" / "на 2 недели".
+const UNIT_MONTH = /^month/i;
+const UNIT_WEEK = /^week/i;
+
 export const en: Language = {
   id: "en",
   searchGroups: [
@@ -86,6 +99,13 @@ export const en: Language = {
     ],
     // Repeat
     [
+      // sprint-20-tasks.md п.4 — every N days.
+      rule("every (?:other|second) day", (_, { out }) =>
+        setDailyInterval(out, 2),
+      ),
+      rule("every (\\d{1,2}) days", (match, { out }) =>
+        setDailyInterval(out, Number(match[1])),
+      ),
       rule("(?:every|each|on) (?:weekdays?|workdays?)", (_, { out }) =>
         setWeekly(out, [1, 2, 3, 4, 5]),
       ),
@@ -112,6 +132,39 @@ export const en: Language = {
         (_, { out }) => void (out.repeat = "MONTHLY"),
       ),
     ],
+    // sprint-20-tasks.md п.3 — how long a repeat runs: "for a month",
+    // "until Nov 3". Only after a repeat; else the words stay.
+    [
+      rule(`for (a|one|\\d{1,3}) (days?|weeks?|months?)`, (match, ctx) => {
+        const n = countOf(match[1]);
+        const unit = match[2].toLowerCase();
+        return setRepeatFor(
+          ctx,
+          UNIT_MONTH.test(unit)
+            ? { months: n }
+            : { days: UNIT_WEEK.test(unit) ? n * 7 : n },
+        );
+      }),
+      rule(
+        `(?:until|till|through) (?:the )?(${MONTH})\\.? (\\d{1,2})(?:st|nd|rd|th)?`,
+        (match, ctx) =>
+          setRepeatUntil(
+            ctx,
+            monthDayDate(ctx.today, monthOf(match[1]), Number(match[2])),
+          ),
+      ),
+      rule(
+        `(?:until|till|through) (?:the )?(\\d{1,2})(?:st|nd|rd|th)? (?:of )?(${MONTH})`,
+        (match, ctx) =>
+          setRepeatUntil(
+            ctx,
+            monthDayDate(ctx.today, monthOf(match[2]), Number(match[1])),
+          ),
+      ),
+      rule(`(?:until|till|through) ${NUMERIC_DATE}`, (match, ctx) =>
+        setRepeatUntil(ctx, numericDateOf(match, 1, ctx.today)),
+      ),
+    ],
     // Date
     [
       rule("(?:on )?(?:the )?day after tomorrow", (_, ctx) =>
@@ -132,6 +185,8 @@ export const en: Language = {
       rule("in (\\d{1,3}) days?", (match, ctx) =>
         setDaysAhead(ctx, Number(match[1])),
       ),
+      // sprint-20-tasks.md п.11 — "03/10" is October 3.
+      numericDateRule("on"),
       rule(
         `(?:on )?(?:the )?(${MONTH})\\.? (\\d{1,2})(?:st|nd|rd|th)?`,
         (match, ctx) => setMonthDay(ctx, monthOf(match[1]), Number(match[2])),
@@ -147,6 +202,20 @@ export const en: Language = {
       ),
       rule(`(${FULL_WEEKDAY})`, (match, ctx) =>
         setNextWeekday(ctx, weekdayOf(match[1])),
+      ),
+    ],
+    // sprint-20-tasks.md п.10 — a deadline: "by 12", "by 12:30", "by noon".
+    [
+      rule("by noon|by midday", (_, { out }) => setDue(out, 12, 0)),
+      rule(
+        `by (\\d{1,2})(?:[:.](\\d{2}))?(?: ?(${MERIDIEM}))?(?![/.]?\\d)`,
+        (match, { out }) =>
+          setDue(
+            out,
+            Number(match[1]),
+            Number(match[2] ?? 0),
+            meridiemOf(match[3]),
+          ),
       ),
     ],
     // Duration
