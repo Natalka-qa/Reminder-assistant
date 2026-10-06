@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import type { User } from "@prisma/client";
 import { env } from "@/lib/env";
 import { addMinutes, formatDateInZone, formatTimeInZone } from "@/lib/date";
+import { formatCalendarDate } from "@/lib/date/calendar-date";
 import { runInTransaction } from "@/lib/db/transaction";
 import {
   ALREADY_CLOSED_MESSAGE,
@@ -262,6 +263,8 @@ async function createdReply(
     | "durationMinutes"
     | "repeatFrequency"
     | "repeatDaysOfWeek"
+    | "repeatInterval"
+    | "repeatUntil"
   >,
   now: Date,
 ) {
@@ -291,13 +294,7 @@ async function createdReply(
         dateLabel: formatWhenDate(saved.date, today).replace(" · ", ", "),
         time: time ?? null,
         durationMinutes: saved.durationMinutes,
-        repeatLabel: repeatLabel(
-          saved.repeatFrequency,
-          saved.repeatDaysOfWeek,
-          saved.date,
-          today,
-          time ?? null,
-        ),
+        repeatLabel: repeatLabel(saved, today, time ?? null),
       },
       notices,
     ),
@@ -310,20 +307,32 @@ async function createdReply(
   };
 }
 
+// "Every Mon, Wed", "Every day", "Every 2 days until Oct 31"
+// (sprint-20-tasks.md п.2–4).
 function repeatLabel(
-  repeat: "NONE" | "DAILY" | "WEEKLY" | "MONTHLY",
-  repeatDays: number[],
-  date: string,
+  saved: {
+    repeatFrequency: "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
+    repeatDaysOfWeek: number[];
+    repeatInterval?: number;
+    repeatUntil?: string;
+    date: string;
+  },
   today: string,
   time: string | null,
 ): string | null {
+  const repeat = saved.repeatFrequency;
   if (repeat === "NONE") return null;
+  const until = saved.repeatUntil
+    ? ` until ${formatCalendarDate(saved.repeatUntil, { month: "short", day: "numeric" })}`
+    : "";
   if (repeat === "WEEKLY") {
-    return `Every ${repeatDays.map((day) => WEEKDAYS[day - 1]).join(", ")}`;
+    return `Every ${saved.repeatDaysOfWeek.map((day) => WEEKDAYS[day - 1]).join(", ")}${until}`;
   }
-  return repeat === "DAILY"
-    ? "Every day"
-    : (repeatHint(repeat, date, today, time) ?? "Every month");
+  if (repeat === "DAILY") {
+    const interval = saved.repeatInterval ?? 1;
+    return `${interval > 1 ? `Every ${interval} days` : "Every day"}${until}`;
+  }
+  return `${repeatHint(repeat, saved.date, today, time) ?? "Every month"}${until}`;
 }
 
 async function pressButton(user: User, press: Button, now: Date) {

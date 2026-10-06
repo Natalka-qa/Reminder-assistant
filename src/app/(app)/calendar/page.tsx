@@ -52,8 +52,10 @@ function toCalendarInput(
     flexibility: occurrence.task.flexibility,
     priority: occurrence.task.priority,
     recurrenceLabel: rule ? describeRecurrenceRule(rule) : null,
-    daily: rule?.frequency === "DAILY",
+    // Every other day isn't the daily baseline (sprint-20-tasks.md п.4).
+    daily: rule?.frequency === "DAILY" && (rule.interval ?? 1) === 1,
     hasTime: occurrence.task.hasTime,
+    dueMinutes: occurrence.task.dueMinutes,
     edited: occurrence.isException,
   };
 }
@@ -96,6 +98,7 @@ export default async function CalendarPage({
             monthDates(selected),
             today,
             occurrences.map((o) => toCalendarInput(o, timezone)),
+            now.hour * 60 + now.minute,
           )}
           leadingBlanks={monthLeadingBlanks(selected)}
           selected={selected}
@@ -128,6 +131,7 @@ export default async function CalendarPage({
           weekDates(weekStart),
           today,
           occurrences.map((o) => toCalendarInput(o, timezone)),
+          now.hour * 60 + now.minute,
         )}
         initialSelected={selected}
         today={today}

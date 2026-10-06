@@ -61,6 +61,7 @@ export const taskRepository = {
         hasTime: true,
         reminderKind: true,
         reminderOffsetMinutes: true,
+        dueMinutes: true,
       },
     });
   },

@@ -14,7 +14,7 @@ export function formatDuration(minutes: number): string {
  * minutes before (formatReminderOffset).
  */
 export function formatReminder(
-  kind: "NONE" | "OFFSET" | "MORNING_OF" | "EVENING_BEFORE",
+  kind: "NONE" | "OFFSET" | "MORNING_OF" | "EVENING_BEFORE" | "BEFORE_DUE",
   offsetMinutes: number,
 ): string {
   switch (kind) {
@@ -26,6 +26,11 @@ export function formatReminder(
       return "Evening before, 19:00";
     case "OFFSET":
       return formatReminderOffset(offsetMinutes);
+    // sprint-20-tasks.md п.8.
+    case "BEFORE_DUE":
+      return offsetMinutes <= 0
+        ? "At the deadline"
+        : `${formatReminderOffset(offsetMinutes)} deadline`;
   }
 }
 

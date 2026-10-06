@@ -19,6 +19,27 @@ export type ParsedFields = {
   repeat?: RepeatFrequency;
   /** ISO weekdays, 1 = Monday … 7 = Sunday. */
   repeatDays?: number[];
+  /**
+   * sprint-20-tasks.md п.4 — a daily repeat every N days ("every other
+   * day": 2). Never 1.
+   */
+  repeatInterval?: number;
+  /**
+   * п.3 — the repeat's last day, "YYYY-MM-DD": "until Nov 3", or "for a
+   * month" counted from the task's date. Only with a repeat.
+   */
+  repeatUntil?: string;
+  /**
+   * п.5–6 — one dose of a course ("twice a day for a month", course.ts):
+   * its time is the app's default for that part of the day, so the task
+   * is Flexible and reminded at its start.
+   */
+  course?: boolean;
+  /**
+   * п.7 — "by 12:00": a deadline, "HH:mm", for a task without a time (a
+   * time given too wins — the form drops the deadline).
+   */
+  due?: string;
   priority?: "HIGH";
   /**
    * sprint-12-tasks.md S12-04 — the text asks to find a time ("find me an
@@ -45,6 +66,11 @@ export type RuleContext = {
   out: ParsedFields;
   /** A find-a-time trigger named what it's after ("find a time"). */
   searchNoun: boolean;
+  /**
+   * п.3 — "for a month": how long the repeat runs, made a last day once
+   * the date is known (the date rules come after the repeat's).
+   */
+  repeatFor?: { days?: number; months?: number };
 };
 
 /** Return false to reject the match: nothing is set, nothing consumed. */
@@ -116,6 +142,19 @@ export function setTime(
   return true;
 }
 
+/** sprint-20-tasks.md п.10 — "by 12", "до 12:30": the task's deadline. */
+export function setDue(
+  out: ParsedFields,
+  hour: number,
+  minute: number,
+  meridiem?: "am" | "pm",
+): boolean {
+  const probe: ParsedFields = {};
+  if (!setTime(probe, hour, minute, meridiem)) return false;
+  out.due = probe.time;
+  return true;
+}
+
 /**
  * A day of a month with no year: this year's, or next year's once this
  * year's has passed (§ 3, absolute dates).
@@ -125,14 +164,99 @@ export function setMonthDay(
   month: number,
   day: number,
 ): boolean {
-  const year = Number(ctx.today.slice(0, 4));
-  let date = calendarDate(year, month, day);
-  if (date && date < ctx.today) {
-    date = calendarDate(year + 1, month, day);
-  }
+  const date = monthDayDate(ctx.today, month, day);
   if (!date) return false;
   ctx.out.date = date;
   return true;
+}
+
+/** setMonthDay's date, set nowhere; null for a day that doesn't exist. */
+export function monthDayDate(
+  today: string,
+  month: number,
+  day: number,
+): string | null {
+  const year = Number(today.slice(0, 4));
+  const date = calendarDate(year, month, day);
+  return date && date < today ? calendarDate(year + 1, month, day) : date;
+}
+
+/** sprint-20-tasks.md п.4 — "every other day" (2), "every 3 days". */
+export function setDailyInterval(out: ParsedFields, interval: number): boolean {
+  if (!Number.isInteger(interval) || interval < 2 || interval > 30) {
+    return false;
+  }
+  out.repeat = "DAILY";
+  out.repeatDays = undefined;
+  out.repeatInterval = interval;
+  return true;
+}
+
+/** п.3 — "for a month", "на 2 недели": only a repeat runs for a while. */
+export function setRepeatFor(
+  ctx: RuleContext,
+  span: { days?: number; months?: number },
+): boolean {
+  const amount = span.days ?? span.months ?? 0;
+  if (!ctx.out.repeat || amount < 1 || (span.days ?? 0) > 366) return false;
+  if ((span.months ?? 0) > 12) return false;
+  ctx.repeatFor = span;
+  return true;
+}
+
+/** п.3 — "until Nov 3", "до 3 ноября": a repeat's last day. */
+export function setRepeatUntil(ctx: RuleContext, date: string | null): boolean {
+  if (!ctx.out.repeat || !date) return false;
+  ctx.out.repeatUntil = date;
+  return true;
+}
+
+/** "a"/"one" → 1, "2" → 2 — the count in "for a month", "на 2 недели". */
+export function countOf(word: string | undefined): number {
+  if (!word) return 1;
+  const n = Number(word);
+  return Number.isFinite(n) ? n : 1;
+}
+
+/**
+ * sprint-20-tasks.md п.11 — a date in digits is always day/month: "03/10"
+ * is October 3 (the users are in Europe). With "/" it's a date with or
+ * without a year ("3/10", "03/10/2026"); with "." only with one
+ * ("03.10.26") — a bare "03.10" stays a time, as "в 9.30" always was.
+ * `prefix` is the language's "on" ("on", "на"). A date or slash next to
+ * it ("2026/03/10", "1/2/3") isn't taken apart.
+ */
+export function numericDateRule(prefix: string): Rule {
+  return rule(`(?:${prefix} )?${NUMERIC_DATE}`, (match, ctx) => {
+    const date = numericDateOf(match, 1, ctx.today);
+    if (!date) return false;
+    ctx.out.date = date;
+    return true;
+  });
+}
+
+/**
+ * A date in digits, five groups: day, then month and year after "/", or
+ * month and year after "." (see numericDateRule).
+ */
+export const NUMERIC_DATE =
+  "(?<![/.\\d])(\\d{1,2})(?:/(\\d{1,2})(?:/(\\d{4}|\\d{2}))?|\\.(\\d{1,2})\\.(\\d{4}|\\d{2}))(?![/.]\\d)";
+
+/** The date NUMERIC_DATE matched, its groups from `first` on; or null. */
+export function numericDateOf(
+  match: RegExpExecArray,
+  first: number,
+  today: string,
+): string | null {
+  const day = Number(match[first]);
+  const month = Number(match[first + 1] ?? match[first + 3]);
+  const year = match[first + 2] ?? match[first + 4];
+  if (year === undefined) return monthDayDate(today, month, day);
+  return calendarDate(
+    year.length === 2 ? 2000 + Number(year) : Number(year),
+    month,
+    day,
+  );
 }
 
 /** § 3 — a weekday means its next occurrence after today. */
@@ -251,6 +375,26 @@ export function runLanguage(
         out.date = date;
         break;
       }
+    }
+  }
+
+  // sprint-20-tasks.md п.3 — "for a month" runs from the task's date: the
+  // last day is the day before the same date a month on.
+  if (ctx.repeatFor && out.repeat && !out.repeatUntil) {
+    const start = out.date ?? today;
+    const { days, months } = ctx.repeatFor;
+    if (days) {
+      out.repeatUntil = shiftDate(start, days - 1);
+    } else if (months) {
+      const [y, m, d] = start.split("-").map(Number);
+      const total = m - 1 + months;
+      const year = y + Math.floor(total / 12);
+      const month = (total % 12) + 1;
+      const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+      out.repeatUntil = shiftDate(
+        calendarDate(year, month, Math.min(d, last))!,
+        -1,
+      );
     }
   }
 

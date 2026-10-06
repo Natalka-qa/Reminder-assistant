@@ -6,6 +6,7 @@ import {
   reminderDayLabel,
   shouldCreateReminder,
 } from "./reminder-rule";
+import { dueLabel, isPastDue } from "@/features/scheduling/untimed";
 
 const MADRID = "Europe/Madrid";
 const at = (iso: string) => new Date(iso);
@@ -149,5 +150,79 @@ describe("reminderDayLabel", () => {
     expect(reminderDayLabel(at("2026-10-06T22:00:00Z"), now, MADRID)).toBe(
       "Wed, Oct 7",
     );
+  });
+});
+
+describe("before a deadline (sprint-20 п.7–9)", () => {
+  // Oct 5, 2026 without a time, due 12:00 in Madrid (UTC+2).
+  const untimed = at("2026-10-04T22:00:00Z");
+  const rule = {
+    kind: "BEFORE_DUE" as const,
+    offsetMinutes: 30,
+    dueMinutes: 720,
+  };
+
+  it("is the offset before the deadline, local time", () => {
+    expect(computeSendAt(untimed, rule, MADRID)).toEqual(
+      at("2026-10-05T09:30:00Z"),
+    );
+  });
+
+  it("is none without a deadline", () => {
+    expect(
+      computeSendAt(untimed, { ...rule, dueMinutes: null }, MADRID),
+    ).toBeNull();
+  });
+
+  it("isn't sent once its moment has passed", () => {
+    expect(
+      shouldCreateReminder(
+        at("2026-10-05T09:30:00Z"),
+        rule,
+        at("2026-10-05T09:45:00Z"),
+      ),
+    ).toBe(false);
+  });
+
+  it("is only for a task without a time that has a deadline", () => {
+    expect(isReminderAllowed("BEFORE_DUE", false, true)).toBe(true);
+    expect(isReminderAllowed("BEFORE_DUE", false, false)).toBe(false);
+    expect(isReminderAllowed("BEFORE_DUE", true, true)).toBe(false);
+  });
+});
+
+describe("isPastDue / dueLabel (п.9)", () => {
+  const day = {
+    scheduledStart: at("2026-10-04T22:00:00Z"),
+    status: "SCHEDULED",
+  };
+  const task = { hasTime: false, dueMinutes: 720 };
+
+  it("is past due from the deadline on, for an open day only", () => {
+    expect(isPastDue(day, task, at("2026-10-05T09:59:00Z"), MADRID)).toBe(
+      false,
+    );
+    expect(isPastDue(day, task, at("2026-10-05T10:00:00Z"), MADRID)).toBe(true);
+    expect(
+      isPastDue(
+        { ...day, status: "DONE" },
+        task,
+        at("2026-10-05T11:00:00Z"),
+        MADRID,
+      ),
+    ).toBe(false);
+    expect(
+      isPastDue(
+        day,
+        { hasTime: false, dueMinutes: null },
+        at("2026-10-06T11:00:00Z"),
+        MADRID,
+      ),
+    ).toBe(false);
+  });
+
+  it("reads by 12:00", () => {
+    expect(dueLabel(task)).toBe("by 12:00");
+    expect(dueLabel({ hasTime: true, dueMinutes: 720 })).toBeNull();
   });
 });

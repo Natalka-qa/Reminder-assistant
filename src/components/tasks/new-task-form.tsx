@@ -14,8 +14,7 @@ import { cn } from "@/lib/utils";
 import { formatDuration } from "@/lib/format";
 import { useZonedClock } from "@/lib/date/zoned-clock";
 import { useSpeechDictation } from "@/lib/speech/use-speech-dictation";
-import { parseTask } from "@/lib/parse-task";
-import { splitTaskPhrase } from "@/lib/parse-task/split";
+import { parseTaskText, readTaskParts } from "@/lib/parse-task/course";
 import {
   createTaskAction,
   createTasksAction,
@@ -28,6 +27,8 @@ import {
   type FreeSlotsResult,
 } from "@/features/scheduling/actions";
 import {
+  durationChoices,
+  formatDurationChoice,
   formatNearbySlot,
   slotNoteLine,
   formatWhenDate,
@@ -40,7 +41,10 @@ import {
   reminderOptions,
   reminderPastNotice,
   reminderValue,
+  untimedReminderOptions,
+  repeatEndHint,
   repeatHint,
+  repeatSummary,
   resolveTaskFields,
   searchDates,
   SEARCH_DEFAULT_DURATION_MINUTES,
@@ -49,7 +53,7 @@ import {
   type ResolvedTaskFields,
   type TaskFieldOverrides,
 } from "@/features/tasks/new-task-fields";
-import { RoseNotice } from "@/components/tasks/task-fields/shared";
+import { RoseNotice, SelectRow } from "@/components/tasks/task-fields/shared";
 import {
   OverlapNotice,
   WhenGroup,
@@ -61,6 +65,7 @@ import {
   TaskDetailsFields,
 } from "@/components/tasks/task-fields/details-fields";
 import { NoteField } from "@/components/tasks/task-fields/note-field";
+import { RepeatShapeInputs } from "@/components/tasks/task-fields/repeat-shape-fields";
 import {
   FormActions,
   FormHeader,
@@ -81,17 +86,25 @@ const initialState: TaskActionState = { status: "idle" };
 
 const WEEKDAY_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-// One line per task a split sentence adds: "Every Mon · 19:00 · 1h".
-function splitPartLabel(part: ResolvedTaskFields, today: string): string {
+// One line per task a split sentence adds: "Every Mon · 19:00 · 1h";
+// a course's dose leads with its own title (sprint-20-tasks.md п.5):
+// "Pills — morning · Every 2 days until Oct 25 · 09:00".
+function splitPartLabel(
+  part: ResolvedTaskFields,
+  title: string | null,
+  today: string,
+): string {
   const when =
     part.repeat === "WEEKLY"
       ? `Every ${part.repeatDays.map((day) => WEEKDAY_SHORT[day - 1]).join(", ")}`
-      : formatWhenDate(part.date, today);
+      : title
+        ? (repeatSummary(part) ?? formatWhenDate(part.date, today))
+        : formatWhenDate(part.date, today);
   const duration =
     part.durationMinutes > 0
       ? ` · ${formatDuration(part.durationMinutes)}`
       : "";
-  return `${when} · ${part.time ?? "Any time"}${duration}`;
+  return `${title ? `${title} · ` : ""}${when} · ${part.time ?? "Any time"}${duration}`;
 }
 
 // NEW_TASK_V2_UPDATE.md — one form: say the task in a sentence, check what
@@ -146,11 +159,17 @@ export function NewTaskForm({
     importance: useId(),
     reminder: useId(),
     repeat: useId(),
+    duration: useId(),
     note: useId(),
   };
 
   // Relative dates ("tomorrow", "завтра") count from the user's today.
-  const parsed = useMemo(() => parseTask(text, clock.date), [text, clock.date]);
+  // sprint-20-tasks.md п.6 — "every other day in the evening for a month"
+  // is read with its dose's time.
+  const parsed = useMemo(
+    () => parseTaskText(text, clock.date),
+    [text, clock.date],
+  );
   const { title, hits } = parsed;
   const kind = parsed.kind ?? null;
 
@@ -229,13 +248,15 @@ export function NewTaskForm({
   // of the sentence. The fields below that all of them share — scheduling,
   // reminder, importance, the note — still apply to every one; their days
   // and times come from the sentence, so When and Repeat aren't shown.
-  const parts = useMemo(() => {
-    const sentences = splitTaskPhrase(text);
-    if (!sentences) return null;
-    const read = sentences.map((sentence) => parseTask(sentence, clock.date));
-    return read.every((part) => part.title && !part.timeSearch) ? read : null;
-  }, [text, clock.date]);
+  // sprint-20-tasks.md п.5 — a course is one task per dose, the same way.
+  const parts = useMemo(
+    () => readTaskParts(text, clock.date),
+    [text, clock.date],
+  );
   const shared: TaskFieldOverrides = {
+    // The length picked by hand applies to every part ("Dance on Wed at 19
+    // and Fri at 20" — 1 hour each).
+    durationMinutes: overrides.durationMinutes,
     flexibility: overrides.flexibility,
     priority: overrides.priority,
     reminder: overrides.reminder,
@@ -246,6 +267,10 @@ export function NewTaskForm({
   const partInputs = parts?.map((part, index) =>
     taskInput(part.title, partFields![index], noteOpen ? note : ""),
   );
+  // The fields every part shares (scheduling, reminder) read as the parts
+  // will save them: a course's doses have a time though the sentence as a
+  // whole has none (sprint-20-tasks.md п.5).
+  const shown = partFields?.[0] ?? fields;
   const hasText = text.trim().length > 0;
   // Not while a search is still looking: the task would save at the
   // default time instead of the free one about to arrive.
@@ -345,6 +370,7 @@ export function NewTaskForm({
     fields.reminder,
     clock.date,
     clock.minutes,
+    fields.due,
   );
   const overlap =
     checkOverlaps && preview?.key === overlapKey ? preview.result : null;
@@ -419,6 +445,8 @@ export function NewTaskForm({
       {input.repeatDaysOfWeek.map((day) => (
         <input key={day} type="hidden" name="repeatDaysOfWeek" value={day} />
       ))}
+      <RepeatShapeInputs input={input} />
+      <input type="hidden" name="dueTime" value={input.dueTime ?? ""} />
       <input type="hidden" name="reminderKind" value={input.reminderKind} />
       <input
         type="hidden"
@@ -490,14 +518,24 @@ export function NewTaskForm({
           {hasText ? (
             <>
               <p className="text-text-primary text-[17px]/[1.35] font-semibold text-pretty [overflow-wrap:anywhere]">
-                {parts ? parts[0].title : title}
+                {parts
+                  ? parts[0].course
+                    ? parts[0].title.split(" — ")[0]
+                    : parts[0].title
+                  : title}
               </p>
               {parts && partFields ? (
                 <div className="text-blue-ink text-[13px]/[1.5]">
                   <p>Will be added as {parts.length} tasks:</p>
                   <ul>
                     {partFields.map((part, index) => (
-                      <li key={index}>{splitPartLabel(part, today)}</li>
+                      <li key={index}>
+                        {splitPartLabel(
+                          part,
+                          parts[index].course ? parts[index].title : null,
+                          today,
+                        )}
+                      </li>
                     ))}
                   </ul>
                 </div>
@@ -538,6 +576,26 @@ export function NewTaskForm({
         </div>
       </div>
 
+      {/* The parts' days and times come from the sentence; their length is
+          shared and set here. */}
+      {parts && (
+        <div className="flex flex-col">
+          <SelectRow
+            id={ids.duration}
+            label="Duration"
+            value={shown.durationMinutes}
+            onChange={(value) => setField("durationMinutes", Number(value))}
+            options={durationChoices(shown.durationMinutes).map((minutes) => ({
+              value: minutes,
+              label: formatDurationChoice(minutes),
+            }))}
+          />
+          {shown.durationGuessed && shown.durationMinutes > 0 && (
+            <DurationGuessNote minutes={shown.durationMinutes} />
+          )}
+        </div>
+      )}
+
       {!parts && (
         <WhenGroup
           labelId={ids.when}
@@ -549,9 +607,14 @@ export function NewTaskForm({
           onTimeChange={(value) => setField("time", value)}
           onTimeRemove={() => setField("time", null)}
           onDurationChange={(value) => setField("durationMinutes", value)}
+          due={fields.due}
+          onDueChange={(value) => setField("due", value)}
         >
           {past && <RoseNotice>{past}</RoseNotice>}
           {reminderPast && <RoseNotice>{reminderPast}</RoseNotice>}
+          {fields.durationGuessed && fields.durationMinutes > 0 && (
+            <DurationGuessNote minutes={fields.durationMinutes} />
+          )}
           {overlap && overlapText && (
             <OverlapNotice
               text={overlapText}
@@ -633,15 +696,19 @@ export function NewTaskForm({
 
       <SchedulingChoice
         labelId={ids.scheduling}
-        value={fields.flexibility}
+        value={shown.flexibility}
         onChange={(value) => setField("flexibility", value)}
-        fixedUnavailable={fields.time === null}
+        fixedUnavailable={shown.time === null}
       />
 
       <TaskDetailsFields
         ids={ids}
-        reminder={reminderValue(fields.reminder)}
-        reminderChoices={reminderOptions(fields.time !== null, fields.reminder)}
+        reminder={reminderValue(shown.reminder)}
+        reminderChoices={
+          shown.time !== null
+            ? reminderOptions(true, shown.reminder)
+            : untimedReminderOptions(shown.due !== null, shown.reminder)
+        }
         onReminderChange={(value) =>
           setField("reminder", parseReminderValue(value))
         }
@@ -653,6 +720,18 @@ export function NewTaskForm({
         repeatDays={fields.repeatDays}
         onRepeatDaysChange={(days) => setField("repeatDays", days)}
         repeatHint={hint}
+        repeatInterval={fields.repeatInterval}
+        onRepeatIntervalChange={(value) => setField("repeatInterval", value)}
+        repeatEnd={fields.repeatEnd}
+        onRepeatEndChange={(value) => setField("repeatEnd", value)}
+        repeatEndHint={repeatEndHint(
+          fields.repeat,
+          fields.repeatDays,
+          fields.repeatInterval,
+          fields.repeatEnd,
+          fields.date,
+        )}
+        repeatStart={fields.date}
         hideRepeat={parts !== null}
       />
 
@@ -673,5 +752,15 @@ export function NewTaskForm({
         blockedHint="Describe the task first."
       />
     </form>
+  );
+}
+
+// A length guessed from the title's words ("Танцы" → 1 hour): said, so
+// it isn't taken for something the user typed.
+function DurationGuessNote({ minutes }: { minutes: number }) {
+  return (
+    <p className="text-newtask-quiet-text text-[13px]/[1.5]">
+      Usually {formatDurationChoice(minutes)} for this — change it if needed.
+    </p>
   );
 }

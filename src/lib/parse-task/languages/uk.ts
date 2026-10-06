@@ -1,11 +1,20 @@
 import {
+  countOf,
   decimal,
+  monthDayDate,
+  NUMERIC_DATE,
+  numericDateOf,
+  numericDateRule,
   rule,
+  setDailyInterval,
   setDaysAhead,
+  setDue,
   setDuration,
   setMonthDay,
   setNextWeekday,
   setPartOfDay,
+  setRepeatFor,
+  setRepeatUntil,
   setSearchDuration,
   setTime,
   setWeekly,
@@ -81,6 +90,10 @@ const TIME_PREPOSITION = "о|об|в|у|до";
 /** Weekday words, for splitting "Mon at 19 and Wed at 20" (split.ts). */
 export const WEEKDAY_PATTERN = WEEKDAY;
 
+// sprint-20-tasks.md п.3 — the unit of "for a month" / "на 2 недели".
+const UNIT_MONTH = /^міс/iu;
+const UNIT_WEEK = /^тиж/iu;
+
 export const uk: Language = {
   id: "uk",
   searchGroups: [
@@ -120,19 +133,30 @@ export const uk: Language = {
     ],
     // Repeat
     [
+      // sprint-20-tasks.md п.4 — через день, кожні N днів.
+      rule("через день|кожного другого дня|раз на два дні", (_, { out }) =>
+        setDailyInterval(out, 2),
+      ),
+      rule("(?:кожні|раз на) (\\d{1,2}) (?:дні|днів)", (match, { out }) =>
+        setDailyInterval(out, Number(match[1])),
+      ),
       rule(
         "по буднях|у будні|в будні|щобудня|по робочих днях|кожного робочого дня|кожен робочий день|кожного буднього дня",
         (_, { out }) => setWeekly(out, [1, 2, 3, 4, 5]),
       ),
       rule(
-        `(?:що|(?:по|кожного|кожної|кожен|кожну) )(?:${WEEKDAY})(?:(?:\\s*(?:,|і|й|та)\\s*|\\s+)(?:по )?(?:${WEEKDAY}))*`,
+        `(?:що|(?:по|кожного|кожної|кожен|кожну) )(?:${WEEKDAY})(?:(?:\\s*(?:,|і|й|та)\\s*|\\s+)(?:по )?(?:${WEEKDAY}))*(?: ([01]?\\d|2[0-3])(?![:.]?\\d)(?! ?(?:год|хв|г)))?`,
         (match, { out }) => {
           const days = [
             ...match[0].matchAll(new RegExp(`(?:${WEEKDAY})`, "giu")),
           ].map((m) => weekdayOf(m[0]));
+          // The hour right after the day ("по средам 19"): its
+          // time — "по средам в 19" without the "в".
+          const hour = match[1];
           return (
             days.every((day) => day !== undefined) &&
-            setWeekly(out, days as number[])
+            setWeekly(out, days as number[]) &&
+            (hour === undefined || setTime(out, Number(hour), 0))
           );
         },
       ),
@@ -149,6 +173,32 @@ export const uk: Language = {
         (_, { out }) => void (out.repeat = "MONTHLY"),
       ),
     ],
+    // sprint-20-tasks.md п.3 — скільки триває повтор: «на місяць»,
+    // «протягом 2 тижнів», «до 3 листопада». Лише після повтору.
+    [
+      rule(
+        "(?:на|протягом) (?:(\\d{1,3}) )?(день|дня|дні|днів|тиждень|тижня|тижні|тижнів|місяць|місяця|місяці|місяців)",
+        (match, ctx) => {
+          const n = countOf(match[1]);
+          const unit = match[2].toLowerCase();
+          return setRepeatFor(
+            ctx,
+            UNIT_MONTH.test(unit)
+              ? { months: n }
+              : { days: UNIT_WEEK.test(unit) ? n * 7 : n },
+          );
+        },
+      ),
+      rule(`до (\\d{1,2})(?:-?го)? (${MONTH})`, (match, ctx) =>
+        setRepeatUntil(
+          ctx,
+          monthDayDate(ctx.today, monthOf(match[2]), Number(match[1])),
+        ),
+      ),
+      rule(`до ${NUMERIC_DATE}`, (match, ctx) =>
+        setRepeatUntil(ctx, numericDateOf(match, 1, ctx.today)),
+      ),
+    ],
     // Date
     [
       rule("післязавтра", (_, ctx) => setDaysAhead(ctx, 2)),
@@ -157,6 +207,8 @@ export const uk: Language = {
       rule("через (\\d{1,3}) (?:день|дні|днів)", (match, ctx) =>
         setDaysAhead(ctx, Number(match[1])),
       ),
+      // sprint-20-tasks.md п.11 — "03/10" is October 3.
+      numericDateRule("на"),
       rule(`(?:на )?(\\d{1,2})(?:-?го)? (${MONTH})`, (match, ctx) =>
         setMonthDay(ctx, monthOf(match[2]), Number(match[1])),
       ),
@@ -171,6 +223,14 @@ export const uk: Language = {
       rule("(пн|вт|ср|чт|пт|сб|нд)", (match, ctx) => {
         setNextWeekday(ctx, weekdayOf(match[1])!);
       }),
+    ],
+    // sprint-20-tasks.md п.10 — строк: «до 12», «до 12:30», «до 12-ї».
+    [
+      rule(
+        `до (\\d{1,2})(?:[:.](\\d{2}))?(?:-?(?:ї|ої|ї години))?(?![/.]?\\d)(?! (?:${MONTH}))`,
+        (match, { out }) =>
+          setDue(out, Number(match[1]), Number(match[2] ?? 0)),
+      ),
     ],
     // Duration — "о 9 годині" is a time, hence the lookbehind.
     [

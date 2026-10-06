@@ -198,6 +198,22 @@ A task can have no time — "Buy groceries", "Plan the trip" — and just belong
 - **Stored** as an occurrence at the first instant of its local day with no end, and `Task.hasTime = false`. Changing your timezone in Settings moves such days still ahead to the same date in the new zone, so they stay on their day.
 - **Patterns** ("Your patterns") count it overall and on weekdays/weekends, but not in a part of the day — midnight isn't "after 20:00".
 
+## Courses and deadlines
+
+**A series can end and skip days.** Under Repeat: **Every few days** ("Every 2 days", up to 30, counted from the first day), and **Ends** — Never, On a date (the last day, inclusive) or After a number of times (saved as the date of the last one; "Last day Oct 15" shows under it). The task reads "↻ Every 2 days until Nov 2" on the task page, in Tasks and in Calendar. The nightly run creates no day past the last one, and the day after it ends the series by itself — it moves to Tasks → Ended like one ended by hand. **Resume series** on a series that ran to its end carries it on with no end. Editing offers Never / On a date.
+
+**In a sentence** (New task and the bot, en / ru / uk): "every other day", "every 3 days", "через день", "каждые 3 дня", "кожні 3 дні"; "for a month", "for 2 weeks", "for 10 days", "на месяц", "в течение 2 недель", "на місяць", "протягом місяця" — counted from the task's date, so "for a month" from Oct 6 ends on Nov 5; "until Nov 3", "until 03/11", "до 3 ноября", "до 3 листопада". Only with a repeat — "Vacation for 2 weeks" stays the title.
+
+**A course** — "Pills twice a day for a month", "Таблетки 2 раза в день утром и вечером на месяц", "Ліки вранці та ввечері протягом 2 тижнів" — is one task per dose ("Таблетки — утро" at 09:00, "Таблетки — вечер" at 20:00; three a day adds 14:00), listed under "Will be added as 2 tasks", each with the same repeat and end. One dose — "через день вечером в течение месяца" — is one task at that time. The time is a default: the task is Flexible and reminded at its start. Only for a course (it says how long or every N days); "every morning" alone is still a task without a time.
+
+**A deadline** — "Send the report by 12", "by noon", "до 12", "до 12:30", "до 12-ї", or **No deadline → by 12:00** in the When row — on a task without a time. It stays in "Any time" and reads "by 12:00" on Home, in Tasks, in Calendar, on the task page and in the bot. Its reminder defaults to **30 min before deadline** (also 15 min, 1 or 2 hours), which Done or Skip cancels like any other; one already past isn't sent. Once the deadline passes and it's still open, it's overdue — "Overdue since 12:00" on Home, red in Calendar, under Overdue in Tasks — not only after the day ends. Stored as `Task.dueMinutes` (720) with `reminderKind = BEFORE_DUE`.
+
+**A usual length.** When the sentence names no duration, the title's words suggest one, shown in Duration with "Usually 1 hour for this — change it if needed." (a length given in the text, or picked, wins): dance, a workout, massage, a lesson, the pool, shopping and chores — 1 hour; a doctor's visit — 30 min; papers (apply, renew a passport, visa, insurance) — 15 min; pay a bill, a loan, a subscription, or call / write to someone — 5 min; a film — 2 hours; pills and vitamins — none. What you do counts before what it's about: "Купить таблетки" is shopping, "Позвонить врачу" a call. The bot uses the same guess.
+
+**Several days, each with its own time** — "Танцы по средам 19 и пятницам в 20" (the hour right after the day counts, without "в"), "Dance every Wed at 19 and Fri at 20" — is one task per day; New task shows a **Duration** row for all of them (the When row isn't shown — their days and times come from the sentence).
+
+**Dates in digits** are day/month: "03/10", "3/10", "03/10/2026", "03.10.26" is October 3 (without a year — this year's, or next year's once it has passed). With a dot only with a year: "03.10" alone is still the time 03:10, as in "в 9.30".
+
 ## Editing a task
 
 `/tasks/[id]/edit` is built from the same parts as New task (`components/tasks/task-fields/`), with what editing needs instead of the sentence:
@@ -237,10 +253,11 @@ Two settings on `/settings`, each user's own:
 
 **Kinds of reminder** (each task's own, in New task and Edit):
 
-| Task           | Choices                                                                              | Default          |
-| -------------- | ------------------------------------------------------------------------------------ | ---------------- |
-| With a time    | No reminder · At start time · 5 / 10 / 15 / 30 min · 1 hour · 1 day before · Custom… | Default reminder |
-| Without a time | No reminder · That morning, 09:00 · Evening before, 19:00                            | No reminder      |
+| Task                      | Choices                                                                              | Default                |
+| ------------------------- | ------------------------------------------------------------------------------------ | ---------------------- |
+| With a time               | No reminder · At start time · 5 / 10 / 15 / 30 min · 1 hour · 1 day before · Custom… | Default reminder       |
+| Without a time            | No reminder · That morning, 09:00 · Evening before, 19:00                            | No reminder            |
+| With a deadline (no time) | The above · 15 / 30 min · 1 / 2 hours before deadline                                | 30 min before deadline |
 
 **Custom…** (tasks with a time): a number of minutes or hours before the start, from 1 minute to 24 hours — "2 hours before", "45 min before". The Default reminder on `/settings` stays a list.
 

@@ -25,6 +25,8 @@ export function WhenGroup({
   onDurationChange,
   dateReadOnly,
   dateOnly,
+  due = null,
+  onDueChange,
   children,
 }: {
   labelId: string;
@@ -45,6 +47,12 @@ export function WhenGroup({
    * date moves, so no time and no duration.
    */
   dateOnly?: boolean;
+  /**
+   * sprint-20-tasks.md п.7 — "by 12:00", a deadline for a task without a
+   * time; offered only with `onDueChange` and no time.
+   */
+  due?: string | null;
+  onDueChange?: (due: string | null) => void;
   children?: ReactNode;
 }) {
   return (
@@ -101,6 +109,37 @@ export function WhenGroup({
                 </button>
               )}
             </div>
+            {/* sprint-20-tasks.md п.7 — "by 12:00"; × takes it off. */}
+            {time === null && onDueChange && (
+              <div className="flex items-center">
+                <PickerField
+                  type="time"
+                  value={due ?? ""}
+                  ariaLabel={
+                    due === null
+                      ? "Deadline: none. Set a deadline"
+                      : `Deadline: by ${due}. Change deadline`
+                  }
+                  onChange={onDueChange}
+                  className={cn(
+                    "tabular-nums",
+                    due === null && "text-newtask-quiet-text",
+                  )}
+                >
+                  {due === null ? "No deadline" : `by ${due}`}
+                </PickerField>
+                {due !== null && (
+                  <button
+                    type="button"
+                    onClick={() => onDueChange(null)}
+                    aria-label="Remove deadline"
+                    className="text-newtask-quiet-text hover:bg-newtask-control-hover hover:text-text-primary -ml-1.5 flex size-8 items-center justify-center rounded-full transition-colors"
+                  >
+                    <X aria-hidden className="size-4" strokeWidth={1.8} />
+                  </button>
+                )}
+              </div>
+            )}
             <div className="relative">
               <select
                 aria-label="Duration"

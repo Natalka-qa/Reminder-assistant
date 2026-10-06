@@ -140,6 +140,11 @@ model Task {
   // edit would move it. Old inactive tasks got their updatedAt (S19-01).
   endedAt DateTime?
 
+  // sprint-20-tasks.md п.7 — a deadline for a task without a time ("by
+  // 12:00"): minutes of its day, local time (720). Not a start — the task
+  // stays in "Any time". Null — no deadline; always null with a time.
+  dueMinutes Int?
+
   user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   occurrences TaskOccurrence[]
 
@@ -218,6 +223,9 @@ enum ReminderKind {
   OFFSET
   MORNING_OF
   EVENING_BEFORE
+  // sprint-20-tasks.md п.8 — reminderOffsetMinutes before the deadline
+  // (dueMinutes) of a task without a time.
+  BEFORE_DUE
 }
 
 enum OccurrenceStatus {

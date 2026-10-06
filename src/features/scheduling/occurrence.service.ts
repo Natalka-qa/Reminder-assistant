@@ -449,6 +449,7 @@ export const occurrenceService = {
       durationMinutes: number;
       reminderKind: ReminderRule["kind"];
       reminderOffsetMinutes: number;
+      dueMinutes: number | null;
       endedAt: Date | null;
     },
     timezone: string,

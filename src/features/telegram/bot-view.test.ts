@@ -137,6 +137,9 @@ describe("shiftedTaskInput", () => {
     priority: "NORMAL" as const,
     repeat: "NONE" as const,
     repeatDays: [5],
+    repeatInterval: 1,
+    repeatEnd: { kind: "NEVER" } as const,
+    due: null,
     reminder: { kind: "OFFSET" as const, offsetMinutes: 15 },
     recurring: false,
   };
@@ -152,6 +155,8 @@ describe("shiftedTaskInput", () => {
       flexibility: "FIXED",
       repeatFrequency: "NONE",
       repeatDaysOfWeek: [],
+      repeatInterval: 1,
+      repeatEnd: "NEVER",
       reminderKind: "OFFSET",
       reminderOffsetMinutes: 15,
       confirmConflicts: true,

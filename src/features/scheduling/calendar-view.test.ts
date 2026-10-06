@@ -240,3 +240,37 @@ describe("tasks without a time (sprint-18-tasks.md п.19)", () => {
     expect(day.busyLevel).toBe(2);
   });
 });
+
+describe("a deadline on a task without a time (sprint-20 п.7–9)", () => {
+  const due = {
+    id: "o1",
+    taskId: "t1",
+    title: "Send report",
+    status: "SCHEDULED" as const,
+    date: "2026-09-25",
+    startMinutes: 0,
+    durationMinutes: 0,
+    flexibility: "FLEXIBLE" as const,
+    priority: "NORMAL" as const,
+    recurrenceLabel: null,
+    daily: false,
+    hasTime: false,
+    dueMinutes: 720,
+    edited: false,
+  };
+
+  it("reads by 12:00 and is overdue once it has passed today", () => {
+    const [before] = buildCalendarDays(
+      ["2026-09-25"],
+      "2026-09-25",
+      [due],
+      600,
+    );
+    expect(before.anyTime[0]).toMatchObject({
+      timeLabel: "by 12:00",
+      overdue: false,
+    });
+    const [after] = buildCalendarDays(["2026-09-25"], "2026-09-25", [due], 725);
+    expect(after.anyTime[0].overdue).toBe(true);
+  });
+});

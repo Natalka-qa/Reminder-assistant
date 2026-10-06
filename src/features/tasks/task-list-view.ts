@@ -18,6 +18,7 @@ import {
   type RecurrenceRule,
 } from "@/features/recurrence/recurrence-rule";
 import type { TaskSort, TaskTab } from "@/features/tasks/task-list-params";
+import { dueLabel, isPastDue } from "@/features/scheduling/untimed";
 
 // TASKS_V2_UPDATE.md — pure view-model logic for the Tasks screen: which
 // occurrence each task's row stands for, its day bucket, the tab filters,
@@ -51,6 +52,8 @@ export type TaskListSource = {
   durationMinutes: number;
   recurrenceRule: string | null;
   hasTime: boolean;
+  /** sprint-20-tasks.md п.7 — "by 12:00" (720); null — no deadline. */
+  dueMinutes: number | null;
   occurrences: SourceOccurrence[];
 };
 
@@ -63,6 +66,8 @@ export type TaskListItem = {
   durationMinutes: number;
   /** False — a task without a time (sprint-18-tasks.md). */
   hasTime: boolean;
+  /** sprint-20-tasks.md п.7 — the deadline of a task without a time. */
+  dueMinutes: number | null;
   recurrence: RecurrenceRule | null;
   status: OccurrenceStatus;
   scheduledStart: Date;
@@ -171,13 +176,18 @@ export function pickListOccurrence<T extends SourceOccurrence>(
  * still counts as overdue is taskSummary's job.
  */
 export function classifyTask(
-  task: { scheduledStart: Date; recurrence: RecurrenceRule | null },
+  task: {
+    scheduledStart: Date;
+    recurrence: RecurrenceRule | null;
+    /** sprint-20-tasks.md п.9 — a one-off today past its deadline. */
+    pastDue?: boolean;
+  },
   now: Date,
   timezone: string,
 ): { timing: TaskTiming; dayOffset: number; isRecurring: boolean } {
   const dayOffset = dayOffsetInZone(task.scheduledStart, now, timezone);
   const timing: TaskTiming =
-    dayOffset < 0
+    dayOffset < 0 || (task.pastDue && task.recurrence === null)
       ? "overdue"
       : dayOffset === 0
         ? "today"
@@ -210,12 +220,17 @@ export function buildTaskListItems(
         flexibility: task.flexibility,
         durationMinutes: task.durationMinutes,
         hasTime: task.hasTime,
+        dueMinutes: task.hasTime ? null : task.dueMinutes,
         recurrence,
         status: occurrence.status,
         scheduledStart: occurrence.scheduledStart,
         edited: occurrence.isException ?? false,
         ...classifyTask(
-          { scheduledStart: occurrence.scheduledStart, recurrence },
+          {
+            scheduledStart: occurrence.scheduledStart,
+            recurrence,
+            pastDue: isPastDue(occurrence, task, now, timezone),
+          },
           now,
           timezone,
         ),
@@ -458,20 +473,24 @@ export function buildMeta(
   const time = item.hasTime
     ? formatTimeInZone(item.scheduledStart, timezone)
     : null;
+  // sprint-20-tasks.md п.7 — "by 12:00" where a time would be.
+  const due = dueLabel(item);
   const segments: string[] = [];
 
   if (item.recurrence) {
     segments.push(`↻ ${describeRecurrenceRule(item.recurrence)}`);
     if (!timeInColumn && time) segments.push(time);
+    if (due) segments.push(due);
     if (item.edited) segments.push("Edited");
   } else if (item.dayOffset === 0) {
     if (!timeInColumn && time) segments.push(time);
+    if (due) segments.push(due);
     segments.push(FLEXIBILITY_LABELS[item.flexibility]);
   } else {
     // TASKS_V2_UPDATE.md § 5 — "Flexible" instead of the time (п.18).
     segments.push(
       formatDayLabel(item.scheduledStart, now, timezone),
-      time ?? FLEXIBILITY_LABELS.FLEXIBLE,
+      time ?? due ?? FLEXIBILITY_LABELS.FLEXIBLE,
     );
   }
 
@@ -488,10 +507,12 @@ export function buildMeta(
 
 /** Spec §5 "Overdue action": only an open, past, one-off row can move. */
 export function canMoveToToday(
-  item: Pick<TaskListItem, "timing" | "isRecurring" | "status">,
+  item: Pick<TaskListItem, "timing" | "isRecurring" | "status" | "dayOffset">,
 ): boolean {
+  // Past its deadline today (sprint-20-tasks.md п.9) is already today.
   return (
     item.timing === "overdue" &&
+    item.dayOffset < 0 &&
     !item.isRecurring &&
     isActionableOccurrenceStatus(item.status)
   );

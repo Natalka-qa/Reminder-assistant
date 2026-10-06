@@ -12,6 +12,8 @@ describe("§ 11 test cases", () => {
       title: "Buy groceries",
       hits: [],
       language: "en",
+      // Shopping — an hour, a guess the form shows as such.
+      durationGuess: 60,
     });
   });
 

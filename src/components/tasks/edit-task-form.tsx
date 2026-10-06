@@ -17,6 +17,7 @@ import {
   type TaskActionState,
 } from "@/features/tasks/actions";
 import {
+  DEFAULT_DUE_REMINDER_MINUTES,
   DEFAULT_REMINDER_MINUTES,
   fittingReminder,
   overlapNotice,
@@ -25,7 +26,9 @@ import {
   reminderOptions,
   reminderPastNotice,
   reminderValue,
+  untimedReminderOptions,
   repeatHint,
+  repeatShapeInput,
 } from "@/features/tasks/new-task-fields";
 import {
   importanceChoicesFor,
@@ -44,6 +47,7 @@ import {
   TaskDetailsFields,
 } from "@/components/tasks/task-fields/details-fields";
 import { NoteField } from "@/components/tasks/task-fields/note-field";
+import { RepeatShapeInputs } from "@/components/tasks/task-fields/repeat-shape-fields";
 import {
   FormActions,
   FormHeader,
@@ -127,6 +131,7 @@ export function EditTaskForm({
     durationMinutes: fields.durationMinutes,
     repeatFrequency: fields.repeat,
     repeatDaysOfWeek: fields.repeat === "WEEKLY" ? fields.repeatDays : [],
+    ...repeatShapeInput(fields.repeat, fields.repeatInterval, fields.repeatEnd),
     kind,
     allowDuringWork,
   };
@@ -172,6 +177,7 @@ export function EditTaskForm({
         fields.reminder,
         clock.date,
         clock.minutes,
+        fields.due,
       );
 
   // sprint-18-tasks.md п.12 — adding or removing the time keeps the
@@ -186,7 +192,26 @@ export function EditTaskForm({
         values.reminder.kind === "OFFSET"
           ? values.reminder.offsetMinutes
           : DEFAULT_REMINDER_MINUTES,
+        time === null && current.due !== null,
       ),
+    }));
+  }
+
+  // sprint-20-tasks.md п.8 — a new deadline brings its reminder (30 min
+  // before) unless one is already picked; without one, BEFORE_DUE goes.
+  function changeDue(due: string | null) {
+    setFields((current) => ({
+      ...current,
+      due,
+      reminder:
+        due !== null && current.reminder.kind === "NONE"
+          ? { kind: "BEFORE_DUE", offsetMinutes: DEFAULT_DUE_REMINDER_MINUTES }
+          : fittingReminder(
+              current.reminder,
+              false,
+              DEFAULT_REMINDER_MINUTES,
+              due !== null,
+            ),
     }));
   }
   const hint = repeatHint(fields.repeat, fields.date, today, fields.time);
@@ -230,6 +255,18 @@ export function EditTaskForm({
         fields.repeatDays.map((day) => (
           <input key={day} type="hidden" name="repeatDaysOfWeek" value={day} />
         ))}
+      <RepeatShapeInputs
+        input={repeatShapeInput(
+          fields.repeat,
+          fields.repeatInterval,
+          fields.repeatEnd,
+        )}
+      />
+      <input
+        type="hidden"
+        name="dueTime"
+        value={fields.time === null ? (fields.due ?? "") : ""}
+      />
       <input type="hidden" name="reminderKind" value={fields.reminder.kind} />
       <input
         type="hidden"
@@ -272,6 +309,8 @@ export function EditTaskForm({
         onTimeRemove={() => changeTime(null)}
         onDurationChange={(value) => setField("durationMinutes", value)}
         dateReadOnly={values.recurring}
+        due={fields.due}
+        onDueChange={changeDue}
       >
         {past && <RoseNotice>{past}</RoseNotice>}
         {reminderPast && <RoseNotice>{reminderPast}</RoseNotice>}
@@ -308,11 +347,15 @@ export function EditTaskForm({
       <TaskDetailsFields
         ids={ids}
         reminder={reminderValue(fields.reminder)}
-        reminderChoices={reminderOptions(
-          fields.time !== null,
-          values.reminder,
-          fields.reminder,
-        )}
+        reminderChoices={
+          fields.time !== null
+            ? reminderOptions(true, values.reminder, fields.reminder)
+            : untimedReminderOptions(
+                fields.due !== null,
+                values.reminder,
+                fields.reminder,
+              )
+        }
         onReminderChange={(value) =>
           setField("reminder", parseReminderValue(value))
         }
@@ -329,6 +372,15 @@ export function EditTaskForm({
         repeatDays={fields.repeatDays}
         onRepeatDaysChange={(days) => setField("repeatDays", days)}
         repeatHint={hint}
+        repeatInterval={fields.repeatInterval}
+        onRepeatIntervalChange={(value) => setField("repeatInterval", value)}
+        repeatEnd={fields.repeatEnd}
+        onRepeatEndChange={(value) => setField("repeatEnd", value)}
+        repeatEndHint={null}
+        repeatStart={fields.date}
+        // sprint-20-tasks.md п.3 — a count isn't kept (it's saved as the
+        // last day), so editing offers the date.
+        repeatEndByCount={false}
       />
 
       <NoteField

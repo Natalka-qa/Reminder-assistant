@@ -1,8 +1,10 @@
 import type { OccurrenceStatus } from "@/lib/db/types";
-import { formatDateInZone } from "@/lib/date";
+import { formatDateInZone, startOfLocalDate } from "@/lib/date";
+import { shiftDate } from "@/lib/date/calendar-date";
 import {
   describeRecurrenceRule,
   parseRecurrenceRule,
+  withoutUntil,
 } from "@/features/recurrence/recurrence-rule";
 import { isAhead } from "@/features/scheduling/untimed";
 
@@ -14,6 +16,39 @@ export type TaskEndKind = "series" | "archive";
 
 export function taskEndKind(recurring: boolean): TaskEndKind {
   return recurring ? "series" : "archive";
+}
+
+/**
+ * sprint-20-tasks.md п.2 — a series whose last day (`until`) is behind the
+ * user's today has ended on its own: when — the start of the day after
+ * that last day. Null while it still has days, or never ends.
+ */
+export function finishedSeriesEndedAt(
+  recurrenceRule: string | null,
+  now: Date,
+  timezone: string,
+): Date | null {
+  const until = parseRecurrenceRule(recurrenceRule)?.until;
+  if (!until || formatDateInZone(now, timezone, "yyyy-LL-dd") <= until) {
+    return null;
+  }
+  return startOfLocalDate(shiftDate(until, 1), timezone);
+}
+
+/**
+ * п.2 — Resume of a series that ran to its last day: it carries on with no
+ * end, or there'd be nothing to resume. A series ended early keeps its
+ * `until`. The rule to save, or null when it stays as it is.
+ */
+export function resumedRecurrenceRule(
+  recurrenceRule: string | null,
+  now: Date,
+  timezone: string,
+): string | null {
+  const rule = parseRecurrenceRule(recurrenceRule);
+  if (!rule?.until) return null;
+  if (rule.until >= formatDateInZone(now, timezone, "yyyy-LL-dd")) return null;
+  return JSON.stringify(withoutUntil(rule));
 }
 
 /** п.10, п.13 — the button that stops the task, and the one that undoes it. */

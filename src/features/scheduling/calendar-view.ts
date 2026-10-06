@@ -103,6 +103,8 @@ export type CalendarOccurrenceInput = {
   daily: boolean;
   /** False — a task without a time (sprint-18-tasks.md); it's "Any time". */
   hasTime: boolean;
+  /** sprint-20-tasks.md п.7 — a task without a time's deadline, minutes. */
+  dueMinutes?: number | null;
   /** sprint-19-tasks.md п.5 — a day of a series moved on its own. */
   edited: boolean;
 };
@@ -157,10 +159,17 @@ export function dayCountsLabel(total: number, fixed: number): string {
 function toEvent(
   occurrence: CalendarOccurrenceInput,
   today: string,
+  nowMinutes: number | null,
 ): CalendarEvent {
+  const due = occurrence.hasTime ? null : (occurrence.dueMinutes ?? null);
+  // sprint-20-tasks.md п.7 — "by 12:00" instead of "Any time".
   const time = occurrence.hasTime
     ? formatMinutes(occurrence.startMinutes)
-    : "Any time";
+    : due !== null
+      ? `by ${formatMinutes(due)}`
+      : "Any time";
+  const open =
+    occurrence.status === "SCHEDULED" || occurrence.status === "SNOOZED";
   const recurring = occurrence.recurrenceLabel !== null;
   const rangeLabel =
     occurrence.hasTime && occurrence.durationMinutes > 0
@@ -196,11 +205,16 @@ function toEvent(
     priority: occurrence.priority,
     recurrenceLabel: occurrence.recurrenceLabel,
     // Same rule as the Tasks screen (task-list-view.ts): only a one-off
-    // from an earlier day that's still open is overdue.
+    // from an earlier day that's still open is overdue — or today's, past
+    // its deadline (sprint-20-tasks.md п.9).
     overdue:
       !recurring &&
-      occurrence.date < today &&
-      (occurrence.status === "SCHEDULED" || occurrence.status === "SNOOZED"),
+      open &&
+      (occurrence.date < today ||
+        (occurrence.date === today &&
+          due !== null &&
+          nowMinutes !== null &&
+          nowMinutes >= due)),
     hasTime: occurrence.hasTime,
     edited: occurrence.edited,
     href: `/tasks/${occurrence.taskId}?occurrence=${occurrence.id}`,
@@ -216,6 +230,8 @@ export function buildCalendarDays(
   dates: string[],
   today: string,
   occurrences: CalendarOccurrenceInput[],
+  /** The user's local minutes now — for a deadline already passed today. */
+  nowMinutes: number | null = null,
 ): CalendarDay[] {
   return dates.map((date) => {
     const own = occurrences
@@ -235,8 +251,12 @@ export function buildCalendarDays(
       countsLabel: dayCountsLabel(own.length, fixed),
       // The busy line and the counts are about every task; only the timed
       // ones go on the timeline (sprint-18-tasks.md п.19).
-      events: own.filter((o) => o.hasTime).map((o) => toEvent(o, today)),
-      anyTime: own.filter((o) => !o.hasTime).map((o) => toEvent(o, today)),
+      events: own
+        .filter((o) => o.hasTime)
+        .map((o) => toEvent(o, today, nowMinutes)),
+      anyTime: own
+        .filter((o) => !o.hasTime)
+        .map((o) => toEvent(o, today, nowMinutes)),
     };
   });
 }

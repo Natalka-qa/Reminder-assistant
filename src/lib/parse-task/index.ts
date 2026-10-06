@@ -4,6 +4,7 @@ import {
   type LanguageResult,
   type TaskKind,
 } from "@/lib/parse-task/engine";
+import { guessDuration } from "@/lib/parse-task/duration-guess";
 import { en } from "@/lib/parse-task/languages/en";
 import { ru } from "@/lib/parse-task/languages/ru";
 import { uk } from "@/lib/parse-task/languages/uk";
@@ -17,6 +18,11 @@ export type {
 export type ParsedTask = LanguageResult & {
   /** Which rule set read the text. */
   language: "en" | "ru" | "uk";
+  /**
+   * The usual length of a task with this title (duration-guess.ts) when
+   * the text names none: "Танцы" → 60, "Принять таблетки" → 0.
+   */
+  durationGuess?: number;
 };
 
 const CYRILLIC = /\p{Script=Cyrillic}/u;
@@ -38,6 +44,16 @@ const UKRAINIAN_ONLY = /[іїєґ]/iu;
  * tie, Ukrainian if the text has letters only Ukrainian uses.
  */
 export function parseTask(text: string, today: string): ParsedTask {
+  return withDurationGuess(readText(text, today));
+}
+
+function withDurationGuess(parsed: ParsedTask): ParsedTask {
+  if (parsed.durationMinutes !== undefined) return parsed;
+  const guess = guessDuration(parsed.title);
+  return guess === undefined ? parsed : { ...parsed, durationGuess: guess };
+}
+
+function readText(text: string, today: string): ParsedTask {
   if (!CYRILLIC.test(text)) {
     return { ...runLanguage(en, text, today), language: "en" };
   }

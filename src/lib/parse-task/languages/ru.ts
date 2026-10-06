@@ -1,11 +1,20 @@
 import {
+  countOf,
   decimal,
+  monthDayDate,
+  NUMERIC_DATE,
+  numericDateOf,
+  numericDateRule,
   rule,
+  setDailyInterval,
   setDaysAhead,
+  setDue,
   setDuration,
   setMonthDay,
   setNextWeekday,
   setPartOfDay,
+  setRepeatFor,
+  setRepeatUntil,
   setSearchDuration,
   setTime,
   setWeekly,
@@ -78,6 +87,10 @@ function hourWithDaypart(hour: number, daypart: string | undefined): number {
 /** Weekday words, for splitting "Mon at 19 and Wed at 20" (split.ts). */
 export const WEEKDAY_PATTERN = WEEKDAY;
 
+// sprint-20-tasks.md п.3 — the unit of "for a month" / "на 2 недели".
+const UNIT_MONTH = /^мес/iu;
+const UNIT_WEEK = /^нед/iu;
+
 export const ru: Language = {
   id: "ru",
   searchGroups: [
@@ -110,19 +123,30 @@ export const ru: Language = {
     ],
     // Repeat
     [
+      // sprint-20-tasks.md п.4 — через день, каждые N дней.
+      rule("через день|каждый второй день|раз в два дня", (_, { out }) =>
+        setDailyInterval(out, 2),
+      ),
+      rule("(?:каждые|раз в) (\\d{1,2}) (?:дня|дней)", (match, { out }) =>
+        setDailyInterval(out, Number(match[1])),
+      ),
       rule(
         "по будням|в будни|по рабочим дням|каждый будний день|каждый рабочий день",
         (_, { out }) => setWeekly(out, [1, 2, 3, 4, 5]),
       ),
       rule(
-        `(?:по|каждый|каждую|каждое) (?:${WEEKDAY})(?:(?:\\s*(?:,|и)\\s*|\\s+)(?:по )?(?:${WEEKDAY}))*`,
+        `(?:по|каждый|каждую|каждое) (?:${WEEKDAY})(?:(?:\\s*(?:,|и)\\s*|\\s+)(?:по )?(?:${WEEKDAY}))*(?: ([01]?\\d|2[0-3])(?![:.]?\\d)(?! ?(?:час|мин|ч)))?`,
         (match, { out }) => {
           const days = [
             ...match[0].matchAll(new RegExp(`(?:${WEEKDAY})`, "giu")),
           ].map((m) => weekdayOf(m[0]));
+          // The hour right after the day ("по средам 19"): its
+          // time — "по средам в 19" without the "в".
+          const hour = match[1];
           return (
             days.every((day) => day !== undefined) &&
-            setWeekly(out, days as number[])
+            setWeekly(out, days as number[]) &&
+            (hour === undefined || setTime(out, Number(hour), 0))
           );
         },
       ),
@@ -139,6 +163,32 @@ export const ru: Language = {
         (_, { out }) => void (out.repeat = "MONTHLY"),
       ),
     ],
+    // sprint-20-tasks.md п.3 — сколько идёт повтор: «на месяц», «в течение
+    // 2 недель», «до 3 ноября». Только после повтора, иначе слова остаются.
+    [
+      rule(
+        "(?:на|в течение) (?:(\\d{1,3}) )?(день|дня|дней|неделю|недели|недель|месяц|месяца|месяцев)",
+        (match, ctx) => {
+          const n = countOf(match[1]);
+          const unit = match[2].toLowerCase();
+          return setRepeatFor(
+            ctx,
+            UNIT_MONTH.test(unit)
+              ? { months: n }
+              : { days: UNIT_WEEK.test(unit) ? n * 7 : n },
+          );
+        },
+      ),
+      rule(`до (\\d{1,2})(?:-?го)? (${MONTH})`, (match, ctx) =>
+        setRepeatUntil(
+          ctx,
+          monthDayDate(ctx.today, monthOf(match[2]), Number(match[1])),
+        ),
+      ),
+      rule(`до ${NUMERIC_DATE}`, (match, ctx) =>
+        setRepeatUntil(ctx, numericDateOf(match, 1, ctx.today)),
+      ),
+    ],
     // Date
     [
       rule("послезавтра", (_, ctx) => setDaysAhead(ctx, 2)),
@@ -147,6 +197,8 @@ export const ru: Language = {
       rule("через (\\d{1,3}) (?:день|дня|дней)", (match, ctx) =>
         setDaysAhead(ctx, Number(match[1])),
       ),
+      // sprint-20-tasks.md п.11 — "03/10" is October 3.
+      numericDateRule("на"),
       rule(`(?:на )?(\\d{1,2})(?:-?го)? (${MONTH})\\.?`, (match, ctx) =>
         setMonthDay(ctx, monthOf(match[2]), Number(match[1])),
       ),
@@ -161,6 +213,15 @@ export const ru: Language = {
       rule("(пн|вт|ср|чт|пт|сб|вс)", (match, ctx) => {
         setNextWeekday(ctx, weekdayOf(match[1])!);
       }),
+    ],
+    // sprint-20-tasks.md п.10 — срок: «до 12», «до 12:30». Не дата:
+    // «до 3 ноября», «до 03/11» — это конец повтора или текст.
+    [
+      rule(
+        `до (\\d{1,2})(?:[:.](\\d{2}))?(?:-?(?:ти|х|и))?(?![/.]?\\d)(?! (?:${MONTH}))`,
+        (match, { out }) =>
+          setDue(out, Number(match[1]), Number(match[2] ?? 0)),
+      ),
     ],
     // Duration — "в 9 часов" is a time, not nine hours, hence the
     // lookbehinds on the hour counts.

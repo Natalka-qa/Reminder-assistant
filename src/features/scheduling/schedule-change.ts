@@ -8,6 +8,7 @@ import {
 import { generateOccurrenceDates } from "@/features/recurrence/occurrence-dates";
 import {
   RECURRENCE_WINDOW_DAYS,
+  normalizeRecurrenceRule,
   parseRecurrenceRule,
   serializeRecurrenceRule,
   type RecurrenceRule,
@@ -107,13 +108,10 @@ function datesTaken(occurrences: ExistingOccurrence[], timezone: string) {
   );
 }
 
-// Weekly days compared as a set — [3, 1] is the same schedule as [1, 3].
+// Weekly days compared as a set — [3, 1] is the same schedule as [1, 3];
+// an end or a step only when there is one (normalizeRecurrenceRule).
 function normalizedRule(rule: RecurrenceRule | null): string | null {
-  if (rule?.frequency !== "WEEKLY") return serializeRecurrenceRule(rule);
-  return serializeRecurrenceRule({
-    frequency: "WEEKLY",
-    daysOfWeek: [...new Set(rule.daysOfWeek)].sort((a, b) => a - b),
-  });
+  return serializeRecurrenceRule(rule && normalizeRecurrenceRule(rule));
 }
 
 /**

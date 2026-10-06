@@ -1,5 +1,7 @@
 import type { z } from "zod";
 
+import type { Prisma, PrismaClient } from "@prisma/client";
+
 import { runInTransaction } from "@/lib/db/transaction";
 import { taskRepository } from "@/features/tasks/task.repository";
 import {
@@ -38,6 +40,12 @@ import {
 import { ScheduleConflictError } from "@/features/scheduling/conflict.errors";
 import { createTaskSchema, updateTaskSchema } from "@/lib/validation/task";
 import {
+  finishedSeriesEndedAt,
+  resumedRecurrenceRule,
+} from "@/features/tasks/task-ending";
+import {
+  normalizeRecurrenceRule,
+  nthOccurrenceDate,
   serializeRecurrenceRule,
   type RecurrenceRule,
 } from "@/features/recurrence/recurrence-rule";
@@ -57,16 +65,29 @@ function reminderRuleFor(
     reminderOffsetMinutes: number;
   },
   hasTime: boolean,
+  dueMinutes: number | null = null,
 ): ReminderRule {
   const kind = data.reminderKind ?? defaultReminderKind(hasTime);
-  if (!isReminderAllowed(kind, hasTime)) {
+  if (!isReminderAllowed(kind, hasTime, dueMinutes !== null)) {
     throw new TaskValidationError(
       hasTime
         ? "A task with a time is reminded minutes before it."
-        : "A task without a time is reminded that morning or the evening before.",
+        : kind === "BEFORE_DUE"
+          ? "Only a task with a deadline is reminded before it."
+          : "A task without a time is reminded that morning or the evening before.",
     );
   }
-  return { kind, offsetMinutes: data.reminderOffsetMinutes };
+  return { kind, offsetMinutes: data.reminderOffsetMinutes, dueMinutes };
+}
+
+// sprint-20-tasks.md п.7 — "12:00" as 720; a task with a time has none.
+function dueMinutesOf(data: {
+  time?: string;
+  dueTime?: string;
+}): number | null {
+  if (data.time !== undefined || data.dueTime === undefined) return null;
+  const [hours, minutes] = data.dueTime.split(":").map(Number);
+  return hours * 60 + minutes;
 }
 
 function parseOrThrow<T>(schema: z.ZodType<T>, input: unknown): T {
@@ -81,18 +102,42 @@ function parseOrThrow<T>(schema: z.ZodType<T>, input: unknown): T {
 // Undefined shape guarded by the WEEKLY-requires-days refine in
 // lib/validation/task.ts — repeatDaysOfWeek is only trusted once
 // repeatFrequency is confirmed "WEEKLY".
-function buildRecurrenceRule(data: {
+type RepeatInput = {
   repeatFrequency: "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
   repeatDaysOfWeek: number[];
-}): RecurrenceRule | null {
+  // sprint-20-tasks.md п.3–4 — missing: every day, never ends.
+  repeatInterval?: number;
+  repeatEnd?: "NEVER" | "ON_DATE" | "AFTER_COUNT";
+  repeatUntil?: string;
+  repeatCount?: number;
+};
+
+function buildRecurrenceRule(
+  data: RepeatInput,
+  /** The series' first day — "after N times" counts from it. */
+  anchorDate: string,
+): RecurrenceRule | null {
+  const base = baseRecurrenceRule(data);
+  if (!base) return null;
+  const until =
+    data.repeatEnd === "ON_DATE"
+      ? data.repeatUntil
+      : data.repeatEnd === "AFTER_COUNT" && data.repeatCount !== undefined
+        ? (nthOccurrenceDate(base, anchorDate, data.repeatCount) ?? undefined)
+        : undefined;
+  return normalizeRecurrenceRule({ ...base, until });
+}
+
+function baseRecurrenceRule(data: RepeatInput): RecurrenceRule | null {
   switch (data.repeatFrequency) {
     case "NONE":
       return null;
     case "WEEKLY":
       return { frequency: "WEEKLY", daysOfWeek: data.repeatDaysOfWeek };
     case "DAILY":
+      return { frequency: "DAILY", interval: data.repeatInterval };
     case "MONTHLY":
-      return { frequency: data.repeatFrequency };
+      return { frequency: "MONTHLY" };
   }
 }
 
@@ -106,18 +151,19 @@ function recurringSchedulePlan(
     hasTime: boolean;
     occurrences: ExistingOccurrence[];
   },
-  data: {
+  data: RepeatInput & {
     date: string;
     /** Missing — the series has no time (sprint-18-tasks.md п.10). */
     time?: string;
     durationMinutes: number;
-    repeatFrequency: "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
-    repeatDaysOfWeek: number[];
   },
   timezone: string,
   now: Date,
 ): (ScheduleChangePlan & { rule: RecurrenceRule }) | null {
-  const rule = buildRecurrenceRule(data);
+  // The start date isn't editable: the first occurrence stays the anchor,
+  // as it is for the daily window extension.
+  const anchorDate = anchorDateOf(task.occurrences, timezone) ?? data.date;
+  const rule = buildRecurrenceRule(data, anchorDate);
   if (!rule) {
     throw new TaskValidationError(
       "A repeating task can't stop repeating — end the series instead.",
@@ -137,9 +183,7 @@ function recurringSchedulePlan(
       occurrences: task.occurrences,
       hadTime: task.hasTime,
       rule,
-      // The start date isn't editable: the first occurrence stays the
-      // anchor, as it is for the daily window extension.
-      anchorDate: anchorDateOf(task.occurrences, timezone) ?? data.date,
+      anchorDate,
       time,
       durationMinutes: data.durationMinutes,
       timezone,
@@ -164,6 +208,8 @@ function plannedIntervals(
   ];
 }
 
+type Db = PrismaClient | Prisma.TransactionClient;
+
 export const taskService = {
   getTask(userId: string, taskId: string) {
     return taskRepository.findByIdWithOccurrences(taskId, userId);
@@ -181,12 +227,10 @@ export const taskService = {
     userId: string,
     taskId: string,
     timezone: string,
-    input: {
+    input: RepeatInput & {
       date: string;
       time?: string;
       durationMinutes: number;
-      repeatFrequency: "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
-      repeatDaysOfWeek: number[];
     },
     now = new Date(),
   ): Promise<RecurringOverlapDay[]> {
@@ -237,9 +281,10 @@ export const taskService = {
 
   async createTask(userId: string, timezone: string, rawInput: unknown) {
     const data = parseOrThrow(createTaskSchema, rawInput);
-    const rule = buildRecurrenceRule(data);
+    const rule = buildRecurrenceRule(data, data.date);
     const time = data.time ?? null;
-    const reminder = reminderRuleFor(data, time !== null);
+    const dueMinutes = dueMinutesOf(data);
+    const reminder = reminderRuleFor(data, time !== null, dueMinutes);
     const [{ scheduledStart, scheduledEnd }] = buildCandidateIntervals(
       [data.date],
       time,
@@ -304,6 +349,7 @@ export const taskService = {
           reminderKind: reminder.kind,
           recurrenceRule: serializeRecurrenceRule(rule),
           hasTime: time !== null,
+          dueMinutes,
         },
         tx,
       );
@@ -350,7 +396,8 @@ export const taskService = {
     );
     // sprint-18-tasks.md п.8 — without a time, always Flexible.
     const flexibility = time === null ? "FLEXIBLE" : data.flexibility;
-    const reminder = reminderRuleFor(data, time !== null);
+    const dueMinutes = dueMinutesOf(data);
+    const reminder = reminderRuleFor(data, time !== null, dueMinutes);
 
     const now = new Date();
 
@@ -421,6 +468,7 @@ export const taskService = {
             durationMinutes: data.durationMinutes,
             reminderOffsetMinutes: data.reminderOffsetMinutes,
             reminderKind: reminder.kind,
+            dueMinutes,
             // A time added or removed is a schedule change (п.10), so
             // hasTime only moves together with a plan.
             ...(plan
@@ -466,7 +514,8 @@ export const taskService = {
 
         if (
           reminder.kind !== existing.reminderKind ||
-          data.reminderOffsetMinutes !== existing.reminderOffsetMinutes
+          data.reminderOffsetMinutes !== existing.reminderOffsetMinutes ||
+          dueMinutes !== existing.dueMinutes
         ) {
           await notificationService.rescheduleForTask(
             task,
@@ -511,6 +560,7 @@ export const taskService = {
           reminderOffsetMinutes: data.reminderOffsetMinutes,
           reminderKind: reminder.kind,
           hasTime: time !== null,
+          dueMinutes,
           ...(data.active !== undefined ? { active: data.active } : {}),
         },
         tx,
@@ -613,10 +663,43 @@ export const taskService = {
     if (existing.active) {
       throw new TaskValidationError("This task is already active.");
     }
+    // sprint-20-tasks.md п.2 — a series that ran to its last day carries
+    // on with no end.
+    const recurrenceRule =
+      resumedRecurrenceRule(existing.recurrenceRule, now, timezone) ??
+      existing.recurrenceRule;
     return runInTransaction(async (tx) => {
+      if (recurrenceRule !== existing.recurrenceRule) {
+        await taskRepository.update(taskId, userId, { recurrenceRule }, tx);
+      }
       const task = await taskRepository.setEnded(taskId, userId, null, tx);
-      await occurrenceService.reopenEndedTask(existing, timezone, now, tx);
+      await occurrenceService.reopenEndedTask(
+        { ...existing, recurrenceRule },
+        timezone,
+        now,
+        tx,
+      );
       return task;
     });
+  },
+
+  // sprint-20-tasks.md п.2 — the daily cron, before the window extension:
+  // a series past its last day ends, dated the day after it, and shows in
+  // Tasks → Ended like one ended by hand. Its days are all behind it, so
+  // nothing is cancelled. Outside a user's request — no transaction.
+  async endFinishedSeries(now: Date, db?: Db) {
+    const tasks = await taskRepository.findActiveRecurring(db);
+    let ended = 0;
+    for (const task of tasks) {
+      const endedAt = finishedSeriesEndedAt(
+        task.recurrenceRule,
+        now,
+        task.user.timezone,
+      );
+      if (!endedAt) continue;
+      await taskRepository.setEnded(task.id, task.userId, endedAt, db);
+      ended += 1;
+    }
+    return ended;
   },
 };

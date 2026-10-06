@@ -16,6 +16,7 @@ const TASK: EditableTask = {
   reminderOffsetMinutes: 15,
   reminderKind: "OFFSET",
   hasTime: true,
+  dueMinutes: null,
 };
 // Wednesday.
 const LOCAL = { date: "2026-10-07", time: "09:30" };
@@ -32,6 +33,9 @@ describe("editTaskValues", () => {
       priority: "NORMAL",
       repeat: "NONE",
       repeatDays: [3],
+      repeatInterval: 1,
+      repeatEnd: { kind: "NEVER" },
+      due: null,
       reminder: { kind: "OFFSET", offsetMinutes: 15 },
       recurring: false,
     });

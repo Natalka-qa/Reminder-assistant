@@ -4,7 +4,7 @@ import {
   utcToZoned,
   zonedDateTimeToUtc,
 } from "@/lib/date";
-import type { RecurrenceRule } from "./recurrence-rule";
+import { dailyInterval, type RecurrenceRule } from "./recurrence-rule";
 
 function toUtcDayStart(dateStr: string, zone: string): Date {
   return zonedDateTimeToUtc(dateStr, "00:00", zone);
@@ -19,10 +19,15 @@ function laterDateString(a: string, b: string): string {
   return a > b ? a : b;
 }
 
+function earlierDateString(a: string, b: string): string {
+  return a < b ? a : b;
+}
+
 /**
  * Which calendar dates (YYYY-MM-DD, ascending) a recurrence rule produces in
  * `[fromDate, toDate]` (both inclusive), never earlier than `anchorDate` (the
- * task's start date). Always walks day-by-day/month-by-month through
+ * task's start date) nor later than the rule's `until` (sprint-20-tasks.md
+ * п.2 — every generator goes through here, so none passes a series' end). Always walks day-by-day/month-by-month through
  * `lib/date`'s zone-aware helpers (never `+24h`/`new Date(...)`), so DST
  * transitions never shift the count or the wall-clock dates produced.
  */
@@ -34,18 +39,25 @@ export function generateOccurrenceDates(
   zone: string,
 ): string[] {
   const effectiveFrom = laterDateString(anchorDate, fromDate);
-  if (effectiveFrom > toDate) {
+  const effectiveTo = rule.until
+    ? earlierDateString(toDate, rule.until)
+    : toDate;
+  if (effectiveFrom > effectiveTo) {
     return [];
   }
 
-  const end = toUtcDayStart(toDate, zone);
+  const end = toUtcDayStart(effectiveTo, zone);
   const results: string[] = [];
 
   if (rule.frequency === "DAILY") {
-    let cursor = toUtcDayStart(effectiveFrom, zone);
+    // п.4 — every N days counts from the anchor, wherever the window
+    // starts: a series of every other day keeps its own days.
+    const from = toUtcDayStart(effectiveFrom, zone);
+    const step = dailyInterval(rule);
+    let cursor = toUtcDayStart(anchorDate, zone);
     while (cursor <= end) {
-      results.push(toDateString(cursor, zone));
-      cursor = addDaysInZone(cursor, 1, zone);
+      if (cursor >= from) results.push(toDateString(cursor, zone));
+      cursor = addDaysInZone(cursor, step, zone);
     }
     return results;
   }
@@ -63,15 +75,20 @@ export function generateOccurrenceDates(
     return results;
   }
 
-  // MONTHLY: step from the true anchor so the day-of-month is preserved
-  // (see addMonthsInZone's clamping note) instead of drifting from fromDate.
+  // MONTHLY: each month counted from the anchor itself, so a clamped short
+  // month doesn't carry over (see addMonthsInZone's clamping note): the
+  // 31st goes Jan 31 → Feb 28 → Mar 31, not → Mar 28 (sprint-20-tasks.md,
+  // S20-00).
   const from = toUtcDayStart(effectiveFrom, zone);
-  let cursor = toUtcDayStart(anchorDate, zone);
-  while (cursor <= end) {
+  const anchor = toUtcDayStart(anchorDate, zone);
+  for (
+    let months = 0, cursor = anchor;
+    cursor <= end;
+    cursor = addMonthsInZone(anchor, ++months, zone)
+  ) {
     if (cursor >= from) {
       results.push(toDateString(cursor, zone));
     }
-    cursor = addMonthsInZone(cursor, 1, zone);
   }
   return results;
 }
