@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth/config";
+import { isEmailSignInEnabled } from "@/lib/auth/email-sign-in";
 import CloudClearing from "@/components/CloudClearing";
 import { LoginForm } from "./login-form";
 import { LegalLinks } from "@/components/legal-links";
@@ -11,6 +12,7 @@ import { TelegramLoginGate } from "./telegram-login-gate";
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const session = await auth();
   const { callbackUrl, signedOut } = await searchParams;
+  const emailEnabled = isEmailSignInEnabled();
   const destination =
     typeof callbackUrl === "string" ? callbackUrl : "/dashboard";
 
@@ -46,14 +48,18 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           signedOut={signedOut === "1"}
         >
           <p className="text-text-secondary animate-rise-420 -mt-[10px] text-[15px] leading-[1.65]">
-            Sign in with a link — no password to keep.
+            {emailEnabled
+              ? "Sign in with a link — no password to keep."
+              : "Sign in with your Google account — no password to keep."}
           </p>
 
-          <LoginForm callbackUrl={destination} />
+          <LoginForm callbackUrl={destination} emailEnabled={emailEnabled} />
 
-          <p className="text-text-secondary animate-rise-820 text-xs leading-[1.6]">
-            We&apos;ll only use your email to send you a sign-in link.
-          </p>
+          {emailEnabled && (
+            <p className="text-text-secondary animate-rise-820 text-xs leading-[1.6]">
+              We&apos;ll only use your email to send you a sign-in link.
+            </p>
+          )}
         </TelegramLoginGate>
 
         <LegalLinks className="animate-rise-820" />
