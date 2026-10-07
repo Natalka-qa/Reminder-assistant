@@ -5,12 +5,15 @@ import { AssistantMark } from "@/components/dashboard/assistant-mark";
 // border and the decorative composition are ported from the reference
 // prototype (one-off illustration values, not tokens — see sky-scene.tsx's
 // same reasoning); only the body copy is data — computed by the caller via
-// home-view.ts's buildInsightBody, never hardcoded (the title itself is
+// assistant-message.ts's assistantMessage (backlog.md, 2026-10-07), never hardcoded (the title itself is
 // static in the reference prototype too, so it stays static here).
 export function AssistantInsight({
+  title = "A calmer day ahead",
   body,
   moreHref,
 }: {
+  /** backlog.md (2026-10-07) — in the message's mood (assistantTitle). */
+  title?: string;
   body: string;
   /** S13-05 — set when the body ends with a pattern sentence. */
   moreHref?: string;
@@ -60,7 +63,7 @@ export function AssistantInsight({
         </span>
       </div>
       <p className="font-display text-blue-ink-title relative text-[30px] leading-[1.1] font-light">
-        A calmer day ahead
+        {title}
       </p>
       <p className="text-blue-ink-body relative max-w-[270px] text-[14px] leading-[1.6] text-pretty">
         {body}

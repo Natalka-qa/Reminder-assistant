@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   buildCollisionSuggestion,
   busyRowsForToday,
-  buildInsightBody,
   countOverlappingToday,
   findMoveTime,
   formatRelativeTimeLabel,
@@ -171,44 +170,6 @@ describe("countOverlappingToday", () => {
 
   it("is zero with no collisions", () => {
     expect(countOverlappingToday(null, [])).toBe(0);
-  });
-});
-
-describe("buildInsightBody", () => {
-  it("computes fixed/flexible counts and mentions overlap and evening-free", () => {
-    const occurrences: HomeOccurrence[] = [
-      occurrence("a", 9, 0, {
-        task: {
-          id: "ta",
-          title: "A",
-          flexibility: "FIXED",
-          priority: "NORMAL",
-          durationMinutes: 30,
-        },
-      }),
-      occurrence("b", 10, 0),
-    ];
-    const body = buildInsightBody(occurrences, 2, "18:00");
-    expect(body).toBe(
-      "One fixed task, one flexible one. Two of them overlap. Your evening is free after 18:00.",
-    );
-  });
-
-  it("omits the overlap/evening sentences when there's nothing to say", () => {
-    const body = buildInsightBody([occurrence("a", 9, 0)], 0, null);
-    expect(body).toBe("No fixed tasks, one flexible one.");
-  });
-
-  it("ends with the pattern sentence when there is one", () => {
-    const body = buildInsightBody(
-      [occurrence("a", 9, 0)],
-      0,
-      null,
-      "You finish 33% of tasks after 20:00 — one of today's is that late.",
-    );
-    expect(body).toBe(
-      "No fixed tasks, one flexible one. You finish 33% of tasks after 20:00 — one of today's is that late.",
-    );
   });
 });
 

@@ -19,8 +19,11 @@ import {
   getOccurrenceStatusNote,
 } from "@/features/scheduling/occurrence-status";
 import {
+  assistantMessage,
+  assistantTitle,
+} from "@/features/scheduling/assistant-message";
+import {
   buildCollisionSuggestion,
-  buildInsightBody,
   busyRowsForToday,
   countOverlappingToday,
   findMoveTime,
@@ -146,43 +149,16 @@ export function HomeDay({
    */
   waitingForGoogle?: boolean;
 }) {
-  // sprint-20-tasks.md п.9 — a day past its deadline is under Overdue,
-  // not still in the day.
-  const overdueIds = new Set(overdueTasks.map((o) => o.id));
-  const todayTasks = allTodayTasks.filter((o) => !overdueIds.has(o.id));
-  const busyRows =
-    busy?.status === "ok"
-      ? busyRowsForToday(busy.busy, {
-          dayStart: now.startOf("day").toJSDate(),
-          dayEnd: now.startOf("day").plus({ days: 1 }).toJSDate(),
-          now: now.toJSDate(),
-        })
-      : [];
-
-  // HOME_V2_UPDATE.md § 2 — "first open task at or after 09:00". `now` is
-  // already zoned, so `.startOf('day').set({hour:9})` lands on 09:00 in
-  // the user's own timezone before converting to the UTC instant every
-  // occurrence's scheduledStart is stored in.
-  const nineAmUtc = now.startOf("day").set({ hour: 9 }).toJSDate();
-  const upNext = selectUpNext(todayTasks, nineAmUtc);
-  const excludeIds = new Set(
-    upNext ? [upNext.primary.id, ...upNext.alsoNow.map((o) => o.id)] : [],
-  );
-  const laterGroups = groupRemainingByTime(todayTasks, excludeIds);
-  const anyTime = untimedRemaining(todayTasks, excludeIds);
-  const overlapCount = countOverlappingToday(upNext, laterGroups);
-  const dayEnd = latestOccurrenceEnd(todayTasks, busyRows);
-  const eveningFreeLabel = dayEnd ? formatTimeInZone(dayEnd, timezone) : null;
-  const patternLine = patternInsight(
-    patterns ? weakestPart(patterns) : null,
+  const {
     todayTasks,
-    timezone,
-  );
-  const insightBody = buildInsightBody(
-    todayTasks,
-    overlapCount,
+    busyRows,
+    upNext,
+    laterGroups,
+    anyTime,
     eveningFreeLabel,
-    patternLine,
+  } = dayFacts(
+    { todayTasks: allTodayTasks, overdueTasks, patterns, timezone, now },
+    busy,
   );
   const collisionSuggestion = buildCollisionSuggestion(upNext, laterGroups);
   // S12-06 — only a time that's actually free; none left today, no card.
@@ -262,13 +238,6 @@ export function HomeDay({
 
   return (
     <>
-      {todayTasks.length > 0 && (
-        <AssistantInsight
-          body={insightBody}
-          moreHref={patternLine ? "/progress" : undefined}
-        />
-      )}
-
       {upNext && (
         <UpNext
           occurrenceId={upNext.primary.id}
@@ -355,4 +324,133 @@ function GoogleStatusLine({ busy }: { busy: BusyBetween | null }) {
     );
   }
   return null;
+}
+
+type FactsInput = Pick<
+  HomeDayProps,
+  "todayTasks" | "overdueTasks" | "patterns" | "timezone" | "now"
+>;
+
+/**
+ * The day as Home reads it — shared by the timeline below and the
+ * assistant's message above it (backlog.md, 2026-10-07).
+ */
+function dayFacts(
+  {
+    todayTasks: allTodayTasks,
+    overdueTasks,
+    patterns,
+    timezone,
+    now,
+  }: FactsInput,
+  busy: BusyBetween | null,
+) {
+  // sprint-20-tasks.md п.9 — a day past its deadline is under Overdue,
+  // not still in the day.
+  const overdueIds = new Set(overdueTasks.map((o) => o.id));
+  const todayTasks = allTodayTasks.filter((o) => !overdueIds.has(o.id));
+  const busyRows =
+    busy?.status === "ok"
+      ? busyRowsForToday(busy.busy, {
+          dayStart: now.startOf("day").toJSDate(),
+          dayEnd: now.startOf("day").plus({ days: 1 }).toJSDate(),
+          now: now.toJSDate(),
+        })
+      : [];
+
+  // HOME_V2_UPDATE.md § 2 — "first open task at or after 09:00". `now` is
+  // already zoned, so `.startOf('day').set({hour:9})` lands on 09:00 in
+  // the user's own timezone before converting to the UTC instant every
+  // occurrence's scheduledStart is stored in.
+  const nineAmUtc = now.startOf("day").set({ hour: 9 }).toJSDate();
+  const upNext = selectUpNext(todayTasks, nineAmUtc);
+  const excludeIds = new Set(
+    upNext ? [upNext.primary.id, ...upNext.alsoNow.map((o) => o.id)] : [],
+  );
+  const laterGroups = groupRemainingByTime(todayTasks, excludeIds);
+  const anyTime = untimedRemaining(todayTasks, excludeIds);
+  const overlapCount = countOverlappingToday(upNext, laterGroups);
+  const dayEnd = latestOccurrenceEnd(todayTasks, busyRows);
+  const eveningFreeLabel = dayEnd ? formatTimeInZone(dayEnd, timezone) : null;
+  const patternLine = patternInsight(
+    patterns ? weakestPart(patterns) : null,
+    todayTasks,
+    timezone,
+  );
+  return {
+    todayTasks,
+    busyRows,
+    upNext,
+    laterGroups,
+    anyTime,
+    overlapCount,
+    eveningFreeLabel,
+    patternLine,
+  };
+}
+
+type AssistantProps = FactsInput & {
+  /** Today's habits still to tick (п.7 of sprint-21). */
+  habitsLeft: number;
+  /** The user's id: their own choice of words. */
+  seed: string;
+};
+
+/**
+ * backlog.md (2026-10-07) — "From your assistant", right under the
+ * greeting, on every day — empty ones too. The words come from
+ * assistantMessage(): the weekday, the hour, how full the day is, what's
+ * done or skipped already, what's left from earlier, habits.
+ */
+export function HomeAssistant({
+  busy = null,
+  ...props
+}: AssistantProps & { busy?: BusyBetween | null }) {
+  const facts = dayFacts(props, busy);
+  const { now, timezone, overdueTasks } = props;
+  const today = now.toISODate()!;
+  const overdueToday = overdueTasks.filter(
+    (o) => formatDateInZone(o.scheduledStart, timezone, "yyyy-LL-dd") === today,
+  );
+  const openToday = [
+    ...facts.todayTasks.filter((o) => isActionableOccurrenceStatus(o.status)),
+    ...overdueToday,
+  ];
+  const closed = facts.todayTasks.filter(
+    (o) => !isActionableOccurrenceStatus(o.status),
+  );
+  const assistantFacts = {
+    date: today,
+    minutes: now.hour * 60 + now.minute,
+    seed: props.seed,
+    total: facts.todayTasks.length + overdueToday.length,
+    done: closed.filter(
+      (o) => o.status === "DONE" || o.status === "PARTIALLY_DONE",
+    ).length,
+    skipped: closed.filter((o) => o.status === "SKIPPED").length,
+    open: openToday.length,
+    carriedOver: overdueTasks.length - overdueToday.length,
+    fixedOpen: openToday.filter((o) => o.task.flexibility === "FIXED").length,
+    flexibleOpen: openToday.filter((o) => o.task.flexibility !== "FIXED")
+      .length,
+    overlapCount: facts.overlapCount,
+    freeAfter: facts.eveningFreeLabel,
+    habitsLeft: props.habitsLeft,
+    patternLine: facts.patternLine,
+  };
+  return (
+    <AssistantInsight
+      title={assistantTitle(assistantFacts)}
+      body={assistantMessage(assistantFacts)}
+      moreHref={facts.patternLine ? "/progress" : undefined}
+    />
+  );
+}
+
+/** With Google's busy time once it's in ("free after" can't land in a meeting). */
+export async function HomeAssistantWithBusy({
+  busy,
+  ...props
+}: AssistantProps & { busy: Promise<BusyBetween> }) {
+  return <HomeAssistant {...props} busy={await busy} />;
 }

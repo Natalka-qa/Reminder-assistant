@@ -204,10 +204,6 @@ function wordFor(n: number): string {
   return NUMBER_WORDS[n] ?? String(n);
 }
 
-function capitalize(s: string): string {
-  return s.length === 0 ? s : s.charAt(0).toUpperCase() + s.slice(1);
-}
-
 /**
  * How many of today's occurrences are part of a live (still-open) same-
  * time collision — every item in `alsoNow` plus `primary` itself, and
@@ -225,36 +221,6 @@ export function countOverlappingToday<T extends HomeOccurrence>(
     if (group.hasActiveOverlap) count += group.items.length;
   }
   return count;
-}
-
-/**
- * HOME_V2_UPDATE.md § 5 — the insight card's body, computed from the real
- * task list, never hardcoded. Mirrors the reference prototype's own
- * template ("Two fixed tasks, one flexible one. ... Your evening is free
- * after 20:00.") generalized to real counts/data.
- */
-export function buildInsightBody(
-  occurrences: HomeOccurrence[],
-  overlapCount: number,
-  eveningFreeLabel: string | null,
-  patternLine: string | null = null,
-): string {
-  const fixed = occurrences.filter(
-    (o) => o.task.flexibility === "FIXED",
-  ).length;
-  const flexible = occurrences.length - fixed;
-
-  const parts = [
-    `${capitalize(wordFor(fixed))} fixed task${fixed === 1 ? "" : "s"}, ${wordFor(flexible)} flexible one${flexible === 1 ? "" : "s"}.`,
-  ];
-  if (overlapCount > 0) {
-    parts.push(`${capitalize(wordFor(overlapCount))} of them overlap.`);
-  }
-  if (eveningFreeLabel) {
-    parts.push(`Your evening is free after ${eveningFreeLabel}.`);
-  }
-  if (patternLine) parts.push(patternLine);
-  return parts.join(" ");
 }
 
 /**
