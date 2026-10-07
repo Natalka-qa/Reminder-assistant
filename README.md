@@ -324,6 +324,15 @@ Things you do every day — sleep, steps, water, a morning workout — kept apar
 - **Praise**, worked out from the marks, nothing stored: a streak of 3, 7, 14, 30, 60, 100 or 365 days ("Water — 1.5 L a day for a whole month. Well done!"); a new best from 7 days; coming back after a run of 7+ ("back on track, day 2. Your best is 12."); every day of last month (shown the first week of the next); a perfect week for all habits (Monday to Wednesday after). The best one shows above the tiles on Home, two on Progress, one in the morning summary; a mark that reaches a goal says its news, or "All done for today ✓", in a toast.
 - Stored as `Habit` (`dayTargets` — seven goals Monday first when they differ, `tapSetsGoal`) and `HabitLog` — one row per habit per local date (`"YYYY-MM-DD"` in your time zone) with the value and that day's goal, none for a day with nothing done.
 
+## Home: the assistant's message
+
+The card under the greeting ("From your assistant") is on Home every day, empty days too, above the habits. Its headline and a few sentences read the day as it is (`assistant-message.ts`):
+
+- **How full** — empty, light (1–2), steady (3–5), packed (6+ or overlaps); **the weekday** (a Monday starts the week, a Friday ends it, a weekend is gentler) and **the hour** (late at night: "the one thing left can wait until morning").
+- **Real counts, as they change**: done (partly done counts) and skipped today — "Three of five done (one skipped); two to go", "One more thing and the week's work is behind you", "Everything for today is closed: three done, one skipped" — tasks left from earlier days ("Plus two things left from before"), habits still to tick, overlaps, when the day is free from (Google busy time included), and the 30-day pattern sentence.
+- **Many phrasings**, more than twenty for an empty day alone (by weekday, and for evening and night). Which one is picked depends on the user and the date: the text stays put on reload and changes when the day does — a task closed, a new one added, evening coming.
+- Headlines match: "A full day ahead", "A light day", "Making progress", "Almost there", "All done", "Winding down", "A free weekend day", "Room to catch up".
+
 ## Your patterns
 
 The app counts what happened to your past tasks and shows it back to you. It's plain counting over each task's status and planned time — no model, nothing new is tracked or stored.
@@ -345,7 +354,7 @@ The app counts what happened to your past tasks and shows it back to you. It's p
 - **`/progress`, "How it's going"** — the Progress tab, below Habits, and from Home's sentence. Two blocks:
   - **"Last 7 days"** — today and the six days before: Completed, Partial, Skipped, Missed and the completion rate. Missed only counts days that are over.
   - **"Last 30 days"** — the 30 whole days before today, so the numbers don't change during the day. The share done in each part of the day, by the task's planned local start: morning 05–12, afternoon 12–18, evening 18–20, after 20:00 20–05. Then weekdays against Saturday and Sunday.
-- **Home, "Assistant insight"** — one sentence, only when it's about today: "You finish 33% of tasks after 20:00 — two of today's are that late.", with a "How it's going →" link. One small extra database query per Home render.
+- **Home, "From your assistant"** — the pattern sentence ends the assistant's message (see "Home: the assistant's message") only when it's about today: "You finish 33% of tasks after 20:00 — two of today's are that late.", with a "How it's going →" link. One small extra database query per Home render.
 - **`/progress`, "Usual workout time: around 19:00 (6 of 8 workouts)."** — under "Last 30 days", with its own threshold (see "Finding free time" → "Your habits"), so it can show before the rest does. Free-time suggestions use it too.
 
 **When there's a sentence:**

@@ -17,7 +17,13 @@ import { exampleLanguage, taskExamples } from "@/features/onboarding/examples";
 import { DueNotificationsToast } from "@/components/notifications/due-notifications-toast";
 import { habitService } from "@/features/habits/habit.service";
 import { DailyStrip } from "@/components/habits/daily-strip";
-import { HomeDay, HomeDayWithBusy, type HomeDayProps } from "./home-day";
+import {
+  HomeAssistant,
+  HomeAssistantWithBusy,
+  HomeDay,
+  HomeDayWithBusy,
+  type HomeDayProps,
+} from "./home-day";
 
 type TimeOfDay = "morning" | "afternoon" | "evening" | "night";
 
@@ -112,6 +118,16 @@ export default async function DashboardPage() {
     now,
   };
 
+  const assistantProps = {
+    todayTasks,
+    overdueTasks,
+    patterns,
+    timezone,
+    now,
+    habitsLeft: daily?.items.filter((item) => !item.met).length ?? 0,
+    seed: user?.id ?? "",
+  };
+
   return (
     <div className="flex flex-col gap-[30px]">
       <DueNotificationsToast notifications={dueNotifications} />
@@ -149,8 +165,17 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* п.7 — above the day and above the empty state alike: habits are
-          every day, tasks or not. */}
+      {/* backlog.md (2026-10-07) — the assistant first, right under the
+          greeting, on empty days too; then the habits (sprint-21 п.7),
+          above the day and above the empty state alike. */}
+      {user &&
+        (busy ? (
+          <Suspense fallback={<HomeAssistant {...assistantProps} />}>
+            <HomeAssistantWithBusy {...assistantProps} busy={busy} />
+          </Suspense>
+        ) : (
+          <HomeAssistant {...assistantProps} />
+        ))}
       {daily && <DailyStrip key={daily.today} daily={daily} />}
 
       {isEmpty ? (
