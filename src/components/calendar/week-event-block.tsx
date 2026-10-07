@@ -1,6 +1,7 @@
 "use client";
 
-import { useOptimistic, useTransition } from "react";
+import { useOptimistic, useRef, useTransition } from "react";
+import { useArrival } from "@/components/calendar/block-motion";
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { toast } from "sonner";
@@ -91,10 +92,15 @@ export function WeekEventBlock({
 
   const movable =
     onDragStart !== undefined && isDraggable({ ...event, status });
+  // Доработка 2026-10-07 — glides back into place after Undo.
+  const blockRef = useRef<HTMLDivElement>(null);
+  useArrival(event.occurrenceId, blockRef);
 
   return (
     <div
+      ref={blockRef}
       data-calendar-block
+      data-occurrence-id={event.occurrenceId}
       onPointerDown={movable ? onDragStart : undefined}
       onClickCapture={(click) => {
         if (justDragged?.current) {

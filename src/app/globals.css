@@ -274,6 +274,47 @@
   }
 }
 
+/* sprint-22-tasks.md, доработка 2026-10-07 — "Undo" in a toast (a moved
+   block, a removed day, an archived habit) breathes a soft burgundy glow so
+   it's easy to find in its 10 seconds. More specific than Sonner's own
+   [data-button] styles. */
+@keyframes undoGlow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(116, 52, 71, 0),
+      0 2px 6px -2px rgba(116, 52, 71, 0.3);
+  }
+  50% {
+    box-shadow:
+      0 0 0 5px rgba(116, 52, 71, 0.16),
+      0 6px 18px -4px rgba(116, 52, 71, 0.5);
+  }
+}
+
+/* !important: Sonner's own button colours win otherwise (its stylesheet
+   is injected after this one). */
+[data-sonner-toast] [data-button].undo-glow {
+  height: 28px !important;
+  padding: 0 14px !important;
+  border-radius: 9999px !important;
+  background: var(--burgundy) !important;
+  color: #fff !important;
+  font-weight: 600;
+  animation: undoGlow 1.8s ease-in-out infinite;
+}
+
+[data-sonner-toast] [data-button].undo-glow:hover {
+  background: var(--burgundy-hover) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* No breathing — a still glow instead. */
+  [data-sonner-toast] [data-button].undo-glow {
+    box-shadow: 0 0 0 4px rgba(116, 52, 71, 0.16);
+  }
+}
+
 /* Global, not just Login — README's own snippet applies it universally. */
 @media (prefers-reduced-motion: reduce) {
   * {

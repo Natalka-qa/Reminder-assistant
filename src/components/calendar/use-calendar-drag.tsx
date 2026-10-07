@@ -7,7 +7,10 @@ import {
   useState,
   useTransition,
 } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { UNDO_BUTTON_CLASS } from "@/lib/undo-toast";
+import { noteDeparture } from "@/components/calendar/block-motion";
 import { cn } from "@/lib/utils";
 import {
   AlertDialog,
@@ -83,6 +86,7 @@ export function useCalendarDrag({
   const [drag, setDrag] = useState<DragState | null>(null);
   const [question, setQuestion] = useState<Question | null>(null);
   const [, startTransition] = useTransition();
+  const router = useRouter();
   // A drag just ended: the click that follows mustn't open the task or
   // start a new one.
   const justDragged = useRef(false);
@@ -264,19 +268,42 @@ export function useCalendarDrag({
       }
       toast.success(`Moved to ${label}`, {
         duration: 10_000,
+        classNames: { actionButton: UNDO_BUTTON_CLASS },
         action: {
           label: "Undo",
-          onClick: async () => {
-            const undone = await undoMoveOccurrenceAction(
+          onClick: () =>
+            undo(
               event.occurrenceId,
               result.previousStart,
-            );
-            if (undone.status === "error") {
-              toast.error(undone.message ?? "Couldn't undo it.");
-            }
-          },
+              moveLabel(
+                state.fromDate,
+                event.startMinutes,
+                latest.current.now.today,
+              ),
+            ),
         },
       });
+    });
+  }
+
+  // Undo from the toast (п.6). The toast lives outside this page's
+  // transitions, so the week is refreshed by hand once it's back — before,
+  // the block stayed at its new place and Undo looked like it did nothing
+  // (2026-10-07). And it says so.
+  function undo(occurrenceId: string, previousStart: string, backTo: string) {
+    // Доработка 2026-10-07 — it glides back from here (block-motion.ts).
+    noteDeparture(occurrenceId);
+    startTransition(async () => {
+      const undone = await undoMoveOccurrenceAction(
+        occurrenceId,
+        previousStart,
+      );
+      if (undone.status === "error") {
+        toast.error(undone.message ?? "Couldn't undo it.");
+        return;
+      }
+      router.refresh();
+      toast.success(`Moved back to ${backTo}`);
     });
   }
 
@@ -374,10 +401,13 @@ export function DropGhost({
     <div
       aria-hidden
       className={cn(
-        "pointer-events-none absolute inset-x-0.5 z-20 flex flex-col gap-0.5 overflow-hidden rounded-[6px] border-2 border-dashed px-2 py-1 shadow-sm",
+        // Доработка 2026-10-07: a lifted card — a soft shadow and a
+        // burgundy glow instead of a dashed outline — that glides between
+        // 15-minute steps rather than jumping.
+        "pointer-events-none absolute inset-x-0.5 z-20 flex flex-col gap-0.5 overflow-hidden rounded-[8px] px-2 py-1 transition-[top,box-shadow,background-color] duration-150 ease-out motion-reduce:transition-none",
         drag.valid
-          ? "border-burgundy bg-burgundy-tint/90"
-          : "border-overdue-ink bg-surface/90",
+          ? "bg-surface border-l-burgundy border-l-[3px] shadow-[0_10px_28px_-6px_rgba(116,52,71,0.35),0_0_0_1px_rgba(116,52,71,0.14)]"
+          : "bg-surface/95 border-l-overdue-ink border-l-[3px] shadow-[0_6px_18px_-6px_rgba(0,0,0,0.22),0_0_0_1px_rgba(0,0,0,0.06)]",
       )}
       style={{ top, height }}
     >
@@ -408,7 +438,8 @@ export function SlotHint({
   return (
     <div
       aria-hidden
-      className="border-burgundy/40 bg-burgundy-tint/60 text-burgundy pointer-events-none absolute inset-x-0.5 z-10 rounded-[6px] border border-dashed px-2 py-1 text-[11px] font-semibold tabular-nums"
+      // The same soft look as the dragged card, no dashed outline.
+      className="bg-burgundy-tint/70 text-burgundy pointer-events-none absolute inset-x-0.5 z-10 rounded-[8px] px-2 py-1 text-[11px] font-semibold tabular-nums shadow-[0_0_0_1px_rgba(116,52,71,0.12)] transition-[top] duration-100 ease-out motion-reduce:transition-none"
       style={{ top, height: geometry.hourHeight / 2 - 2 }}
     >
       + {formatMinutes(minutes)}
