@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { headers } from "next/headers";
 import { verifySession, getCurrentUser } from "@/lib/auth/dal";
 import { formatDateInZone, formatTimeInZone, zonedNow } from "@/lib/date";
 import { dashboardService } from "@/features/scheduling/dashboard.service";
@@ -11,6 +12,8 @@ import { AtmosphereBackground } from "@/components/dashboard/atmosphere-backgrou
 import { SkyScene } from "@/components/dashboard/sky-scene";
 import { AssistantMark } from "@/components/dashboard/assistant-mark";
 import { EmptyState } from "@/components/ui/empty-state";
+import { TaskExamples } from "@/components/dashboard/task-examples";
+import { exampleLanguage, taskExamples } from "@/features/onboarding/examples";
 import { DueNotificationsToast } from "@/components/notifications/due-notifications-toast";
 import { HomeDay, HomeDayWithBusy, type HomeDayProps } from "./home-day";
 
@@ -143,12 +146,19 @@ export default async function DashboardPage() {
       </div>
 
       {isEmpty ? (
-        <EmptyState
-          title="Nothing planned yet."
-          body="A quiet day. Enjoy it."
-          ctaLabel="Add your first task"
-          ctaHref="/tasks/new"
-        />
+        <>
+          <EmptyState
+            title="Nothing planned yet."
+            body="A quiet day. Enjoy it."
+            ctaLabel="Add a task"
+            ctaHref="/tasks/new"
+          />
+          <TaskExamples
+            examples={taskExamples(
+              exampleLanguage((await headers()).get("accept-language")),
+            )}
+          />
+        </>
       ) : busy ? (
         <Suspense
           fallback={<HomeDay {...dayProps} busy={null} waitingForGoogle />}

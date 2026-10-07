@@ -123,6 +123,7 @@ export function NewTaskForm({
   nowMinutes,
   hasWorkHours,
   defaultReminderMinutes,
+  initialText = "",
 }: {
   timezone: string;
   today: string;
@@ -131,6 +132,8 @@ export function NewTaskForm({
   hasWorkHours: boolean;
   /** Settings → Default reminder (S14-06). */
   defaultReminderMinutes: number;
+  /** A sentence to start from — an example picked on /onboarding or Home. */
+  initialText?: string;
 }) {
   const [state, formAction, pendingOne] = useActionState(
     createTaskAction,
@@ -147,7 +150,7 @@ export function NewTaskForm({
     ...newTaskDefaults(today),
     reminderOffsetMinutes: defaultReminderMinutes,
   };
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialText);
   const [overrides, setOverrides] = useState<TaskFieldOverrides>({});
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote] = useState("");

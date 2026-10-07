@@ -19,6 +19,18 @@ export const userRepository = {
     });
   },
 
+  updateName(id: string, name: string | null) {
+    return prisma.user.update({ where: { id }, data: { name } });
+  },
+
+  // Only the first time: finishing again (another tab) keeps the date.
+  markOnboarded(id: string, at: Date) {
+    return prisma.user.updateMany({
+      where: { id, onboardedAt: null },
+      data: { onboardedAt: at },
+    });
+  },
+
   updateSchedulePreferences(id: string, preferences: SchedulePreferences) {
     return prisma.user.update({ where: { id }, data: preferences });
   },

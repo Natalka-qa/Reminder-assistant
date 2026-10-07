@@ -12,6 +12,7 @@ const userRow = {
   image: "https://lh3.googleusercontent.com/a/avatar",
   timezone: "Europe/Madrid",
   timezoneConfirmedAt: new Date("2026-09-21T15:28:33Z"),
+  onboardedAt: new Date("2026-10-06T20:50:23Z"),
   telegramChatId: "123456",
   telegramLinkCode: "953103d9",
   telegramLinkCodeExpiresAt: new Date("2026-09-23T08:05:51Z"),
@@ -38,6 +39,7 @@ describe("toSessionPayload", () => {
         email: "natalia@example.com",
         image: "https://lh3.googleusercontent.com/a/avatar",
         timezone: "Europe/Madrid",
+        onboarded: true,
       },
     });
   });
@@ -73,6 +75,8 @@ describe("toSessionPayload", () => {
       email: "someone@example.com",
       image: null,
       timezone: "UTC",
+      // A new user: no onboardedAt yet — the app sends them to /onboarding.
+      onboarded: false,
     });
   });
 });
