@@ -124,6 +124,7 @@ export function NewTaskForm({
   hasWorkHours,
   defaultReminderMinutes,
   initialText = "",
+  slot = null,
 }: {
   timezone: string;
   today: string;
@@ -134,6 +135,11 @@ export function NewTaskForm({
   defaultReminderMinutes: number;
   /** A sentence to start from — an example picked on /onboarding or Home. */
   initialText?: string;
+  /**
+   * sprint-22-tasks.md п.1 — the day and time tapped on Calendar's grid;
+   * after saving, back to Calendar on that day.
+   */
+  slot?: { date: string; time: string } | null;
 }) {
   const [state, formAction, pendingOne] = useActionState(
     createTaskAction,
@@ -147,7 +153,7 @@ export function NewTaskForm({
   const pending = pendingOne || pendingMany;
   const clock = useZonedClock(timezone, { date: today, minutes: nowMinutes });
   const defaults = {
-    ...newTaskDefaults(today),
+    ...newTaskDefaults(today, slot),
     reminderOffsetMinutes: defaultReminderMinutes,
   };
   const [text, setText] = useState(initialText);
@@ -429,6 +435,13 @@ export function NewTaskForm({
       aria-label="New task"
       className="flex w-full max-w-[560px] flex-col gap-[30px]"
     >
+      {slot && (
+        <input
+          type="hidden"
+          name="returnTo"
+          value={`/calendar?date=${slot.date}`}
+        />
+      )}
       {/* What gets saved: the same fields createTaskAction always took. */}
       <input type="hidden" name="title" value={input.title} />
       <input type="hidden" name="date" value={input.date} />

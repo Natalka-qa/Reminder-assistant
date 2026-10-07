@@ -38,6 +38,30 @@ describe("newTaskDefaults", () => {
   });
 });
 
+describe("a slot tapped on Calendar (sprint-22-tasks.md п.1)", () => {
+  const slot = newTaskDefaults(TODAY, { date: "2026-09-27", time: "14:00" });
+
+  it("starts at that day and time, Fixed, as if typed", () => {
+    expect(slot).toEqual({
+      date: "2026-09-27",
+      time: "14:00",
+      timeGiven: true,
+    });
+    expect(resolveTaskFields({}, {}, slot)).toMatchObject({
+      date: "2026-09-27",
+      time: "14:00",
+      timeGiven: true,
+      flexibility: "FIXED",
+    });
+  });
+
+  it("gives way to what the sentence says", () => {
+    expect(
+      resolveTaskFields({ date: "2026-09-28", time: "10:00" }, {}, slot),
+    ).toMatchObject({ date: "2026-09-28", time: "10:00" });
+  });
+});
+
 describe("resolveTaskFields without a time", () => {
   const NO_TIME = { date: TODAY, time: null, reminderOffsetMinutes: 30 };
 

@@ -1,6 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { Tx } from "@/lib/db/transaction";
-import { addMinutes, startOfDayInZone } from "@/lib/date";
+import { addMinutes, formatDateInZone, startOfDayInZone } from "@/lib/date";
 import { occurrenceRepository } from "@/features/scheduling/occurrence.repository";
 import {
   canRemoveOccurrence,
@@ -17,6 +17,12 @@ import {
   OccurrenceNotRestorableError,
 } from "@/features/scheduling/occurrence.errors";
 import { planMoveToToday } from "@/features/scheduling/move-to-today";
+import {
+  needsMoveConfirm,
+  planMove,
+  planUndoMove,
+  type MovePlan,
+} from "@/features/scheduling/move-occurrence";
 import {
   restoreRefusal,
   restoredReminderAt,
@@ -825,4 +831,156 @@ export const occurrenceService = {
 
     return updated;
   },
+
+  /**
+   * sprint-22-tasks.md п.2–7 — a block dragged in Calendar to `date` at
+   * `time`. Решение 7 (изменено 2026-10-07): a move to another day, or onto
+   * other tasks or Google busy time, is asked about first — unless
+   * `confirmed` — and comes back as `needsConfirm` without writing
+   * anything; a plain shift within the day just moves. `previousStart` is
+   * for Undo.
+   */
+  async moveOccurrence(
+    userId: string,
+    occurrenceId: string,
+    timezone: string,
+    target: { date: string; time: string },
+    confirmed: boolean,
+    now = new Date(),
+  ): Promise<MoveOutcome> {
+    const occurrence = await occurrenceRepository.findById(
+      occurrenceId,
+      userId,
+    );
+    if (!occurrence) throw new OccurrenceNotFoundError(occurrenceId);
+    const { task } = occurrence;
+    const recurring = task.recurrenceRule !== null;
+    const plan = planMove({
+      occurrence,
+      days: recurring
+        ? await occurrenceRepository.findByTaskId(task.id, userId)
+        : [],
+      recurring,
+      hasTime: task.hasTime,
+      target,
+      timezone,
+      now,
+    });
+    if (!plan.ok) throw new OccurrenceNotReschedulableError(plan.message);
+
+    if (!confirmed) {
+      const overlaps = await overlapsOf(userId, task.id, plan);
+      const otherDay =
+        formatDateInZone(occurrence.scheduledStart, timezone, "yyyy-LL-dd") !==
+        target.date;
+      if (needsMoveConfirm({ otherDay, ...overlaps })) {
+        return {
+          needsConfirm: true,
+          taskId: task.id,
+          otherDay,
+          recurring,
+          ...overlaps,
+        };
+      }
+    }
+
+    await applyMove(occurrence, plan, timezone, now);
+    return {
+      needsConfirm: false,
+      taskId: task.id,
+      previousStart: occurrence.scheduledStart,
+    };
+  },
+
+  /** п.6 — Undo from the toast: back where it was. */
+  async undoMove(
+    userId: string,
+    occurrenceId: string,
+    timezone: string,
+    previousStart: Date,
+    now = new Date(),
+  ) {
+    const occurrence = await occurrenceRepository.findById(
+      occurrenceId,
+      userId,
+    );
+    if (!occurrence) throw new OccurrenceNotFoundError(occurrenceId);
+    const plan = planUndoMove({
+      occurrence,
+      updatedAt: occurrence.updatedAt,
+      previousStart,
+      recurring: occurrence.task.recurrenceRule !== null,
+      now,
+    });
+    await applyMove(occurrence, plan, timezone, now);
+    return { taskId: occurrence.task.id };
+  },
 };
+
+export type MoveOutcome =
+  | {
+      needsConfirm: true;
+      taskId: string;
+      otherDay: boolean;
+      recurring: boolean;
+      overlapTitles: string[];
+      overlapsGoogle: boolean;
+    }
+  | { needsConfirm: false; taskId: string; previousStart: Date };
+
+type FoundOccurrence = NonNullable<
+  Awaited<ReturnType<typeof occurrenceRepository.findById>>
+>;
+
+/** Writes a move plan and plans the reminder again from the new time. */
+async function applyMove(
+  occurrence: FoundOccurrence,
+  plan: MovePlan,
+  timezone: string,
+  now: Date,
+) {
+  if (!plan.ok) throw new OccurrenceNotReschedulableError(plan.message);
+  return runInTransaction(async (tx) => {
+    const updated = await occurrenceRepository.update(
+      occurrence.id,
+      occurrence.userId,
+      {
+        scheduledStart: plan.scheduledStart,
+        scheduledEnd: plan.scheduledEnd,
+        originalStart: plan.originalStart,
+        isException: plan.isException,
+        status: "SCHEDULED",
+      },
+      tx,
+    );
+    await notificationService.cancelForOccurrence(occurrence.id, tx);
+    await notificationService.createForOccurrence(
+      updated,
+      reminderRuleOf(occurrence.task),
+      timezone,
+      tx,
+      now,
+    );
+    return updated;
+  });
+}
+
+/** п.7 — other tasks and Google busy time the moved block now overlaps. */
+async function overlapsOf(
+  userId: string,
+  taskId: string,
+  occurrence: { scheduledStart: Date; scheduledEnd: Date | null },
+): Promise<{ overlapTitles: string[]; overlapsGoogle: boolean }> {
+  const { scheduledStart: start, scheduledEnd: end } = occurrence;
+  if (!end || end <= start) return { overlapTitles: [], overlapsGoogle: false };
+  const [conflicts, google] = await Promise.all([
+    conflictService.findConflicts(userId, start, end, { taskId }),
+    conflictService
+      .findExternalBusy(userId, () => [{ start, end }])
+      .catch(() => EXTERNAL_BUSY_NOT_CHECKED),
+  ]);
+  return {
+    overlapTitles: [...new Set(conflicts.map((conflict) => conflict.title))],
+    overlapsGoogle: google.status === "checked" && google.overlaps.length > 0,
+  };
+}

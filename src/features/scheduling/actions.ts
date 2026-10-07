@@ -253,6 +253,107 @@ export async function rescheduleOccurrenceAction(
   redirect(`/tasks/${taskId}?occurrence=${occurrenceId}`);
 }
 
+const moveInput = z.object({
+  date: dateStringSchema,
+  time: timeStringSchema,
+});
+
+export type MoveOccurrenceResult =
+  | {
+      status: "success";
+      /** For Undo: where it was. */
+      previousStart: string;
+    }
+  // Решение 7 (2026-10-07): nothing moved yet — ask first.
+  | {
+      status: "confirm";
+      otherDay: boolean;
+      recurring: boolean;
+      overlapTitles: string[];
+      overlapsGoogle: boolean;
+    }
+  | { status: "error"; message: string };
+
+// sprint-22-tasks.md п.2–7 — a block dragged in Calendar. No redirect: the
+// week stays and the toast offers Undo. A move to another day or onto an
+// overlap comes back as "confirm" first, and moves when sent again with
+// `confirmed`.
+export async function moveOccurrenceAction(
+  occurrenceId: string,
+  date: string,
+  time: string,
+  confirmed = false,
+): Promise<MoveOccurrenceResult> {
+  const user = await getCurrentUser();
+  if (!user) return { status: "error", message: "Not signed in." };
+  const parsed = moveInput.safeParse({ date, time });
+  if (!parsed.success) {
+    return { status: "error", message: "Couldn't read where it goes." };
+  }
+  try {
+    const outcome = await occurrenceService.moveOccurrence(
+      user.id,
+      occurrenceId,
+      user.timezone,
+      parsed.data,
+      confirmed === true,
+    );
+    if (outcome.needsConfirm) {
+      return {
+        status: "confirm",
+        otherDay: outcome.otherDay,
+        recurring: outcome.recurring,
+        overlapTitles: outcome.overlapTitles,
+        overlapsGoogle: outcome.overlapsGoogle,
+      };
+    }
+    revalidateOccurrencePaths(outcome.taskId);
+    return {
+      status: "success",
+      previousStart: outcome.previousStart.toISOString(),
+    };
+  } catch (error) {
+    if (
+      error instanceof OccurrenceNotFoundError ||
+      error instanceof OccurrenceNotReschedulableError
+    ) {
+      return { status: "error", message: error.message };
+    }
+    throw error;
+  }
+}
+
+// п.6 — Undo from the toast.
+export async function undoMoveOccurrenceAction(
+  occurrenceId: string,
+  previousStart: string,
+): Promise<OccurrenceActionState> {
+  const user = await getCurrentUser();
+  if (!user) return { status: "error", message: "Not signed in." };
+  const start = new Date(previousStart);
+  if (Number.isNaN(start.getTime())) {
+    return { status: "error", message: "Couldn't undo it." };
+  }
+  try {
+    const { taskId } = await occurrenceService.undoMove(
+      user.id,
+      occurrenceId,
+      user.timezone,
+      start,
+    );
+    revalidateOccurrencePaths(taskId);
+    return { status: "success" };
+  } catch (error) {
+    if (
+      error instanceof OccurrenceNotFoundError ||
+      error instanceof OccurrenceNotReschedulableError
+    ) {
+      return { status: "error", message: error.message };
+    }
+    throw error;
+  }
+}
+
 const freeSlotsInput = z.object({
   dates: z.array(dateStringSchema).min(1).max(7),
   partOfDay: z.enum(["morning", "afternoon", "evening", "any"]),

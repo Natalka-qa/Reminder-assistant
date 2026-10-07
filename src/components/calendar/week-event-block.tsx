@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { completeOccurrenceAction } from "@/features/scheduling/actions";
 import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-status";
+import { isDraggable } from "@/features/scheduling/calendar-drag";
 import {
   blockAriaLabel,
   blockContentFit,
@@ -43,10 +44,19 @@ export function WeekEventBlock({
   event,
   variant,
   inSelectedDay = false,
+  onDragStart,
+  dragging = false,
+  justDragged,
 }: {
   event: LaidOut<CalendarEvent>;
   variant: "desktop" | "mobile";
   inSelectedDay?: boolean;
+  /** sprint-22-tasks.md п.2 — a press that may become a drag. */
+  onDragStart?: (pointer: React.PointerEvent<HTMLElement>) => void;
+  /** This block is the one being dragged: it fades where it was. */
+  dragging?: boolean;
+  /** Set right after a drag: the click it ends with doesn't open the task. */
+  justDragged?: React.RefObject<boolean>;
 }) {
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useOptimistic(event.status);
@@ -79,10 +89,25 @@ export function WeekEventBlock({
     });
   }
 
+  const movable =
+    onDragStart !== undefined && isDraggable({ ...event, status });
+
   return (
     <div
+      data-calendar-block
+      onPointerDown={movable ? onDragStart : undefined}
+      onClickCapture={(click) => {
+        if (justDragged?.current) {
+          click.preventDefault();
+          click.stopPropagation();
+        }
+      }}
       className={cn(
-        "hover:shadow-calendar-block has-[a:focus-visible]:ring-ring absolute box-border flex gap-1.5 overflow-hidden rounded-[6px] border transition-shadow has-[a:focus-visible]:ring-2",
+        "hover:shadow-calendar-block has-[a:focus-visible]:ring-ring absolute box-border flex gap-1.5 overflow-hidden rounded-[6px] border transition-[box-shadow,opacity] has-[a:focus-visible]:ring-2",
+        // п.4 — no text selection or iOS link preview on a long press.
+        movable &&
+          "cursor-grab touch-manipulation select-none [-webkit-touch-callout:none] active:cursor-grabbing",
+        dragging && "opacity-30",
         fixed
           ? "border-border bg-surface border-solid"
           : "border-calendar-busy-line bg-calendar-flexible-bg border-dashed",
@@ -126,6 +151,7 @@ export function WeekEventBlock({
       <div className="flex min-w-0 flex-1 flex-col flex-wrap content-start gap-x-4 gap-y-px overflow-hidden">
         <Link
           href={event.href}
+          draggable={false}
           aria-label={label}
           title={label}
           className={cn(
