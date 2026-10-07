@@ -23,6 +23,11 @@ const serverEnvSchema = z.object({
   // Only the exact string "true" turns it on (isGoogleCalendarEnabled(),
   // lib/google-calendar/google-calendar.config.ts).
   GOOGLE_CALENDAR_ENABLED: z.string().optional(),
+  // Sign-in by an emailed link (Resend). Off until EMAIL_FROM is a sender
+  // on a verified domain: the sandbox onboarding@resend.dev only delivers
+  // to the Resend account's owner, so everyone else would wait for a link
+  // that never comes. Only "true" turns it on (lib/auth/email-sign-in.ts).
+  EMAIL_SIGN_IN_ENABLED: z.string().optional(),
 });
 
 function loadServerEnv() {

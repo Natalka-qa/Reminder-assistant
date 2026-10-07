@@ -2,6 +2,7 @@
 
 import { AuthError } from "next-auth";
 import { signIn, signOut } from "@/lib/auth/config";
+import { isEmailSignInEnabled } from "@/lib/auth/email-sign-in";
 
 export async function signInWithGoogle(callbackUrl: string) {
   await signIn("google", { redirectTo: callbackUrl });
@@ -20,6 +21,9 @@ export async function signInWithEmail(
   _prevState: EmailSignInState,
   formData: FormData,
 ): Promise<EmailSignInState> {
+  if (!isEmailSignInEnabled()) {
+    return { status: "error", message: "Sign in with Google instead." };
+  }
   try {
     // With `redirect: false`, next-auth never throws for a failed email send —
     // it resolves to a URL, and a failure is only visible as an `error` query

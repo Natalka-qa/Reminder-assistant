@@ -5,6 +5,8 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/db/prisma";
 import { env } from "@/lib/env";
 import { toSessionPayload } from "@/lib/auth/session-payload";
+import { isEmailSignInEnabled } from "@/lib/auth/email-sign-in";
+import { newUserDefaults } from "@/lib/auth/new-user-defaults";
 import {
   GOOGLE_CALENDAR_FREEBUSY_SCOPE,
   GOOGLE_CALENDAR_PROVIDER_ID,
@@ -31,8 +33,19 @@ const googleCalendarProvider = Google({
   },
 });
 
+const prismaAdapter = PrismaAdapter(prisma);
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(prisma),
+  adapter: {
+    ...prismaAdapter,
+    // A new account, with what it starts with beyond the column defaults
+    // (new-user-defaults.ts) — in the same insert.
+    createUser: (user) =>
+      prismaAdapter.createUser!({
+        ...user,
+        ...newUserDefaults(isEmailSignInEnabled()),
+      }),
+  },
   session: { strategy: "database" },
   secret: env.AUTH_SECRET,
   providers: [
@@ -40,10 +53,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientId: env.GOOGLE_CLIENT_ID,
       clientSecret: env.GOOGLE_CLIENT_SECRET,
     }),
-    Resend({
-      apiKey: env.RESEND_API_KEY,
-      from: env.EMAIL_FROM,
-    }),
+    // Only with a sender that reaches anyone (isEmailSignInEnabled).
+    ...(isEmailSignInEnabled()
+      ? [Resend({ apiKey: env.RESEND_API_KEY, from: env.EMAIL_FROM })]
+      : []),
     ...(isGoogleCalendarEnabled() ? [googleCalendarProvider] : []),
   ],
   pages: {
