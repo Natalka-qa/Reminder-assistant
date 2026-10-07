@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { SwitchTrack } from "@/components/ui/switch-track";
 import {
+  updateNameAction,
   updateReminderPreferencesAction,
   updateSchedulePreferencesAction,
   updateTimezoneAction,
@@ -21,11 +22,12 @@ import {
   type UpdateSchedulePreferencesState,
   type UpdateTimezoneState,
 } from "@/features/user/actions";
-import { formatMinutes } from "@/features/scheduling/calendar-layout";
+import { HALF_HOURS, TimeSelect } from "@/components/ui/time-select";
 import { REMINDER_CHOICES } from "@/features/tasks/new-task-fields";
-import type {
-  ReminderPreferences,
-  SchedulePreferences,
+import {
+  NAME_MAX_LENGTH,
+  type ReminderPreferences,
+  type SchedulePreferences,
 } from "@/lib/validation/user";
 
 const timezones = Intl.supportedValuesOf("timeZone");
@@ -33,14 +35,6 @@ const initialState: UpdateTimezoneState = { status: "idle" };
 const initialPreferencesState: UpdateSchedulePreferencesState = {
   status: "idle",
 };
-
-// Every half hour of the day, 00:00 to 24:00.
-const HALF_HOURS = Array.from({ length: 49 }, (_, index) => index * 30);
-const NO_LIMIT = "none";
-
-function timeLabel(minutes: number): string {
-  return minutes === 24 * 60 ? "24:00" : formatMinutes(minutes);
-}
 
 // design_handoff_reminder_assistant/README.md § Settings — grouped rows,
 // each with a hint line, saved on change (no Save button, as in the
@@ -50,11 +44,13 @@ function timeLabel(minutes: number): string {
 // sprint-14-tasks.md S14-06, Default reminder (where a new task's reminder
 // starts) and Email reminders are real too.
 export function SettingsForm({
+  currentName,
   currentTimezone,
   preferences,
   reminderPreferences,
   telegramLinked,
 }: {
+  currentName: string;
   currentTimezone: string;
   preferences: SchedulePreferences;
   reminderPreferences: ReminderPreferences;
@@ -177,6 +173,11 @@ export function SettingsForm({
   return (
     <>
       <GroupedRows>
+        <GroupedRow
+          label="Name"
+          hint="For the greeting on Home"
+          value={<NameField initialName={currentName} />}
+        />
         <GroupedRow
           label="Timezone"
           hint="Used for scheduling"
@@ -339,46 +340,41 @@ export function SettingsForm({
   );
 }
 
-function TimeSelect({
-  ariaLabel,
-  value,
-  options,
-  allowNone = false,
-  onChange,
-}: {
-  ariaLabel: string;
-  value: number | null;
-  options: number[];
-  allowNone?: boolean;
-  onChange: (minutes: number | null) => void;
-}) {
+// The name the app calls you by (also set on /onboarding), saved when the
+// field is left; a refused one goes back to what's saved.
+function NameField({ initialName }: { initialName: string }) {
+  const [name, setName] = useState(initialName);
+  const [saved, setSaved] = useState(initialName);
+
+  async function save() {
+    const next = name.trim();
+    if (next === saved) {
+      setName(saved);
+      return;
+    }
+    const result = await updateNameAction(next);
+    if (result.status === "success") {
+      setSaved(next);
+      setName(next);
+      toast.success("Name saved");
+    } else {
+      setName(saved);
+      if (result.message) toast.error(result.message);
+    }
+  }
+
   return (
-    <Select
-      value={value === null ? NO_LIMIT : String(value)}
-      onValueChange={(next) => {
-        if (next === null) return;
-        onChange(next === NO_LIMIT ? null : Number(next));
+    <input
+      aria-label="Name"
+      value={name}
+      maxLength={NAME_MAX_LENGTH}
+      placeholder="Add your name"
+      onChange={(event) => setName(event.target.value)}
+      onBlur={save}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") event.currentTarget.blur();
       }}
-    >
-      <SelectTrigger
-        aria-label={ariaLabel}
-        className="h-auto w-fit gap-1 border-0 bg-transparent p-0 text-[15px]"
-      >
-        {/* Select.Value shows the raw value unless told how to format it. */}
-        <SelectValue>
-          {(raw: string) =>
-            raw === NO_LIMIT ? "No limit" : timeLabel(Number(raw))
-          }
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        {allowNone && <SelectItem value={NO_LIMIT}>No limit</SelectItem>}
-        {options.map((minutes) => (
-          <SelectItem key={minutes} value={String(minutes)}>
-            {timeLabel(minutes)}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+      className="text-text-primary placeholder:text-placeholder-text w-full min-w-0 bg-transparent text-right text-[15px] outline-none"
+    />
   );
 }

@@ -19,6 +19,13 @@ export class InvalidTelegramSummaryError extends Error {
   }
 }
 
+export class InvalidNameError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidNameError";
+  }
+}
+
 export class InvalidReminderPreferencesError extends Error {
   constructor(message: string) {
     super(message);

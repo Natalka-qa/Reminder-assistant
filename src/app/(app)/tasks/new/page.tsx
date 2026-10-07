@@ -7,10 +7,14 @@ import { DEFAULT_REMINDER_MINUTES } from "@/features/tasks/new-task-fields";
 // NEW_TASK_V2_UPDATE.md — the one New task form. Today and the time of day
 // come from the server in the user's timezone, so the first render (and
 // the default time it shows) matches on server and client.
-export default async function NewTaskPage() {
+export default async function NewTaskPage({
+  searchParams,
+}: PageProps<"/tasks/new">) {
   await verifySession();
   const user = await getCurrentUser();
   const now = zonedNow(user?.timezone ?? "UTC");
+  // An example sentence to start from (/onboarding, the empty Home).
+  const { text } = await searchParams;
   const [preferences, reminders] = user
     ? await Promise.all([
         userService.getSchedulePreferences(user.id),
@@ -27,6 +31,7 @@ export default async function NewTaskPage() {
       defaultReminderMinutes={
         reminders?.defaultReminderMinutes ?? DEFAULT_REMINDER_MINUTES
       }
+      initialText={typeof text === "string" ? text.slice(0, 500) : ""}
     />
   );
 }

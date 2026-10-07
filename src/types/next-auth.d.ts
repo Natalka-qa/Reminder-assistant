@@ -5,6 +5,8 @@ declare module "next-auth" {
     user: {
       id: string;
       timezone: string;
+      /** The first-run setup was finished or skipped (User.onboardedAt). */
+      onboarded: boolean;
     } & DefaultSession["user"];
   }
 }
@@ -12,5 +14,6 @@ declare module "next-auth" {
 declare module "@auth/core/adapters" {
   interface AdapterUser {
     timezone: string;
+    onboardedAt?: Date | null;
   }
 }

@@ -136,6 +136,18 @@ In the Google Cloud project that owns `GOOGLE_CLIENT_ID`:
 6. Set `GOOGLE_CALENDAR_ENABLED=true` in `.env.local` (or Vercel's environment variables) and restart/redeploy.
 7. On `/settings`, click "Connect" under Google Calendar and keep the calendar box ticked on Google's consent screen — if it's unticked, `/settings` says so and offers "Connect" again. "Disconnect" revokes the access at Google and deletes the tokens.
 
+## First run
+
+A new account starts at `/onboarding` (the app sends it there until the setup is finished or skipped — `User.onboardedAt`; accounts from before it were marked done by its migration). Three steps, each skippable, and **Skip setup** at the top ends it at any point; "You can change any of this in Settings at any time." is under each.
+
+1. **Welcome** — what to call you (prefilled from Google; for the greeting on Home, optional) and your timezone: the one this device reports, shown with **Change** for another. Either name a browser gives a zone ("Europe/Kyiv" or "Europe/Kiev") is accepted and stored as the one Settings lists.
+2. **Your day** — when the day starts and ends, work days and hours, and the default reminder, already at the usual values: **Looks right** or **Skip this step**.
+3. **Add tasks your way** — four sentences (a task, every week, a course, by a time) in the browser's language (English, Russian or Ukrainian); each opens New task with it typed in. **Connect** Telegram here if the bot is set up. **Go to my day** finishes.
+
+The name is also a row in Settings. An empty Home shows the same example sentences under "Add a task".
+
+**Before sharing the app**, the sign-in has to reach other people: the magic-link email needs a verified sender domain in Resend (`EMAIL_FROM`; `onboarding@resend.dev` only delivers to the Resend account's owner), and Google sign-in needs the OAuth consent screen published, or each person added under Test users (see "Google Calendar setup").
+
 ## Finding free time
 
 The app suggests free times in three places. It only fills in a date and time — nothing is saved until you press "Create task" or save the edit.

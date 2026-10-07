@@ -22,6 +22,12 @@ model User {
   timezone            String    @default("UTC")
   timezoneConfirmedAt DateTime?
 
+  // When the first-run setup (/onboarding: name and timezone, the day,
+  // how to add tasks) was finished or skipped; null — not yet, and the app
+  // sends the user there. Everyone signed up before it got the migration's
+  // time.
+  onboardedAt DateTime?
+
   // Sprint 12 (sprint-12-tasks.md S12-09): when free time may be suggested
   // — the searchable day and, on work days, the hours kept for work. Minutes
   // since local midnight in `timezone`; workDays are ISO weekdays

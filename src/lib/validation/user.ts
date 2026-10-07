@@ -2,11 +2,33 @@ import { z } from "zod";
 
 const validTimezones = new Set(Intl.supportedValuesOf("timeZone"));
 
-export const timezoneSchema = z
-  .string()
-  .refine((tz) => validTimezones.has(tz), {
-    message: "Not a valid IANA timezone identifier",
-  });
+// The name this runtime lists for a zone, or null for none. Browsers
+// differ in which name they report: newer ones say "Europe/Kyiv" where
+// Node's list has "Europe/Kiev" — both are accepted, and the listed one is
+// what's stored, so Settings' list still finds it.
+function canonicalTimezone(tz: string): string | null {
+  if (validTimezones.has(tz)) return tz;
+  try {
+    const resolved = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+    }).resolvedOptions().timeZone;
+    return validTimezones.has(resolved) ? resolved : null;
+  } catch {
+    return null;
+  }
+}
+
+export const timezoneSchema = z.string().transform((tz, ctx) => {
+  const canonical = canonicalTimezone(tz);
+  if (canonical === null) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Not a valid IANA timezone identifier",
+    });
+    return z.NEVER;
+  }
+  return canonical;
+});
 
 const minutesOfDay = z.coerce
   .number()
@@ -100,3 +122,25 @@ export const DEFAULT_REMINDER_PREFERENCES: ReminderPreferences = {
   defaultReminderMinutes: 15,
   emailRemindersEnabled: true,
 };
+
+// Onboarding and Settings — what the app calls you ("Good morning, Anna").
+// Empty clears it: the greeting falls back to "there".
+export const NAME_MAX_LENGTH = 60;
+export const nameSchema = z
+  .string()
+  .trim()
+  .max(NAME_MAX_LENGTH, `Up to ${NAME_MAX_LENGTH} characters.`)
+  .transform((name) => (name.length > 0 ? name : null));
+
+/**
+ * Where /onboarding may send the user once it's done: a path of this app
+ * only ("/dashboard", "/tasks/new?text=…"), never another site.
+ */
+export function onboardingNextPath(value: unknown): string {
+  return typeof value === "string" &&
+    value.startsWith("/") &&
+    !value.startsWith("//") &&
+    !value.startsWith("/\\")
+    ? value
+    : "/dashboard";
+}

@@ -1,4 +1,5 @@
 import {
+  nameSchema,
   reminderPreferencesSchema,
   telegramSummarySchema,
   schedulePreferencesSchema,
@@ -10,6 +11,7 @@ import { userRepository } from "@/features/user/user.repository";
 import { runInTransaction } from "@/lib/db/transaction";
 import { occurrenceService } from "@/features/scheduling/occurrence.service";
 import {
+  InvalidNameError,
   InvalidReminderPreferencesError,
   InvalidTelegramSummaryError,
   InvalidSchedulePreferencesError,
@@ -47,6 +49,22 @@ export const userService = {
       }
       return user;
     });
+  },
+
+  // Onboarding and Settings — the name the app calls you by.
+  async setName(userId: string, input: unknown) {
+    const result = nameSchema.safeParse(input ?? "");
+    if (!result.success) {
+      throw new InvalidNameError(
+        result.error.issues[0]?.message ?? "Invalid name",
+      );
+    }
+    return userRepository.updateName(userId, result.data);
+  },
+
+  // /onboarding finished or skipped: the app stops sending them there.
+  completeOnboarding(userId: string, now = new Date()) {
+    return userRepository.markOnboarded(userId, now);
   },
 
   // sprint-12-tasks.md S12-09 — the searchable day and work hours.
