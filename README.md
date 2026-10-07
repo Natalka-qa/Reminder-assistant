@@ -258,11 +258,11 @@ A task can have no time — "Buy groceries", "Plan the trip" — and just belong
 
 In **Week** (sprint-22-tasks.md):
 
-- **Tap an empty place** to add a task there: New task opens on that day at the half hour tapped (14:20 → 14:00; inside the half hour running now — the next one), with the time counted as chosen (Fixed). A sentence that names another day or time still wins. After saving it's back to Calendar on that day. On a computer the mouse shows "+ 14:00" first. Past time does nothing.
+- **Tap an empty place** to add a task there — asked first ("Add a task for tomorrow at 14:00?", **Add task** / **Cancel**), so a stray tap opens nothing; then New task opens on that day at the half hour tapped (14:20 → 14:00; inside the half hour running now — the next one), with the time counted as chosen (Fixed). A sentence that names another day or time still wins. After saving it's back to Calendar on that day. On a computer the mouse shows "+ 14:00" first. Past time does nothing.
 - **Drag a task** to another time or day of the shown week: open tasks with a time only (not Done / Skipped, not "Any time"), in 15-minute steps, keeping their length, to a moment still ahead; the past days are veiled while dragging and "Can't go here" shows where it can't land. On a computer press and drag; on a phone **hold about half a second**, then move — up and down, or to the screen's edge to go to the next or previous day (the page doesn't scroll while a task is held; a quick swipe still changes the day).
 - A day of a **repeating task** moves on its own (like Only this day — marked **Edited**; back to its series' time it isn't any more); a **one-off** task takes the new day and time. The reminder moves with it.
 - **Asked first** when the move is to **another day**, or onto **other tasks** or **busy time in Google Calendar**: "Move Gym to Thu 15:30?" with what's at stake ("It moves to another day — only this day of the series; the rest stay.", "It overlaps Call mom.", "It overlaps busy time in your Google Calendar.") — **Move** or **Cancel**; the block waits where it was dropped until you answer. A shift within the same day onto free time just moves.
-- Every move ends with a toast "Moved to Thu 15:30" and **Undo** (10 s; works for 5 minutes after the move, even to a time since passed).
+- Every move ends with a toast "Moved to Thu 15:30" and **Undo** (10 s; works for 5 minutes after the move, even to a time since passed), which puts the task back on screen and says "Moved back to Today 19:00".
 
 ## Reminders
 

@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { UNDO_BUTTON_CLASS } from "@/lib/undo-toast";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -50,6 +51,7 @@ export function HabitEndActions({
       } else {
         toast.success(`Archived ${title}`, {
           duration: 10_000,
+          classNames: { actionButton: UNDO_BUTTON_CLASS },
           action: {
             label: "Undo",
             onClick: async () => {

@@ -4,7 +4,17 @@ import { Suspense, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useZonedClock, type ZonedClock } from "@/lib/date/zoned-clock";
-import { shiftDate } from "@/lib/date/calendar-date";
+import { formatCalendarDate, shiftDate } from "@/lib/date/calendar-date";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { BusyLine } from "@/components/calendar/busy-line";
 import { CalendarHeader } from "@/components/calendar/calendar-header";
 import {
@@ -327,6 +337,7 @@ function DesktopWeek({
         </div>
       </div>
       {dialog}
+      {slots.dialog}
     </div>
   );
 }
@@ -480,6 +491,7 @@ function MobileWeek({
         </div>
       </div>
       {dialog}
+      {slots.dialog}
     </div>
   );
 }
@@ -624,6 +636,8 @@ function NowLine({ top }: { top: number }) {
  * sprint-22-tasks.md п.1 — a click or tap on an empty place starts a new
  * task at its half hour; on desktop the mouse shows "+ 14:00" first. Not
  * on a block, not in the past, not while or right after dragging.
+ * Доработка 2026-10-07: asked first ("Add a task for Thu, Oct 9 at
+ * 14:00?") — a stray tap shouldn't open a form.
  */
 function useEmptySlots({
   now,
@@ -640,6 +654,9 @@ function useEmptySlots({
   const [hover, setHover] = useState<{ date: string; minutes: number } | null>(
     null,
   );
+  const [asked, setAsked] = useState<{ date: string; time: string } | null>(
+    null,
+  );
 
   function slotAt(event: React.MouseEvent<HTMLDivElement>, date: string) {
     if ((event.target as HTMLElement).closest("[data-calendar-block]")) {
@@ -653,8 +670,37 @@ function useEmptySlots({
     );
   }
 
+  const dialog = asked && (
+    <AlertDialog open onOpenChange={(open) => !open && setAsked(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            Add a task for {slotDayLabel(asked.date, now.today)} at {asked.time}
+            ?
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            New task opens with this day and time.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              const slot = asked;
+              setAsked(null);
+              router.push(newTaskHref(slot));
+            }}
+          >
+            Add task
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   return {
-    hover: drag ? null : hover,
+    hover: drag || asked ? null : hover,
+    dialog,
     handlers: (date: string) => ({
       onMouseMove: (event: React.MouseEvent<HTMLDivElement>) => {
         const slot = drag ? null : slotAt(event, date);
@@ -669,12 +715,23 @@ function useEmptySlots({
       },
       onMouseLeave: () => setHover(null),
       onClick: (event: React.MouseEvent<HTMLDivElement>) => {
-        if (drag || justDragged.current) return;
+        if (drag || asked || justDragged.current) return;
         const slot = slotAt(event, date);
-        if (slot) router.push(newTaskHref(slot));
+        if (slot) setAsked(slot);
       },
     }),
   };
+}
+
+/** "today", "tomorrow", "Thu, Oct 9". */
+function slotDayLabel(date: string, today: string): string {
+  if (date === today) return "today";
+  if (date === shiftDate(today, 1)) return "tomorrow";
+  return formatCalendarDate(date, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function toMinutes(time: string): number {

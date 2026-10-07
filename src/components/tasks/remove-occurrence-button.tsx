@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { UNDO_BUTTON_CLASS } from "@/lib/undo-toast";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -58,6 +59,7 @@ export function RemoveOccurrenceButton({
       // later from "Removed days" on the task page.
       toast.success(`Removed ${dateLabel}`, {
         duration: 10_000,
+        classNames: { actionButton: UNDO_BUTTON_CLASS },
         action: {
           label: "Undo",
           onClick: async () => {
