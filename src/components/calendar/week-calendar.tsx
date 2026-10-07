@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useRef, useState } from "react";
+import { Suspense, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useZonedClock, type ZonedClock } from "@/lib/date/zoned-clock";
@@ -25,6 +25,20 @@ import {
   type CalendarBusy,
 } from "@/features/scheduling/calendar-layout";
 import type { CalendarDay } from "@/features/scheduling/calendar-view";
+import {
+  droppableDates,
+  edgeDay,
+  minutesAt,
+  newTaskHref,
+  newTaskSlot,
+  type Now,
+} from "@/features/scheduling/calendar-drag";
+import {
+  DropGhost,
+  SlotHint,
+  useCalendarDrag,
+  type Geometry,
+} from "@/components/calendar/use-calendar-drag";
 
 // CALENDAR_V2_UPDATE.md § 2 (desktop) and § 3 (mobile) — Week mode. A
 // client component because selecting a day re-lays the grid (desktop: the
@@ -172,6 +186,26 @@ function DesktopWeek({
       ),
     [days, range.startHour],
   );
+  const geometry: Geometry = { ...DESKTOP, startHour: range.startHour };
+  const now: Now = { today: clock.date, nowMinutes: clock.minutes };
+  const weekDates = days.map((day) => day.date);
+  // sprint-22-tasks.md — each day's timeline column, for where a dragged
+  // block is and where a click lands.
+  const columnEls = useRef(new Map<string, HTMLDivElement>());
+  const { drag, onBlockPointerDown, justDragged, dialog } = useCalendarDrag({
+    weekDates,
+    now,
+    geometry,
+    columnAt: (x) => {
+      for (const [date, el] of columnEls.current) {
+        const rect = el.getBoundingClientRect();
+        if (x >= rect.left && x < rect.right) return { date, top: rect.top };
+      }
+      return null;
+    },
+  });
+  const slots = useEmptySlots({ now, geometry, drag, justDragged });
+  const open = drag ? new Set(droppableDates(weekDates, now)) : null;
   const columns = days
     .map((day) =>
       day.date === selected ? "minmax(200px, 3fr)" : "minmax(0, 1fr)",
@@ -241,9 +275,15 @@ function DesktopWeek({
               return (
                 <div
                   key={day.date}
+                  ref={(el) => {
+                    if (el) columnEls.current.set(day.date, el);
+                    else columnEls.current.delete(day.date);
+                  }}
+                  {...slots.handlers(day.date)}
                   className={cn(
                     "border-calendar-column-rule relative border-l",
                     isSelected && "bg-calendar-selected-column",
+                    slots.hover?.date === day.date && "cursor-pointer",
                   )}
                 >
                   <Suspense fallback={null}>
@@ -260,10 +300,25 @@ function DesktopWeek({
                       event={event}
                       variant="desktop"
                       inSelectedDay={isSelected}
+                      onDragStart={(pointer) =>
+                        onBlockPointerDown(pointer, event, day.date)
+                      }
+                      dragging={drag?.event.occurrenceId === event.occurrenceId}
+                      justDragged={justDragged}
                     />
                   ))}
                   {showNow && day.date === clock.date && (
                     <NowLine top={nowTop(clock, range, DESKTOP.hourHeight)} />
+                  )}
+                  {slots.hover?.date === day.date && (
+                    <SlotHint
+                      minutes={slots.hover.minutes}
+                      geometry={geometry}
+                    />
+                  )}
+                  {open && !open.has(day.date) && <PastShade />}
+                  {drag?.date === day.date && (
+                    <DropGhost drag={drag} geometry={geometry} />
                   )}
                 </div>
               );
@@ -271,6 +326,7 @@ function DesktopWeek({
           </div>
         </div>
       </div>
+      {dialog}
     </div>
   );
 }
@@ -302,6 +358,35 @@ function MobileWeek({
     [selectedDay, range.startHour],
   );
   const height = (range.endHour - range.startHour) * MOBILE.hourHeight + 8;
+  const geometry: Geometry = { ...MOBILE, startHour: range.startHour };
+  const now: Now = { today: clock.date, nowMinutes: clock.minutes };
+  const weekDates = days.map((day) => day.date);
+  const column = useRef<HTMLDivElement>(null);
+  // The day shown changes under a held block (п.4), so the drag reads it
+  // from here rather than from the render it started in.
+  const shown = useRef(selectedDay.date);
+  useLayoutEffect(() => {
+    shown.current = selectedDay.date;
+  }, [selectedDay.date]);
+  const { drag, onBlockPointerDown, justDragged, dialog } = useCalendarDrag({
+    weekDates,
+    now,
+    geometry,
+    columnAt: () => {
+      const rect = column.current?.getBoundingClientRect();
+      return rect ? { date: shown.current, top: rect.top } : null;
+    },
+    onEdge: (direction) => {
+      const next = edgeDay(shown.current, direction, weekDates, now);
+      if (next) {
+        shown.current = next;
+        onSelect(next);
+      }
+      return next;
+    },
+  });
+  const slots = useEmptySlots({ now, geometry, drag, justDragged });
+  const open = drag ? new Set(droppableDates(weekDates, now)) : null;
   // § 3 — the now line only on the selected day, when that's today.
   const showNow = selectedDay.date === clock.date && nowInRange(clock, range);
 
@@ -343,7 +428,8 @@ function MobileWeek({
         onTouchEnd={(event) => {
           const start = touchStart.current;
           touchStart.current = null;
-          if (!start) return;
+          // A held block moved by its finger isn't a swipe (п.4).
+          if (!start || drag || justDragged.current) return;
           const touch = event.changedTouches[0];
           const dx = touch.clientX - start.x;
           const dy = touch.clientY - start.y;
@@ -360,6 +446,8 @@ function MobileWeek({
           now={showNow ? clock.minutes : null}
         />
         <div
+          ref={column}
+          {...slots.handlers(selectedDay.date)}
           className="border-calendar-column-rule relative min-w-0 flex-1 border-l"
           style={{ height }}
         >
@@ -377,11 +465,21 @@ function MobileWeek({
               key={event.occurrenceId}
               event={event}
               variant="mobile"
+              onDragStart={(pointer) =>
+                onBlockPointerDown(pointer, event, selectedDay.date)
+              }
+              dragging={drag?.event.occurrenceId === event.occurrenceId}
+              justDragged={justDragged}
             />
           ))}
           {showNow && <NowLine top={nowTop(clock, range, MOBILE.hourHeight)} />}
+          {open && !open.has(selectedDay.date) && <PastShade />}
+          {drag?.date === selectedDay.date && (
+            <DropGhost drag={drag} geometry={geometry} />
+          )}
         </div>
       </div>
+      {dialog}
     </div>
   );
 }
@@ -519,5 +617,77 @@ function NowLine({ top }: { top: number }) {
         style={{ top }}
       />
     </>
+  );
+}
+
+/**
+ * sprint-22-tasks.md п.1 — a click or tap on an empty place starts a new
+ * task at its half hour; on desktop the mouse shows "+ 14:00" first. Not
+ * on a block, not in the past, not while or right after dragging.
+ */
+function useEmptySlots({
+  now,
+  geometry,
+  drag,
+  justDragged,
+}: {
+  now: Now;
+  geometry: Geometry;
+  drag: unknown;
+  justDragged: React.RefObject<boolean>;
+}) {
+  const router = useRouter();
+  const [hover, setHover] = useState<{ date: string; minutes: number } | null>(
+    null,
+  );
+
+  function slotAt(event: React.MouseEvent<HTMLDivElement>, date: string) {
+    if ((event.target as HTMLElement).closest("[data-calendar-block]")) {
+      return null;
+    }
+    const top = event.currentTarget.getBoundingClientRect().top;
+    return newTaskSlot(
+      date,
+      minutesAt(event.clientY - top, geometry.hourHeight, geometry.startHour),
+      now,
+    );
+  }
+
+  return {
+    hover: drag ? null : hover,
+    handlers: (date: string) => ({
+      onMouseMove: (event: React.MouseEvent<HTMLDivElement>) => {
+        const slot = drag ? null : slotAt(event, date);
+        const minutes = slot ? toMinutes(slot.time) : null;
+        setHover((current) =>
+          minutes === null
+            ? null
+            : current?.date === date && current.minutes === minutes
+              ? current
+              : { date, minutes },
+        );
+      },
+      onMouseLeave: () => setHover(null),
+      onClick: (event: React.MouseEvent<HTMLDivElement>) => {
+        if (drag || justDragged.current) return;
+        const slot = slotAt(event, date);
+        if (slot) router.push(newTaskHref(slot));
+      },
+    }),
+  };
+}
+
+function toMinutes(time: string): number {
+  const [hours, minutes] = time.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+/** A day a dragged block can't go to (п.3): veiled while dragging. */
+function PastShade() {
+  return (
+    <div
+      aria-hidden
+      className="bg-background/60 pointer-events-none absolute inset-0 z-10"
+    />
   );
 }

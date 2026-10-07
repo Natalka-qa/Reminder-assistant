@@ -52,6 +52,16 @@ export type TaskActionState = {
 // checked and the task was saved without that check ("Расхождения" п.6).
 const CALENDAR_UNAVAILABLE_QUERY = "?calendarCheck=unavailable";
 
+// sprint-22-tasks.md п.1 — a task started from Calendar's grid goes back
+// there, on its day. Only that shape: never a redirect to anywhere else.
+function returnToOf(formData: FormData): string | null {
+  const value = formData.get("returnTo");
+  return typeof value === "string" &&
+    /^\/calendar\?date=\d{4}-\d{2}-\d{2}$/.test(value)
+    ? value
+    : null;
+}
+
 function readTaskForm(formData: FormData) {
   return {
     title: formData.get("title"),
@@ -146,7 +156,8 @@ export async function createTaskAction(
 
   revalidateTaskPaths(taskId);
   redirect(
-    `/tasks/${taskId}${calendarUnavailable ? CALENDAR_UNAVAILABLE_QUERY : ""}`,
+    returnToOf(formData) ??
+      `/tasks/${taskId}${calendarUnavailable ? CALENDAR_UNAVAILABLE_QUERY : ""}`,
   );
 }
 
@@ -190,7 +201,7 @@ export async function createTasksAction(
   }
 
   revalidateTaskPaths();
-  redirect("/tasks");
+  redirect(returnToOf(formData) ?? "/tasks");
 }
 
 export async function updateTaskAction(

@@ -131,6 +131,11 @@ export type NewTaskDefaults = {
   time: string | null;
   /** Settings → Default reminder (S14-06); DEFAULT_REMINDER_MINUTES if unset. */
   reminderOffsetMinutes?: number;
+  /**
+   * sprint-22-tasks.md п.1 — the time was picked (a tap on Calendar's
+   * grid), so it counts as given: Fixed, like a time typed.
+   */
+  timeGiven?: boolean;
 };
 
 // § 6 — every offset the backend accepts is a whole number of minutes up
@@ -473,8 +478,15 @@ export function repeatEndHint(
  * no time (sprint-18-tasks.md п.6, replacing decision A of 2026-09-25 and
  * its "next full hour").
  */
-export function newTaskDefaults(today: string): NewTaskDefaults {
-  return { date: today, time: null };
+export function newTaskDefaults(
+  today: string,
+  slot?: { date: string; time: string } | null,
+): NewTaskDefaults {
+  // sprint-22-tasks.md п.1 — a tap on Calendar's grid starts at that day
+  // and time; what the sentence says still wins.
+  return slot
+    ? { date: slot.date, time: slot.time, timeGiven: true }
+    : { date: today, time: null };
 }
 
 export type ResolvedTaskFields = {
@@ -527,7 +539,9 @@ export function resolveTaskFields(
   const timeGiven =
     overrides.time !== undefined
       ? overrides.time !== null
-      : parsed.time !== undefined && !parsed.course;
+      : parsed.time !== undefined
+        ? !parsed.course
+        : !found && time !== null && (defaults.timeGiven ?? false);
   const offset = defaults.reminderOffsetMinutes ?? DEFAULT_REMINDER_MINUTES;
   // sprint-20-tasks.md п.7 — a deadline only without a time.
   const due =
