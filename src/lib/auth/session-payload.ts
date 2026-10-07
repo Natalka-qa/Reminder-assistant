@@ -6,6 +6,7 @@ type SessionUser = {
   email: string;
   image?: string | null;
   timezone: string;
+  onboardedAt?: Date | null;
 };
 
 /**
@@ -29,6 +30,8 @@ export function toSessionPayload(
       email: user.email,
       image: user.image ?? null,
       timezone: user.timezone,
+      // Whether to send them to /onboarding — a yes/no, not the date.
+      onboarded: Boolean(user.onboardedAt),
     },
   };
 }

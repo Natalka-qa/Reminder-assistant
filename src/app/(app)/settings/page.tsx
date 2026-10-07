@@ -58,6 +58,7 @@ export default async function SettingsPage() {
       </div>
 
       <SettingsForm
+        currentName={profile?.name ?? ""}
         currentTimezone={user?.timezone ?? "UTC"}
         preferences={preferences}
         reminderPreferences={

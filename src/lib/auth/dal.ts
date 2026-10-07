@@ -17,6 +17,8 @@ export type CurrentUser = {
   email: string;
   image: string | null;
   timezone: string;
+  /** Finished or skipped /onboarding; until then the app sends them there. */
+  onboarded: boolean;
 };
 
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
@@ -30,5 +32,6 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     email: session.user.email ?? "",
     image: session.user.image ?? null,
     timezone: session.user.timezone,
+    onboarded: session.user.onboarded ?? true,
   };
 });

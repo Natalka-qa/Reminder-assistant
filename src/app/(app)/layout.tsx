@@ -1,4 +1,6 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth/dal";
 import { Nav } from "./nav";
 import { OnboardingBanner } from "./onboarding-banner";
 import { TelegramChrome } from "./telegram-chrome";
@@ -15,7 +17,16 @@ import { TelegramChrome } from "./telegram-chrome";
 // content column trims the Home greeting's decorative glow and sky scene,
 // which bleed past the right edge by design, without making the column a
 // scroll container.
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  // A new account goes through /onboarding first (name, timezone, the
+  // day, how to add tasks) — until it's finished or skipped.
+  const user = await getCurrentUser();
+  if (user && !user.onboarded) redirect("/onboarding");
+
   return (
     <div className="flex min-h-full flex-1 flex-col md:flex-row">
       <TelegramChrome />
