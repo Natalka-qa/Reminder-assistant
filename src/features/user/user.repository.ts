@@ -89,6 +89,38 @@ export const userRepository = {
     return count === 1;
   },
 
+  // sprint-21-tasks.md п.10 — the evening habit reminder, the same three
+  // steps as the morning summary above: set, who might get it, claim.
+  updateHabitReminder(id: string, minutes: number | null) {
+    return prisma.user.update({
+      where: { id },
+      data: { habitReminderMinutes: minutes },
+    });
+  },
+
+  findHabitReminderRecipients() {
+    return prisma.user.findMany({
+      where: {
+        telegramChatId: { not: null },
+        habitReminderMinutes: { not: null },
+      },
+    });
+  },
+
+  async claimHabitReminder(id: string, today: string): Promise<boolean> {
+    const { count } = await prisma.user.updateMany({
+      where: {
+        id,
+        OR: [
+          { habitReminderSentOn: null },
+          { habitReminderSentOn: { not: today } },
+        ],
+      },
+      data: { habitReminderSentOn: today },
+    });
+    return count === 1;
+  },
+
   findReminderPreferences(id: string) {
     return prisma.user.findUnique({
       where: { id },

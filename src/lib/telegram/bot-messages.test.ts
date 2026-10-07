@@ -12,6 +12,9 @@ import {
   type InlineKeyboard,
   openAppButton,
   removedButtons,
+  habitButtons,
+  habitsSection,
+  type HabitLineItem,
 } from "./bot-messages";
 import { CALLBACK_DATA_MAX_BYTES, parseButtonData } from "./button-data";
 
@@ -295,5 +298,83 @@ describe("summaryButtons", () => {
     const many = Array.from({ length: 11 }, (_, n) => item(n));
     expect(summaryButtons(many)?.inline_keyboard).toHaveLength(8);
     expect(summaryButtons([])).toBeUndefined();
+  });
+});
+
+describe("habits in the morning summary (sprint-21-tasks.md п.9)", () => {
+  const exercise: HabitLineItem = {
+    id: "cmhabitexercise0000000001",
+    title: "Exercise",
+    mode: "check",
+    met: true,
+    progressLabel: null,
+    goalAmount: null,
+    stepLabel: null,
+  };
+  const water: HabitLineItem = {
+    id: "cmhabitwater000000000001",
+    title: "Water",
+    mode: "step",
+    met: false,
+    progressLabel: "0/2 L",
+    goalAmount: "2 L",
+    stepLabel: "+250 ml",
+  };
+  const sleep: HabitLineItem = {
+    ...water,
+    id: "sleep",
+    title: "Sleep",
+    mode: "goal",
+    progressLabel: "0/8 h",
+    goalAmount: "8 h",
+    stepLabel: "+15 min",
+  };
+  const stretch: HabitLineItem = {
+    ...exercise,
+    id: "s",
+    title: "Stretch",
+    met: false,
+  };
+
+  it("puts each habit on its own line, with the count done and the news", () => {
+    expect(
+      habitsSection(
+        [exercise, water],
+        "Exercise — 7 days in a row. Well done!",
+      ),
+    ).toBe(
+      "Daily · 1/2\n✓ Exercise\n○ Water · 0/2 L\n\n🎉 Exercise — 7 days in a row. Well done!",
+    );
+    expect(habitsSection([exercise], null)).toBe(
+      "Daily · all done ✓\n✓ Exercise",
+    );
+    expect(habitsSection([], "anything")).toBeNull();
+  });
+
+  it("offers a button per habit still to do, two a row, up to 8", () => {
+    const rows = habitButtons([
+      exercise,
+      water,
+      sleep,
+      ...Array.from({ length: 8 }, () => stretch),
+    ]);
+    expect(rows).toHaveLength(4);
+    expect(rows[0]).toEqual([
+      { text: "Water +250 ml", callback_data: `hplus:${water.id}` },
+      { text: "✓ Sleep 8 h", callback_data: "hdone:sleep" },
+    ]);
+    expect(rows[1][0]).toEqual({ text: "✓ Stretch", callback_data: "hdone:s" });
+    expect(rows.flat()).toHaveLength(8);
+    expect(habitButtons([exercise])).toEqual([]);
+  });
+
+  it("reads its buttons back", () => {
+    expect(parseButtonData(`hplus:${water.id}`)).toEqual({
+      action: "hplus",
+      id: water.id,
+    });
+    expect(
+      Buffer.byteLength(`hplus:${water.id}`) <= CALLBACK_DATA_MAX_BYTES,
+    ).toBe(true);
   });
 });

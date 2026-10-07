@@ -56,6 +56,8 @@ import {
   TaskValidationError,
 } from "@/features/tasks/task.errors";
 import { userService } from "@/features/user/user.service";
+import { habitService } from "@/features/habits/habit.service";
+import { HabitNotFoundError } from "@/features/habits/habit.errors";
 import {
   canFixCreatedTask,
   canUndoRemoval,
@@ -88,7 +90,9 @@ function isClosedError(error: unknown): boolean {
     error instanceof OccurrenceNotFoundError ||
     error instanceof InvalidOccurrenceTransitionError ||
     error instanceof OccurrenceNotRemovableError ||
-    error instanceof TaskNotFoundError
+    error instanceof TaskNotFoundError ||
+    // An archived or deleted habit's button in an old summary.
+    error instanceof HabitNotFoundError
   );
 }
 
@@ -432,6 +436,30 @@ async function pressButton(user: User, press: Button, now: Date) {
           id,
         );
         revalidateAfterChange(occurrence.taskId);
+        const summary = await buildSummary(user, now);
+        if (summary) {
+          await editTelegramMessage(
+            chatId,
+            messageId,
+            summary.text,
+            summary.buttons,
+          );
+        }
+        break;
+      }
+      case "hdone":
+      case "hplus": {
+        // sprint-21-tasks.md п.9 — a habit from the morning summary: mark
+        // it, then redraw the summary, as "sdone" does.
+        await habitService.markFromChat(
+          user.id,
+          id,
+          action,
+          user.timezone,
+          now,
+        );
+        revalidatePath("/dashboard");
+        revalidatePath("/progress");
         const summary = await buildSummary(user, now);
         if (summary) {
           await editTelegramMessage(

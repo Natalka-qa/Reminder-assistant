@@ -32,14 +32,14 @@ model User {
   // — the searchable day and, on work days, the hours kept for work. Minutes
   // since local midnight in `timezone`; workDays are ISO weekdays
   // (1 = Monday), and none means no work hours at all.
-  dayStartMinutes  Int   @default(480)
-  dayEndMinutes    Int   @default(1260)
-  workDays         Int[] @default([1, 2, 3, 4, 5])
-  workStartMinutes Int   @default(540)
-  workEndMinutes   Int   @default(1020)
+  dayStartMinutes           Int   @default(480)
+  dayEndMinutes             Int   @default(1260)
+  workDays                  Int[] @default([1, 2, 3, 4, 5])
+  workStartMinutes          Int   @default(540)
+  workEndMinutes            Int   @default(1020)
   // The latest a workout may start; null = no limit. Per user, like the
   // hours above ("Расхождения" п.12).
-  workoutLatestStartMinutes Int? @default(1200)
+  workoutLatestStartMinutes Int?  @default(1200)
 
   // Sprint 14 (sprint-14-tasks.md S14-06): what a new task's reminder starts
   // at (one of the form's choices, minutes before the start), and whether
@@ -63,6 +63,12 @@ model User {
   telegramSummaryMinutes Int?
   telegramSummarySentOn  String?
 
+  // sprint-21-tasks.md п.10 — the evening "habits left today" message in
+  // Telegram: minutes after local midnight, null = off (the default); sentOn
+  // is the local "YYYY-MM-DD" it last went out, like the summary's.
+  habitReminderMinutes Int?
+  habitReminderSentOn  String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -71,6 +77,7 @@ model User {
   tasks         Task[]
   occurrences   TaskOccurrence[]
   notifications Notification[]
+  habits        Habit[]
 }
 
 model Account {
@@ -175,7 +182,7 @@ model TaskOccurrence {
   // sprint-19-tasks.md п.1–2 — this day of a series was changed on its own:
   // moved ("Only this day") or removed ("Remove this one"). Changes to the
   // series' time, days or duration leave it as it is.
-  isException Boolean @default(false)
+  isException   Boolean   @default(false)
   // п.18 — where a moved day was before its first move ("Only this day"):
   // the series still counts that date as taken. Later moves keep it; null
   // for a day never moved.
@@ -210,6 +217,67 @@ model Notification {
   updatedAt DateTime @updatedAt
 
   @@index([status, sendAt])
+}
+
+// sprint-21-tasks.md п.1 — a daily habit: not a task, no time, never
+// overdue. CHECK — done or not (target 1); COUNT — a number towards a
+// target (2000 ml of water, 10 000 steps), `step` added per tap.
+model Habit {
+  id     String @id @default(cuid())
+  userId String
+
+  title       String
+  kind        HabitKind
+  target      Int       @default(1)
+  // Free text ("glasses", "steps"); "ml" is shown in litres from 1000.
+  unit        String?
+  step        Int       @default(1)
+  // ISO weekdays (1 = Monday) it's on; all seven by default (п.3).
+  weekdays    Int[]     @default([1, 2, 3, 4, 5, 6, 7])
+  // sprint-21-tasks.md, доработка п.5 — a COUNT goal per weekday, Monday
+  // first, 0 = not that day; empty — `target` on every day in `weekdays`.
+  dayTargets  Int[]     @default([])
+  // Доработка п.2 — what one tap does to a COUNT habit: false adds `step`
+  // (water, steps); true sets the day's goal at once (sleep, reading).
+  tapSetsGoal Boolean   @default(false)
+  // Order on Progress, Home and in Telegram (п.6), lowest first.
+  sortOrder   Int       @default(0)
+  // п.11 — hidden from Home and Telegram, history kept; null — active.
+  archivedAt  DateTime?
+
+  user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logs HabitLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// One row per habit per local day: how much was done that day (1 for a
+// CHECK habit marked done). No row — nothing done.
+model HabitLog {
+  id      String @id @default(cuid())
+  habitId String
+  // The user's local "YYYY-MM-DD" (ADR-002), like telegramSummarySentOn.
+  date    String
+  value   Int
+  // Доработка п.6 — the day's goal when it was marked, so a later change
+  // of goal doesn't rewrite past days; null — rows from before it, which
+  // use the habit's goal for that day.
+  target  Int?
+
+  habit Habit @relation(fields: [habitId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([habitId, date])
+}
+
+enum HabitKind {
+  CHECK
+  COUNT
 }
 
 enum Priority {

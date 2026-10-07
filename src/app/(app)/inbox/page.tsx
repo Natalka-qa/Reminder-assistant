@@ -15,7 +15,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 // screen: the separator-list layout and typography from the mockup, with
 // honest content instead of fabricated assistant copy. No "Not now"
 // dismiss action either — a past, already-sent reminder isn't a live
-// suggestion to dismiss.
+// suggestion to dismiss. Since sprint-21-tasks.md п.4 it's "Sent
+// reminders", reached from Settings; its nav slot went to Progress.
 export default async function InboxPage() {
   await verifySession();
   const user = await getCurrentUser();
@@ -28,7 +29,7 @@ export default async function InboxPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
         <h1 className="font-display text-[45px] leading-[1] font-light">
-          Inbox
+          Sent reminders
         </h1>
         <p className="text-text-secondary text-[15px]">
           Reminders that have been sent to you.

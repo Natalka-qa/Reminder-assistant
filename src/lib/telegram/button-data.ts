@@ -6,7 +6,8 @@
 // "later1h" / "tomorrow" fix a just-added task's time or day (п.15);
 // "sdone" is Done from the morning summary, which redraws it (п.19).
 // "restore" is Undo under "Removed this one" (sprint-19-tasks.md п.8), an
-// occurrence id.
+// occurrence id. "hdone" / "hplus" mark a habit from the morning summary
+// (sprint-21-tasks.md п.9): done, or one more step — a habit id.
 export const BUTTON_ACTIONS = [
   "done",
   "snooze15",
@@ -17,6 +18,8 @@ export const BUTTON_ACTIONS = [
   "tomorrow",
   "sdone",
   "restore",
+  "hdone",
+  "hplus",
 ] as const;
 
 export type ButtonAction = (typeof BUTTON_ACTIONS)[number];

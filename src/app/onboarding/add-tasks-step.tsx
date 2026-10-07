@@ -60,6 +60,7 @@ export function AddTasksStep({
           <TelegramConnect
             connected={telegram.connected}
             summaryMinutes={telegram.summaryMinutes}
+            habitReminderMinutes={null}
           />
         </div>
       )}

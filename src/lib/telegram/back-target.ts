@@ -1,7 +1,8 @@
 // sprint-16-tasks.md S16-05 ("Расхождения" п.10) — Telegram's own Back
 // button in the Mini App header. Shown on the nested pages only; the
-// BottomNav sections (Home, Tasks, Calendar, Inbox, Settings) are top
-// level and have none.
+// BottomNav sections (Home, Tasks, Calendar, Progress, Settings) are top
+// level and have none — Progress since sprint-21-tasks.md п.4, when Inbox
+// moved under Settings.
 //
 // Back normally means router.back(). But a Mini App opened from an Open
 // button lands straight on /tasks/<id> with no history in the app at all
@@ -18,9 +19,13 @@ export function backTarget(pathname: string): string | null {
       : pathname;
 
   if (path === "/tasks/new") return "/dashboard";
-  if (path === "/progress") return "/settings";
+  if (path === "/inbox") return "/settings";
 
   const parts = path.split("/").filter(Boolean);
+  // /progress/habits/new and /progress/habits/<id>.
+  if (parts[0] === "progress" && parts[1] === "habits" && parts.length === 3) {
+    return "/progress";
+  }
   if (parts[0] === "tasks" && parts.length === 2) return "/tasks";
   if (parts[0] === "tasks" && parts.length === 3 && parts[2] === "edit") {
     return `/tasks/${parts[1]}`;

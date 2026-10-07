@@ -16,9 +16,10 @@ import {
   generateTelegramLinkCodeAction,
   disconnectTelegramAction,
   updateTelegramSummaryAction,
+  updateHabitReminderAction,
 } from "@/features/user/actions";
 import { formatMinutes } from "@/features/scheduling/calendar-layout";
-import { SUMMARY_MINUTES } from "@/lib/validation/user";
+import { HABIT_REMINDER_MINUTES, SUMMARY_MINUTES } from "@/lib/validation/user";
 
 const OFF = "off";
 
@@ -26,6 +27,15 @@ const OFF = "off";
 const SUMMARY_CHOICES = [
   { value: OFF, label: "Off" },
   ...SUMMARY_MINUTES.map((minutes) => ({
+    value: String(minutes),
+    label: formatMinutes(minutes),
+  })),
+];
+
+// sprint-21-tasks.md п.10 — Off, then evening times.
+const HABIT_REMINDER_CHOICES = [
+  { value: OFF, label: "Off" },
+  ...HABIT_REMINDER_MINUTES.map((minutes) => ({
     value: String(minutes),
     label: formatMinutes(minutes),
   })),
@@ -40,10 +50,13 @@ const SUMMARY_CHOICES = [
 export function TelegramConnect({
   connected,
   summaryMinutes,
+  habitReminderMinutes,
 }: {
   connected: boolean;
   /** "Morning summary" (S15-10): minutes after midnight, null = off. */
   summaryMinutes: number | null;
+  /** "Habit reminder" (sprint-21-tasks.md п.10), the same way. */
+  habitReminderMinutes: number | null;
 }) {
   const [pending, startTransition] = useTransition();
   const [deepLink, setDeepLink] = useState<string | null>(null);
@@ -63,6 +76,25 @@ export function TelegramConnect({
         return;
       }
       toast.success("Morning summary saved");
+    });
+  }
+
+  const [habitReminder, setHabitReminder] = useState(
+    habitReminderMinutes === null ? OFF : String(habitReminderMinutes),
+  );
+
+  function handleHabitReminderChange(value: string | null) {
+    if (!value || value === habitReminder) return;
+    const previous = habitReminder;
+    setHabitReminder(value);
+    startTransition(async () => {
+      const result = await updateHabitReminderAction(value);
+      if (result.status === "error") {
+        setHabitReminder(previous);
+        toast.error(result.message ?? "Couldn't save the reminder time");
+        return;
+      }
+      toast.success("Habit reminder saved");
     });
   }
 
@@ -117,26 +149,30 @@ export function TelegramConnect({
                 : "Today's plan, sent at this time"
             }
             value={
-              <Select value={summary} onValueChange={handleSummaryChange}>
-                <SelectTrigger
-                  aria-label="Morning summary"
-                  className="h-auto w-fit gap-1 border-0 bg-transparent p-0 text-[15px]"
-                >
-                  <SelectValue>
-                    {(value: string) =>
-                      SUMMARY_CHOICES.find((choice) => choice.value === value)
-                        ?.label
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {SUMMARY_CHOICES.map((choice) => (
-                    <SelectItem key={choice.value} value={choice.value}>
-                      {choice.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <TimeSelect
+                label="Morning summary"
+                value={summary}
+                choices={SUMMARY_CHOICES}
+                onChange={handleSummaryChange}
+              />
+            }
+          />
+        )}
+        {connected && (
+          <GroupedRow
+            label="Habit reminder"
+            hint={
+              habitReminder === OFF
+                ? "In the evening, if a habit is still open"
+                : "Sent at this time, if a habit is still open"
+            }
+            value={
+              <TimeSelect
+                label="Habit reminder"
+                value={habitReminder}
+                choices={HABIT_REMINDER_CHOICES}
+                onChange={handleHabitReminderChange}
+              />
             }
           />
         )}
@@ -152,5 +188,39 @@ export function TelegramConnect({
         </a>
       )}
     </div>
+  );
+}
+
+function TimeSelect({
+  label,
+  value,
+  choices,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  choices: { value: string; label: string }[];
+  onChange: (value: string | null) => void;
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger
+        aria-label={label}
+        className="h-auto w-fit gap-1 border-0 bg-transparent p-0 text-[15px]"
+      >
+        <SelectValue>
+          {(current: string) =>
+            choices.find((choice) => choice.value === current)?.label
+          }
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {choices.map((choice) => (
+          <SelectItem key={choice.value} value={choice.value}>
+            {choice.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

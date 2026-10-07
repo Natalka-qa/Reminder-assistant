@@ -265,6 +265,82 @@ export function createdButtons(task: {
   return { inline_keyboard: rows };
 }
 
+// sprint-21-tasks.md п.9 — habits in the morning summary.
+export type HabitLineItem = {
+  id: string;
+  title: string;
+  /** Доработка п.2 — what its button does: tick, fill the goal, add a step. */
+  mode: "check" | "goal" | "step";
+  met: boolean;
+  /** "0/2 L" for an amount; null for CHECK. */
+  progressLabel: string | null;
+  /** "8 h" — today's goal for an amount; null for CHECK. */
+  goalAmount: string | null;
+  /** "+250 ml" for an amount; null for CHECK. */
+  stepLabel: string | null;
+};
+
+/**
+ * "Daily · 1/3", then a line per habit ("✓ Exercise", "Water 0/2 L"),
+ * and the day's good news below (п.8). Null with no habit today.
+ * Доработка п.7 — a line each, so 5–7 habits stay readable.
+ */
+export function habitsSection(
+  items: HabitLineItem[],
+  praise: string | null,
+): string | null {
+  if (items.length === 0) return null;
+  const done = items.filter((item) => item.met).length;
+  const lines = [
+    done === items.length
+      ? "Daily · all done ✓"
+      : `Daily · ${done}/${items.length}`,
+    ...items.map(
+      (item) =>
+        `${item.met ? "✓" : "○"} ${item.title}${item.progressLabel ? ` · ${item.progressLabel}` : ""}`,
+    ),
+  ];
+  if (praise) lines.push("", `🎉 ${praise}`);
+  return lines.join("\n");
+}
+
+/** п.10 — "Evening check-in", then what's left ("2 habits left today: …"). */
+export function habitReminderMessage(left: string): string {
+  return `Evening check-in\n\n${left}`;
+}
+
+export const HABIT_BUTTONS_MAX = 8;
+
+/**
+ * п.9 — two habits a row, the ones not done yet, up to 8: "✓ Exercise",
+ * "✓ Sleep 8 h", "Water +250 ml". A press redraws the summary, as ✓ on a
+ * task does.
+ */
+export function habitButtons(items: HabitLineItem[]): InlineButton[][] {
+  const buttons: InlineButton[] = items
+    .filter((item) => !item.met)
+    .slice(0, HABIT_BUTTONS_MAX)
+    .map((item) =>
+      item.mode === "step"
+        ? {
+            text: `${item.title} ${item.stepLabel}`,
+            callback_data: buttonData("hplus", item.id),
+          }
+        : {
+            text:
+              item.mode === "goal"
+                ? `✓ ${item.title} ${item.goalAmount}`
+                : `✓ ${item.title}`,
+            callback_data: buttonData("hdone", item.id),
+          },
+    );
+  const rows: InlineButton[][] = [];
+  for (let index = 0; index < buttons.length; index += 2) {
+    rows.push(buttons.slice(index, index + 2));
+  }
+  return rows;
+}
+
 export const SUMMARY_BUTTONS_MAX = 8;
 
 /**

@@ -2,18 +2,22 @@ import { describe, expect, it } from "vitest";
 import { backTarget, isNestedPath, nextDepth } from "./back-target";
 
 describe("isNestedPath", () => {
-  it.each(["/tasks/abc", "/tasks/abc/edit", "/tasks/new", "/progress"])(
-    "%s is nested — Back is shown",
-    (path) => {
-      expect(isNestedPath(path)).toBe(true);
-    },
-  );
+  it.each([
+    "/tasks/abc",
+    "/tasks/abc/edit",
+    "/tasks/new",
+    "/inbox",
+    "/progress/habits/new",
+    "/progress/habits/abc",
+  ])("%s is nested — Back is shown", (path) => {
+    expect(isNestedPath(path)).toBe(true);
+  });
 
   it.each([
     "/dashboard",
     "/tasks",
     "/calendar",
-    "/inbox",
+    "/progress",
     "/settings",
     "/",
     "/telegram",
@@ -37,7 +41,9 @@ describe("backTarget", () => {
     ["/tasks/abc", "/tasks"],
     ["/tasks/abc/edit", "/tasks/abc"],
     ["/tasks/new", "/dashboard"],
-    ["/progress", "/settings"],
+    ["/inbox", "/settings"],
+    ["/progress/habits/new", "/progress"],
+    ["/progress/habits/abc", "/progress"],
   ])("%s falls back to %s without history", (path, parent) => {
     expect(backTarget(path)).toBe(parent);
   });

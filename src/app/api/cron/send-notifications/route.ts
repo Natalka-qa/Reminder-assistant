@@ -1,5 +1,8 @@
 import { notificationService } from "@/features/notifications/notification.service";
-import { sendDueSummaries } from "@/features/telegram/telegram-summary.service";
+import {
+  sendDueHabitReminders,
+  sendDueSummaries,
+} from "@/features/telegram/telegram-summary.service";
 import { env } from "@/lib/env";
 
 // An external scheduler (cron-job.org) hits this every 5 minutes, since the
@@ -26,7 +29,14 @@ export async function GET(request: Request) {
     } catch (error) {
       console.error("telegram summaries failed:", error);
     }
-    return Response.json({ sent: sent.length, summaries });
+    // sprint-21-tasks.md п.10 — the evening habit reminder, the same way.
+    let habitReminders = 0;
+    try {
+      habitReminders = await sendDueHabitReminders(now);
+    } catch (error) {
+      console.error("telegram habit reminders failed:", error);
+    }
+    return Response.json({ sent: sent.length, summaries, habitReminders });
   } catch (error) {
     console.error("send-notifications cron failed:", error);
     return Response.json(

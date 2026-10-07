@@ -1,5 +1,4 @@
 import { verifySession, getCurrentUser } from "@/lib/auth/dal";
-import { analyticsService } from "@/features/analytics/analytics.service";
 import { userService } from "@/features/user/user.service";
 import { isTelegramEnabled } from "@/lib/telegram/telegram.config";
 import { googleCalendarService } from "@/features/google-calendar/google-calendar.service";
@@ -19,10 +18,6 @@ import { GroupedRows, GroupedRow } from "@/components/ui/grouped-rows";
 export default async function SettingsPage() {
   await verifySession();
   const user = await getCurrentUser();
-  // S13-04 — the numbers live on /progress; here, one row pointing there.
-  const stats = user
-    ? await analyticsService.getRecentActivity(user.id, user.timezone)
-    : null;
   const profile = user ? await userService.getProfile(user.id) : null;
   const preferences =
     (user && (await userService.getSchedulePreferences(user.id))) ??
@@ -76,17 +71,19 @@ export default async function SettingsPage() {
         <TelegramConnect
           connected={Boolean(profile?.telegramChatId)}
           summaryMinutes={profile?.telegramSummaryMinutes ?? null}
+          habitReminderMinutes={profile?.habitReminderMinutes ?? null}
         />
       )}
 
       {calendarStatus && <GoogleCalendarConnect status={calendarStatus} />}
 
       <GroupedRows>
+        {/* sprint-21-tasks.md п.4 — Inbox's place in the nav went to
+            Progress; the history of sent reminders lives here now. */}
         <GroupedRow
-          label="How it's going"
-          hint="Last 7 days and your patterns"
-          value={stats?.percent == null ? undefined : `${stats.percent}% done`}
-          href="/progress"
+          label="Sent reminders"
+          hint="What reached you, and when"
+          href="/inbox"
         />
       </GroupedRows>
 

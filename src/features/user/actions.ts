@@ -161,6 +161,27 @@ export async function updateTelegramSummaryAction(
   return { status: "success" };
 }
 
+// sprint-21-tasks.md п.10 — "Habit reminder": an evening time, or "off".
+export async function updateHabitReminderAction(
+  value: string,
+): Promise<{ status: "success" | "error"; message?: string }> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { status: "error", message: "Not signed in." };
+  }
+
+  try {
+    await userService.setHabitReminder(user.id, value);
+  } catch (error) {
+    if (error instanceof InvalidTelegramSummaryError) {
+      return { status: "error", message: error.message };
+    }
+    throw error;
+  }
+  revalidatePath("/settings");
+  return { status: "success" };
+}
+
 export async function disconnectTelegramAction(): Promise<DisconnectTelegramState> {
   const user = await getCurrentUser();
   if (!user) {
