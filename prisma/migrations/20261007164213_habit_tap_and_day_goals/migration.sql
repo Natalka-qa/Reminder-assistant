@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Habit" ADD COLUMN     "dayTargets" INTEGER[] DEFAULT ARRAY[]::INTEGER[],
+ADD COLUMN     "tapSetsGoal" BOOLEAN NOT NULL DEFAULT false;

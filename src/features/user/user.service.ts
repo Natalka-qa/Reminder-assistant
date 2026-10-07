@@ -2,6 +2,7 @@ import {
   nameSchema,
   reminderPreferencesSchema,
   telegramSummarySchema,
+  habitReminderSchema,
   schedulePreferencesSchema,
   timezoneSchema,
   type ReminderPreferences,
@@ -114,6 +115,25 @@ export const userService = {
   /** S15-11 — true for the one caller that gets to send today's summary. */
   claimSummary(userId: string, today: string) {
     return userRepository.claimSummary(userId, today);
+  },
+
+  // sprint-21-tasks.md п.10 — "Habit reminder" in the Telegram block.
+  async setHabitReminder(userId: string, input: unknown) {
+    const result = habitReminderSchema.safeParse(input);
+    if (!result.success) {
+      throw new InvalidTelegramSummaryError(
+        result.error.issues[0]?.message ?? "Invalid reminder time",
+      );
+    }
+    return userRepository.updateHabitReminder(userId, result.data);
+  },
+
+  getHabitReminderRecipients() {
+    return userRepository.findHabitReminderRecipients();
+  },
+
+  claimHabitReminder(userId: string, today: string) {
+    return userRepository.claimHabitReminder(userId, today);
   },
 
   getReminderPreferences(userId: string): Promise<ReminderPreferences | null> {

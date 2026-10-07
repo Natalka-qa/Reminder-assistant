@@ -101,6 +101,29 @@ export const telegramSummarySchema = z.preprocess(
     .nullable(),
 );
 
+// sprint-21-tasks.md п.10 — the evening "habits left today" message: the
+// same shape as the summary's, evening times.
+export const HABIT_REMINDER_MINUTES = [
+  18 * 60,
+  19 * 60,
+  20 * 60,
+  21 * 60,
+  22 * 60,
+] as const;
+
+export const habitReminderSchema = z.preprocess(
+  (value) => (value === "off" || value === null ? null : Number(value)),
+  z
+    .number()
+    .int()
+    .refine(
+      (minutes) =>
+        (HABIT_REMINDER_MINUTES as readonly number[]).includes(minutes),
+      { message: "Pick one of the times offered." },
+    )
+    .nullable(),
+);
+
 export const reminderPreferencesSchema = z.object({
   defaultReminderMinutes: z.coerce
     .number()

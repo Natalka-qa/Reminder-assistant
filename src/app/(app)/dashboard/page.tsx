@@ -15,6 +15,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { TaskExamples } from "@/components/dashboard/task-examples";
 import { exampleLanguage, taskExamples } from "@/features/onboarding/examples";
 import { DueNotificationsToast } from "@/components/notifications/due-notifications-toast";
+import { habitService } from "@/features/habits/habit.service";
+import { DailyStrip } from "@/components/habits/daily-strip";
 import { HomeDay, HomeDayWithBusy, type HomeDayProps } from "./home-day";
 
 type TimeOfDay = "morning" | "afternoon" | "evening" | "night";
@@ -61,14 +63,16 @@ export default async function DashboardPage() {
   // S12-06 — the user's hours come along with the day's tasks, for where
   // "A small suggestion" may move one. S13-05 — so do the last 30 days'
   // patterns, one narrow query, for the insight card's last sentence.
-  const [todayTasks, overdueTasks, preferences, patterns] = user
+  // sprint-21-tasks.md п.7 — and today's habits, for the strip.
+  const [todayTasks, overdueTasks, preferences, patterns, daily] = user
     ? await Promise.all([
         dashboardService.getTodayTasks(user.id, timezone),
         dashboardService.getOverdueTasks(user.id, timezone),
         userService.getSchedulePreferences(user.id),
         analyticsService.getBehaviorPatterns(user.id, timezone),
+        habitService.getDaily(user.id, timezone, new Date()),
       ])
-    : [[], [], null, null];
+    : [[], [], null, null, null];
 
   const snoozedIds = [...todayTasks, ...overdueTasks]
     .filter((occurrence) => occurrence.status === "SNOOZED")
@@ -144,6 +148,10 @@ export default async function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* п.7 — above the day and above the empty state alike: habits are
+          every day, tasks or not. */}
+      {daily && <DailyStrip key={daily.today} daily={daily} />}
 
       {isEmpty ? (
         <>

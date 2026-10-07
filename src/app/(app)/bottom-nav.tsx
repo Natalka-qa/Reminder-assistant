@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Calendar, Home, Inbox, Plus, Settings } from "lucide-react";
+import {
+  Calendar,
+  ChartNoAxesColumn,
+  Home,
+  Plus,
+  Settings,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type NavItem = { href: string; label: string; icon: typeof Home };
@@ -13,7 +19,7 @@ const BEFORE_CREATE: NavItem[] = [
 ];
 
 const AFTER_CREATE: NavItem[] = [
-  { href: "/inbox", label: "Inbox", icon: Inbox },
+  { href: "/progress", label: "Progress", icon: ChartNoAxesColumn },
   { href: "/settings", label: "Profile", icon: Settings },
 ];
 
@@ -26,10 +32,11 @@ export function BottomNav() {
   const pathname = usePathname();
 
   function renderItem({ href, label, icon: Icon }: NavItem) {
-    // /progress is reached from Settings (S13-04), so Settings stays lit.
+    // sprint-21-tasks.md п.4 — /inbox ("Sent reminders") is reached from
+    // Profile, so Profile stays lit.
     const active =
       pathname.startsWith(href) ||
-      (href === "/settings" && pathname.startsWith("/progress"));
+      (href === "/settings" && pathname.startsWith("/inbox"));
     return (
       <Link
         key={href}

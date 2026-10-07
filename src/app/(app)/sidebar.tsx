@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Calendar, Home, Inbox, ListChecks, Settings } from "lucide-react";
+import {
+  Calendar,
+  ChartNoAxesColumn,
+  Home,
+  ListChecks,
+  Settings,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SectionLabel } from "@/components/ui/section-label";
 import { cn } from "@/lib/utils";
@@ -11,7 +17,7 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Home", icon: Home },
   { href: "/tasks", label: "Tasks", icon: ListChecks },
   { href: "/calendar", label: "Calendar", icon: Calendar },
-  { href: "/inbox", label: "Inbox", icon: Inbox },
+  { href: "/progress", label: "Progress", icon: ChartNoAxesColumn },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -46,10 +52,11 @@ export function Sidebar({
 
         <nav className="flex flex-col gap-1">
           {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-            // /progress is reached from Settings (S13-04), so Settings stays lit.
+            // sprint-21-tasks.md п.4 — /inbox is reached from Settings, so
+            // Settings stays lit.
             const active =
               pathname.startsWith(href) ||
-              (href === "/settings" && pathname.startsWith("/progress"));
+              (href === "/settings" && pathname.startsWith("/inbox"));
             return (
               <Link
                 key={href}
