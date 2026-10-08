@@ -39,28 +39,38 @@ describe("todayMessage", () => {
       ),
     ).toBe(
       [
-        "Today · Wed, Sep 30",
-        "2 overdue tasks",
+        "📅 <b>Today · Wed, Sep 30</b>",
+        "⚠️ <i>2 overdue tasks</i>",
         "",
-        "✓ 08:30 · Pills",
-        "Anytime · Read · 30 min",
-        "· skipped · 18:00 · Gym · 1h",
+        "✅ <s>08:30 · Pills</s>",
+        "✨ Anytime · <b>Read</b> · 30 min",
+        "⏭ <s>18:00 · Gym</s> · skipped",
       ].join("\n"),
     );
   });
 
   it("says so when the day is empty", () => {
     expect(todayMessage("Wed, Sep 30", [], 0)).toBe(
-      "Today · Wed, Sep 30\n\nNothing planned for today.",
+      "📅 <b>Today · Wed, Sep 30</b>\n\n<i>Nothing planned for today.</i>",
     );
-    expect(todayMessage("Wed, Sep 30", [], 1)).toContain("1 overdue task\n");
+    expect(todayMessage("Wed, Sep 30", [], 1)).toContain(
+      "<i>1 overdue task</i>\n",
+    );
+  });
+
+  it("escapes what the user typed (2026-10-08: HTML)", () => {
+    expect(
+      todayMessage("Wed, Sep 30", [{ ...gym, title: "Call <Bob> & Ann" }], 0),
+    ).toContain("🕕 18:00 · <b>Call &lt;Bob&gt; &amp; Ann</b> · 1h");
   });
 });
 
 describe("nextMessage", () => {
   it("shows the next task or a clear day", () => {
-    expect(nextMessage(gym)).toBe("Up next\n\n18:00 · Gym · 1h");
-    expect(nextMessage(null)).toBe("Nothing left for today.");
+    expect(nextMessage(gym)).toBe(
+      "⏭ <b>Up next</b>\n\n🕕 18:00 · <b>Gym</b> · 1h",
+    );
+    expect(nextMessage(null)).toBe("<i>Nothing left for today.</i>");
   });
 });
 
@@ -199,7 +209,7 @@ describe("buttons", () => {
     });
     expect(keyboard.inline_keyboard).toEqual([
       [
-        { text: "Done", callback_data: `done:${id}` },
+        { text: "✓ Done", callback_data: `done:${id}`, style: "success" },
         { text: "Snooze 15 min", callback_data: `snooze15:${id}` },
         { text: "Skip", callback_data: `skip:${id}` },
       ],
@@ -215,7 +225,11 @@ describe("buttons", () => {
       recurring: true,
     }).inline_keyboard;
     expect(second).toEqual([
-      { text: "Remove this one", callback_data: `remove:${id}` },
+      {
+        text: "Remove this one",
+        callback_data: `remove:${id}`,
+        style: "danger",
+      },
       open,
     ]);
   });
@@ -247,7 +261,10 @@ describe("buttons", () => {
         { text: "+1 h", callback_data: `later1h:${id}` },
         { text: "Tomorrow", callback_data: `tomorrow:${id}` },
       ],
-      [{ text: "Undo", callback_data: `undo:${id}` }, openCreated],
+      [
+        { text: "Undo", callback_data: `undo:${id}`, style: "primary" },
+        openCreated,
+      ],
     ]);
   });
 
@@ -289,8 +306,20 @@ describe("summaryButtons", () => {
 
   it("puts one ✓ button per open task, each on its own row", () => {
     expect(summaryButtons([item(1), item(2)])?.inline_keyboard).toEqual([
-      [{ text: "✓ 18:00 Task 1", callback_data: `sdone:${item(1).id}` }],
-      [{ text: "✓ 18:00 Task 2", callback_data: `sdone:${item(2).id}` }],
+      [
+        {
+          text: "✓ 18:00 Task 1",
+          callback_data: `sdone:${item(1).id}`,
+          style: "success",
+        },
+      ],
+      [
+        {
+          text: "✓ 18:00 Task 2",
+          callback_data: `sdone:${item(2).id}`,
+          style: "success",
+        },
+      ],
     ]);
   });
 
@@ -336,17 +365,25 @@ describe("habits in the morning summary (sprint-21-tasks.md п.9)", () => {
     met: false,
   };
 
-  it("puts each habit on its own line, with the count done and the news", () => {
+  it("puts each habit on its own line in a folding quote, with the news", () => {
     expect(
       habitsSection(
-        [exercise, water],
+        [
+          exercise,
+          { ...water, value: 1000, goal: 2000, progressLabel: "1/2 L" },
+        ],
         "Exercise — 7 days in a row. Well done!",
       ),
     ).toBe(
-      "Daily · 1/2\n✓ Exercise\n○ Water · 0/2 L\n\n🎉 Exercise — 7 days in a row. Well done!",
+      [
+        "🌱 <b>Daily · 1/2</b>",
+        "<blockquote expandable>✅ Exercise",
+        "○ Water ▰▰▱▱▱ 1/2 L</blockquote>",
+        "🎉 <i>Exercise — 7 days in a row. Well done!</i>",
+      ].join("\n"),
     );
     expect(habitsSection([exercise], null)).toBe(
-      "Daily · all done ✓\n✓ Exercise",
+      "🌱 <b>Daily · all done</b> ✓\n<blockquote expandable>✅ Exercise</blockquote>",
     );
     expect(habitsSection([], "anything")).toBeNull();
   });
@@ -360,10 +397,18 @@ describe("habits in the morning summary (sprint-21-tasks.md п.9)", () => {
     ]);
     expect(rows).toHaveLength(4);
     expect(rows[0]).toEqual([
-      { text: "Water +250 ml", callback_data: `hplus:${water.id}` },
-      { text: "✓ Sleep 8 h", callback_data: "hdone:sleep" },
+      {
+        text: "Water +250 ml",
+        callback_data: `hplus:${water.id}`,
+        style: "primary",
+      },
+      { text: "✓ Sleep 8 h", callback_data: "hdone:sleep", style: "success" },
     ]);
-    expect(rows[1][0]).toEqual({ text: "✓ Stretch", callback_data: "hdone:s" });
+    expect(rows[1][0]).toEqual({
+      text: "✓ Stretch",
+      callback_data: "hdone:s",
+      style: "success",
+    });
     expect(rows.flat()).toHaveLength(8);
     expect(habitButtons([exercise])).toEqual([]);
   });

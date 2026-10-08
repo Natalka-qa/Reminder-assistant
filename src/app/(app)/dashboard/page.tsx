@@ -5,6 +5,7 @@ import { formatDateInZone, formatTimeInZone, zonedNow } from "@/lib/date";
 import { dashboardService } from "@/features/scheduling/dashboard.service";
 import { calendarService } from "@/features/scheduling/calendar.service";
 import { userService } from "@/features/user/user.service";
+import { displayName } from "@/features/user/display-name";
 import { analyticsService } from "@/features/analytics/analytics.service";
 import { notificationService } from "@/features/notifications/notification.service";
 import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-status";
@@ -62,6 +63,7 @@ export default async function DashboardPage() {
   const now = zonedNow(timezone);
   const dateLine = formatDateInZone(now.toJSDate(), timezone, "cccc, LLLL d");
   const timeOfDay = getTimeOfDay(now.hour);
+  const greetingName = displayName(user?.name, user?.email);
 
   // Lazy delivery trigger — the primary channel for timely reminders, since
   // Vercel Cron can't be relied on for sub-daily frequency on the Hobby plan
@@ -145,11 +147,13 @@ export default async function DashboardPage() {
         <div className="relative flex items-center gap-[9px]">
           <AssistantMark tone="personal" animated />
           <span className="text-text-secondary text-[15px]">
-            {GREETINGS[timeOfDay]}
+            {greetingName ? GREETINGS[timeOfDay] : "Your day"}
           </span>
         </div>
+        {/* 2026-10-08 — the name, or the email's first word; with neither,
+            the greeting itself is the big line (never "there"). */}
         <p className="font-display relative text-[56px] leading-[1.02] font-light tracking-[-0.015em]">
-          {user?.name ?? "there"}
+          {greetingName ?? GREETINGS[timeOfDay].replace(/,$/, "")}
         </p>
         <div className="relative mt-2.5 flex flex-wrap items-center gap-2.5">
           <span className="text-text-secondary text-sm">{dateLine}</span>

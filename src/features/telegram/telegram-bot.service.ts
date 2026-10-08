@@ -176,6 +176,8 @@ async function showToday(user: User, chatId: string, now: Date) {
   await sendTelegramMessage(
     chatId,
     todayMessage(dateLabel, dayItems(today, user.timezone), overdue.length),
+    undefined,
+    { html: true },
   );
 }
 
@@ -187,7 +189,9 @@ async function showNext(user: User, chatId: string, now: Date) {
   );
   const next = pickNext(today, now);
   if (!next) {
-    await sendTelegramMessage(chatId, nextMessage(null));
+    await sendTelegramMessage(chatId, nextMessage(null), undefined, {
+      html: true,
+    });
     return;
   }
   await sendTelegramMessage(
@@ -199,6 +203,7 @@ async function showNext(user: User, chatId: string, now: Date) {
       appUrl: env.AUTH_URL,
       recurring: next.task.recurrenceRule !== null,
     }),
+    { html: true },
   );
 }
 
@@ -443,6 +448,7 @@ async function pressButton(user: User, press: Button, now: Date) {
             messageId,
             summary.text,
             summary.buttons,
+            { html: true },
           );
         }
         break;
@@ -467,6 +473,7 @@ async function pressButton(user: User, press: Button, now: Date) {
             messageId,
             summary.text,
             summary.buttons,
+            { html: true },
           );
         }
         break;

@@ -19,7 +19,7 @@ export function backTarget(pathname: string): string | null {
       : pathname;
 
   if (path === "/tasks/new") return "/dashboard";
-  if (path === "/inbox") return "/settings";
+  if (path === "/inbox" || path === "/settings/day") return "/settings";
 
   const parts = path.split("/").filter(Boolean);
   // /progress/habits/new and /progress/habits/<id>.

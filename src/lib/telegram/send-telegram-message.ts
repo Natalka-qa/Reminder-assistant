@@ -4,8 +4,9 @@ import type { InlineKeyboard, ReplyKeyboard } from "./bot-messages";
 
 // Plain `fetch` against the Telegram Bot API — same approach as
 // lib/email/send-email.ts takes with Resend, for the same reason: a few
-// call sites don't justify pulling in a full SDK. Plain text only, no
-// parse_mode (bot-messages.ts).
+// call sites don't justify pulling in a full SDK. Plain text, or HTML
+// with `{ html: true }` for the day's messages (bot-messages.ts,
+// 2026-10-08) — their user text is escaped there.
 async function telegramApi(
   method: string,
   body: Record<string, unknown>,
@@ -23,14 +24,22 @@ async function telegramApi(
   }
 }
 
+type Options = { html?: boolean };
+
+function format(options?: Options) {
+  return options?.html ? { parse_mode: "HTML" } : {};
+}
+
 export function sendTelegramMessage(
   chatId: string,
   text: string,
   replyMarkup?: InlineKeyboard | ReplyKeyboard,
+  options?: Options,
 ): Promise<void> {
   return telegramApi("sendMessage", {
     chat_id: chatId,
     text,
+    ...format(options),
     ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
   });
 }
@@ -54,11 +63,13 @@ export function editTelegramMessage(
   messageId: number,
   text: string,
   replyMarkup?: InlineKeyboard,
+  options?: Options,
 ): Promise<void> {
   return telegramApi("editMessageText", {
     chat_id: chatId,
     message_id: messageId,
     text,
+    ...format(options),
     ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
   });
 }

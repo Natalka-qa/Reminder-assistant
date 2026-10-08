@@ -289,6 +289,8 @@ A reminder whose email fails is retried; Telegram is sent once, not again on eve
 
 ## Telegram bot
 
+The day's messages — the morning summary, `/today`, `/next`, reminders and the evening check-in — are formatted (HTML: bold headings, a clock emoji per hour, done tasks crossed out, habits in a folding quote with progress bars); what you typed is escaped. Buttons have colours (Bot API `style`): green to do it, blue for the main other choice, red to take something away.
+
 Once a chat is connected (see "Telegram setup"), it works as a second way in, on the same data as the app:
 
 - **Write a task** the way you'd say it — "Call mom tomorrow at 18", "Позвонить маме в пятницу в 10" — and it's added by the same rules as a sentence in New task, with your Default reminder. The reply shows what was added and when, and the same notices as the form ("Overlaps with …", "… has already passed today"). Under it: **+1 h** and **Tomorrow** to fix the time or day, **Undo**, **Open**. They work for 10 minutes and until something of the task is marked; +1 h only before 23:00 and only for a task with a time, Tomorrow only for a one-off task. A sentence without a time ("buy milk") adds a task without one, like New task (see "Tasks without a time"). A find-a-time sentence ("find an hour tomorrow evening") isn't searched in the chat — the reply links to New task. A repeat with its own time on each day — "Dance every Mon at 19 and Wed at 20", "Танцы по пн в 19 и по ср в 20" — becomes one task per day (a task has one time for all its days), each with its own reply; New task does the same, listing them under "Will be added as 2 tasks" and sharing scheduling, reminder, importance and the note between them.

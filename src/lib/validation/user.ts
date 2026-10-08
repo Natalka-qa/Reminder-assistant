@@ -147,7 +147,8 @@ export const DEFAULT_REMINDER_PREFERENCES: ReminderPreferences = {
 };
 
 // Onboarding and Settings — what the app calls you ("Good morning, Anna").
-// Empty clears it: the greeting falls back to "there".
+// Empty clears it: the greeting falls back to the email's first word
+// (displayName), or to no name at all.
 export const NAME_MAX_LENGTH = 60;
 export const nameSchema = z
   .string()

@@ -77,6 +77,7 @@ export async function sendDueSummaries(now: Date): Promise<number> {
         user.telegramChatId,
         summary.text,
         summary.buttons,
+        { html: true },
       );
       sent += 1;
     } catch (error) {
