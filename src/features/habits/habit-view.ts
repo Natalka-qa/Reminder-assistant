@@ -126,6 +126,8 @@ export type Daily = {
   done: number;
   /** The best thing to say today, if anything (п.8). */
   praise: string | null;
+  /** Any active habit at all — none: Home invites to start one. */
+  hasHabits: boolean;
 };
 
 function dailyItem(habit: PraiseHabit, today: string): DailyItem {
@@ -167,6 +169,7 @@ export function daily(rows: HabitRow[], timezone: string, now: Date): Daily {
     items,
     done: items.filter((item) => item.met).length,
     praise: praiseFor(active, today)[0]?.text ?? null,
+    hasHabits: active.length > 0,
   };
 }
 

@@ -2,6 +2,7 @@
 
 import { startTransition, useActionState, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Pencil } from "lucide-react";
 import { GroupedRows, GroupedRow } from "@/components/ui/grouped-rows";
 import { SectionLabel } from "@/components/ui/section-label";
 import { WeekdayPicker } from "@/components/ui/weekday-picker";
@@ -175,7 +176,7 @@ export function SettingsForm({
       <GroupedRows>
         <GroupedRow
           label="Name"
-          hint="For the greeting on Home"
+          hint="How I greet you on Home — tap to change"
           value={<NameField initialName={currentName} />}
         />
         <GroupedRow
@@ -363,18 +364,28 @@ function NameField({ initialName }: { initialName: string }) {
     }
   }
 
+  // 2026-10-08 — it looked like plain text: now a pencil, a soft tint on
+  // hover and a ring while editing say it can be changed; the pencil puts
+  // the cursor in the field.
   return (
-    <input
-      aria-label="Name"
-      value={name}
-      maxLength={NAME_MAX_LENGTH}
-      placeholder="Add your name"
-      onChange={(event) => setName(event.target.value)}
-      onBlur={save}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") event.currentTarget.blur();
-      }}
-      className="text-text-primary placeholder:text-placeholder-text w-full min-w-0 bg-transparent text-right text-[15px] outline-none"
-    />
+    <label className="group flex w-full min-w-0 cursor-text items-center justify-end gap-2">
+      <input
+        aria-label="Name"
+        value={name}
+        maxLength={NAME_MAX_LENGTH}
+        placeholder="Add your name"
+        onChange={(event) => setName(event.target.value)}
+        onBlur={save}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+        }}
+        className="text-text-primary placeholder:text-placeholder-text group-hover:bg-tasks-hover focus:ring-burgundy/40 focus:bg-surface w-full min-w-0 rounded-[8px] bg-transparent px-2 py-1 text-right text-[15px] outline-none focus:ring-1"
+      />
+      <Pencil
+        aria-hidden
+        className="text-text-secondary group-hover:text-text-primary size-3.5 shrink-0"
+        strokeWidth={1.8}
+      />
+    </label>
   );
 }

@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { verifySession, getCurrentUser } from "@/lib/auth/dal";
 import { formatDateInZone, formatTimeInZone, zonedNow } from "@/lib/date";
 import { dashboardService } from "@/features/scheduling/dashboard.service";
@@ -17,6 +17,12 @@ import { exampleLanguage, taskExamples } from "@/features/onboarding/examples";
 import { DueNotificationsToast } from "@/components/notifications/due-notifications-toast";
 import { habitService } from "@/features/habits/habit.service";
 import { DailyStrip } from "@/components/habits/daily-strip";
+import { HabitInviteCard } from "@/components/habits/habit-invite-card";
+import {
+  HABIT_INVITE_COOKIE,
+  habitInvite,
+  isInviteHidden,
+} from "@/features/habits/habit-invite";
 import {
   HomeAssistant,
   HomeAssistantWithBusy,
@@ -177,6 +183,18 @@ export default async function DashboardPage() {
           <HomeAssistant {...assistantProps} />
         ))}
       {daily && <DailyStrip key={daily.today} daily={daily} />}
+      {/* No habit yet: an invitation instead (backlog.md, 2026-10-07);
+          after "Not now", one line (2026-10-08). */}
+      {user && daily && !daily.hasHabits && (
+        <HabitInviteCard
+          invite={habitInvite(user.id, daily.today)}
+          today={daily.today}
+          initiallyFolded={isInviteHidden(
+            (await cookies()).get(HABIT_INVITE_COOKIE)?.value,
+            daily.today,
+          )}
+        />
+      )}
 
       {isEmpty ? (
         <>
