@@ -20,7 +20,7 @@ export function EmptyState({
     <div className="relative flex flex-col items-center gap-3 py-[120px] text-center">
       <div
         aria-hidden
-        className="pointer-events-none absolute top-[78px] left-1/2 size-[160px] -translate-x-1/2 rounded-pill border border-[#e9e2dd]"
+        className="pointer-events-none absolute top-[78px] left-1/2 size-[160px] -translate-x-1/2 rounded-pill border border-(--empty-ring)"
       />
       <span aria-hidden className="text-rose-gold relative text-[14px]">
         &#10022;

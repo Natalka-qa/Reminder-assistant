@@ -81,9 +81,9 @@ export function TasksToolbar({
               scroll={false}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "hover:text-burgundy relative -mb-px border-b-[1.5px] pb-3 text-[14px] transition-colors after:absolute after:inset-x-0 after:-top-3 after:bottom-0",
+                "hover:text-accent-text relative -mb-px border-b-[1.5px] pb-3 text-[14px] transition-colors after:absolute after:inset-x-0 after:-top-3 after:bottom-0",
                 active
-                  ? "border-burgundy text-burgundy font-semibold"
+                  ? "border-accent-line text-accent-text font-semibold"
                   : "text-tasks-meta border-transparent font-medium",
               )}
             >
@@ -94,7 +94,7 @@ export function TasksToolbar({
       </nav>
 
       <div className="flex min-w-[220px] flex-1 items-center justify-between gap-[18px] pb-2.5 md:justify-end">
-        <label className="text-text-secondary focus-within:text-burgundy flex min-w-0 flex-1 items-center gap-[7px] md:max-w-[200px]">
+        <label className="text-text-secondary focus-within:text-accent-text flex min-w-0 flex-1 items-center gap-[7px] md:max-w-[200px]">
           <Search aria-hidden className="size-3.5 shrink-0" strokeWidth={1.6} />
           <input
             ref={searchRef}
@@ -110,7 +110,7 @@ export function TasksToolbar({
         {/* Ended is always latest first (sprint-19-tasks.md п.12). */}
         {tab !== "ended" && (
           <DropdownMenu>
-            <DropdownMenuTrigger className="text-text-tertiary hover:text-burgundy relative flex shrink-0 items-center gap-[5px] text-[13px] transition-colors after:absolute after:-inset-x-2 after:-inset-y-3">
+            <DropdownMenuTrigger className="text-text-tertiary hover:text-accent-text relative flex shrink-0 items-center gap-[5px] text-[13px] transition-colors after:absolute after:-inset-x-2 after:-inset-y-3">
               Sort:{" "}
               <span className="text-text-primary font-semibold">
                 {sortLabel}
@@ -138,7 +138,7 @@ export function TasksToolbar({
                       className={cn(
                         "text-[13px]",
                         option.value === sort
-                          ? "text-burgundy font-semibold"
+                          ? "text-accent-text font-semibold"
                           : "text-text-primary font-medium",
                       )}
                     >

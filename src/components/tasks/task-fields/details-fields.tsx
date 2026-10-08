@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { Expand } from "@/components/ui/expand";
+import { SegmentedThumb } from "@/components/ui/segmented-thumb";
 import {
   CUSTOM_REMINDER,
   customReminderMinutes,
@@ -185,7 +187,7 @@ export function TaskDetailsFields<P extends string>({
               }
             }}
             placeholder="30"
-            className="border-newtask-input-rule text-text-primary placeholder:text-placeholder-text focus:border-burgundy min-h-11 w-16 rounded-none border-0 border-b bg-transparent text-right text-[15px] tabular-nums outline-none"
+            className="border-newtask-input-rule text-text-primary placeholder:text-placeholder-text focus:border-accent-line min-h-11 w-16 rounded-none border-0 border-b bg-transparent text-right text-[15px] tabular-nums outline-none"
           />
           <div className="relative">
             <select
@@ -222,19 +224,26 @@ export function TaskDetailsFields<P extends string>({
         </p>
         {/* Four choices (a Critical task, S14-04) don't fit beside the
             label on a phone: then they wrap to their own line. */}
-        <div className="border-border ml-auto flex gap-0.5 rounded-full border p-[3px]">
+        <div className="border-border relative ml-auto flex gap-0.5 rounded-full border p-[3px]">
+          <SegmentedThumb
+            active={importanceChoices.findIndex(
+              (choice) => choice.value === priority,
+            )}
+            className="bg-burgundy-tint"
+          />
           {importanceChoices.map((choice) => {
             const on = priority === choice.value;
             return (
               <button
                 key={choice.value}
                 type="button"
+                data-segment
                 aria-pressed={on}
                 onClick={() => onPriorityChange(choice.value)}
                 className={cn(
-                  "relative min-h-9 rounded-full px-3.5 text-[13px] transition-colors after:absolute after:inset-x-0 after:-inset-y-1",
+                  "relative min-h-9 rounded-full px-3.5 text-[13px] transition-colors duration-(--dur-2) after:absolute after:inset-x-0 after:-inset-y-1",
                   on
-                    ? "bg-burgundy-tint text-burgundy font-semibold"
+                    ? "text-accent-text font-semibold"
                     : "text-newtask-quiet-text hover:text-text-primary font-medium",
                 )}
               >
@@ -260,7 +269,7 @@ export function TaskDetailsFields<P extends string>({
               onChange={onRepeatIntervalChange}
             />
           )}
-          {repeat === "WEEKLY" && (
+          <Expand open={repeat === "WEEKLY"}>
             <div
               role="group"
               aria-label="Repeat on"
@@ -278,7 +287,7 @@ export function TaskDetailsFields<P extends string>({
                     className={cn(
                       "relative size-10 rounded-full border text-[12px] transition-colors after:absolute after:-inset-[2px]",
                       on
-                        ? "bg-burgundy border-burgundy font-semibold text-white"
+                        ? "bg-burgundy border-accent-line text-on-accent font-semibold"
                         : "bg-surface border-border text-text-tertiary font-medium",
                     )}
                   >
@@ -287,7 +296,7 @@ export function TaskDetailsFields<P extends string>({
                 );
               })}
             </div>
-          )}
+          </Expand>
           {repeatHint && (
             <p className="text-newtask-quiet-text pb-3.5 text-[13px]">
               {repeatHint}

@@ -48,7 +48,7 @@ export function CalendarHeader({
         <div className="flex items-center gap-0.5">
           <Link
             href={todayHref}
-            className="text-text-tertiary hover:text-burgundy relative rounded-[6px] px-2 py-1 text-[13px] font-medium transition-colors after:absolute after:inset-x-0 after:-inset-y-[10px]"
+            className="text-text-tertiary hover:text-accent-text relative rounded-[6px] px-2 py-1 text-[13px] font-medium transition-colors after:absolute after:inset-x-0 after:-inset-y-[10px]"
           >
             Today
           </Link>
@@ -78,10 +78,10 @@ function ModeLink({
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative border-b-[1.5px] py-1 text-[13px] after:absolute after:-inset-x-[5px] after:-inset-y-[9px]",
+        "relative border-b-[1.5px] py-1 text-[13px] transition-colors duration-(--dur-2) after:absolute after:-inset-x-[5px] after:-inset-y-[9px]",
         active
-          ? "border-burgundy text-burgundy font-semibold"
-          : "text-calendar-quiet-text hover:text-burgundy border-transparent font-medium",
+          ? "border-accent-line text-accent-text font-semibold"
+          : "text-calendar-quiet-text hover:text-accent-text border-transparent font-medium",
       )}
     >
       {children}

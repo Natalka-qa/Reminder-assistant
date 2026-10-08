@@ -11,7 +11,7 @@ export function SwitchTrack({ checked }: { checked: boolean }) {
       className={cn(
         "relative h-6 w-10 shrink-0 rounded-full border transition-colors",
         checked
-          ? "bg-burgundy border-burgundy"
+          ? "bg-burgundy border-accent-line"
           : "bg-surface border-border-medium",
       )}
     >
@@ -19,7 +19,7 @@ export function SwitchTrack({ checked }: { checked: boolean }) {
         className={cn(
           "absolute top-[2px] left-0 size-[18px] rounded-full transition-transform",
           checked
-            ? "translate-x-[18px] bg-white"
+            ? "translate-x-[18px] bg-surface"
             : "bg-border-medium translate-x-[2px]",
         )}
       />

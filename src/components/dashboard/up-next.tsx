@@ -81,13 +81,13 @@ export function UpNext({
       <span className="text-eyebrow text-text-secondary font-semibold tracking-[0.16em] uppercase">
         Up next
       </span>
-      <div className="border-burgundy flex flex-col gap-[18px] border-l-2 pl-[22px]">
+      <div className="border-accent-line flex flex-col gap-[18px] border-l-2 pl-[22px]">
         <div className="flex items-center gap-2.5">
           <span
             className="bg-burgundy rounded-pill -ml-[27px] size-2"
             style={{ animation: "softPulse 4.6s ease-in-out infinite" }}
           />
-          <span className="text-burgundy text-[13px] font-semibold tracking-[0.02em]">
+          <span className="text-accent-text text-[13px] font-semibold tracking-[0.02em]">
             {timeLabel} · {relativeLabel}
           </span>
         </div>
@@ -105,7 +105,7 @@ export function UpNext({
             type="button"
             disabled={!actionable || pending}
             onClick={() => run(completeOccurrenceAction)}
-            className="bg-burgundy hover:bg-burgundy-hover rounded-pill flex h-[46px] items-center px-6 text-[14px] font-semibold text-white transition-colors disabled:opacity-50"
+            className="bg-burgundy hover:bg-burgundy-hover rounded-pill text-on-accent flex h-[46px] items-center px-6 text-[14px] font-semibold transition-colors disabled:opacity-50"
           >
             {status === "DONE" ? "✓ Done" : "Mark as done"}
           </button>
@@ -158,7 +158,7 @@ export function UpNext({
                 </span>
                 <Link
                   href={`/tasks/${t.taskId}/edit`}
-                  className="text-burgundy text-xs font-semibold"
+                  className="text-accent-text text-xs font-semibold"
                 >
                   Move
                 </Link>

@@ -134,14 +134,14 @@ export function DayTimeline({
                         <Link
                           href={`/tasks/${item.taskId}`}
                           className={cn(
-                            "flex min-w-0 flex-1 flex-col gap-[3px]",
+                            "flex min-w-0 flex-1 flex-col gap-[3px] transition-opacity duration-(--dur-2)",
                             dimmed && "opacity-45",
                           )}
                         >
                           <span
                             className={cn(
-                              "text-home-quiet-title text-[16px] leading-[1.35]",
-                              item.status === "DONE" && "line-through",
+                              "text-home-quiet-title text-[16px] leading-[1.35] line-through decoration-transparent transition-[text-decoration-color] duration-(--dur-2)",
+                              item.status === "DONE" && "decoration-current",
                             )}
                           >
                             {item.title}

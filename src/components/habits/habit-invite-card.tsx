@@ -3,6 +3,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Sprout } from "lucide-react";
+import { duration, ease, prefersReducedMotion } from "@/lib/motion";
 import { shiftDate } from "@/lib/date/calendar-date";
 import {
   HABIT_INVITE_COOKIE,
@@ -10,8 +11,7 @@ import {
   type HabitInvite,
 } from "@/features/habits/habit-invite";
 
-const EASE = "cubic-bezier(0.2, 0.8, 0.2, 1)";
-const LIFT = "0 12px 30px -10px rgba(116, 52, 71, 0.3)";
+const LIFT = "var(--lift-shadow)";
 
 // backlog.md (2026-10-07) — while there's no habit, Home asks a short,
 // human question where the habits strip would be, with a way in and a
@@ -55,19 +55,24 @@ export function HabitInviteCard({
         },
         {
           height: `${to}px`,
-          backgroundColor: "rgba(255, 255, 255, 0)",
-          boxShadow: "0 0 0 0 rgba(116, 52, 71, 0)",
+          backgroundColor: "transparent",
+          boxShadow: "0 0 0 0 transparent",
           borderRadius: "22px",
         },
       ],
-      { duration: 360, easing: EASE },
+      { duration: duration("--dur-3"), easing: ease("--ease-out") },
     );
     line.current?.animate(
       [
         { opacity: 0, transform: "translateY(4px)" },
         { opacity: 1, transform: "translateY(0)" },
       ],
-      { duration: 260, delay: 180, easing: EASE, fill: "backwards" },
+      {
+        duration: duration("--dur-2"),
+        delay: duration("--dur-1"),
+        easing: ease("--ease-out"),
+        fill: "backwards",
+      },
     );
   }, [folded]);
 
@@ -78,29 +83,28 @@ export function HabitInviteCard({
     }; samesite=lax`;
 
     const box = frame.current;
-    const reduced = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
+    const reduced = prefersReducedMotion();
     if (!box || !card.current || reduced) {
       setFolded(true);
       return;
     }
     // First step: lift on a soft shadow while the words fade.
     const height = box.offsetHeight;
-    box.animate(
-      [{ boxShadow: "0 0 0 0 rgba(116, 52, 71, 0)" }, { boxShadow: LIFT }],
-      {
-        duration: 160,
-        easing: EASE,
-        fill: "forwards",
-      },
-    );
+    box.animate([{ boxShadow: "0 0 0 0 transparent" }, { boxShadow: LIFT }], {
+      duration: duration("--dur-2"),
+      easing: ease("--ease-out"),
+      fill: "forwards",
+    });
     const fade = card.current.animate(
       [
         { opacity: 1, transform: "translateY(0)" },
         { opacity: 0, transform: "translateY(-3px)" },
       ],
-      { duration: 160, easing: EASE, fill: "forwards" },
+      {
+        duration: duration("--dur-2"),
+        easing: ease("--ease-out"),
+        fill: "forwards",
+      },
     );
     // Folds when the fade ends — or anyway shortly after, should the page
     // not be running animations (a hidden tab).
@@ -122,7 +126,7 @@ export function HabitInviteCard({
         <Link
           ref={line}
           href="/progress/habits/new"
-          className="text-burgundy flex min-h-11 w-fit items-center gap-2 text-sm font-semibold"
+          className="text-accent-text flex min-h-11 w-fit items-center gap-2 text-sm font-semibold"
         >
           <span
             aria-hidden
@@ -140,7 +144,7 @@ export function HabitInviteCard({
         >
           <span
             aria-hidden
-            className="bg-burgundy-tint text-burgundy rounded-pill mt-0.5 flex size-8 shrink-0 items-center justify-center"
+            className="bg-burgundy-tint text-accent-text rounded-pill mt-0.5 flex size-8 shrink-0 items-center justify-center"
           >
             <Sprout className="size-4" strokeWidth={1.8} />
           </span>
@@ -157,7 +161,7 @@ export function HabitInviteCard({
             <div className="mt-1 flex items-center gap-1">
               <Link
                 href="/progress/habits/new"
-                className="text-burgundy -ml-1 min-h-11 content-center px-1 text-sm font-semibold"
+                className="text-accent-text -ml-1 min-h-11 content-center px-1 text-sm font-semibold"
               >
                 {invite.cta} →
               </Link>

@@ -156,20 +156,20 @@ export function TaskRow({
       type="button"
       disabled={pending}
       onClick={() => run(() => moveOccurrenceToTodayAction(occurrenceId))}
-      className="text-burgundy hover:text-burgundy-hover relative text-[13px] font-semibold whitespace-nowrap transition-colors after:absolute after:-inset-x-2 after:-inset-y-3 disabled:opacity-50"
+      className="text-accent-text hover:text-accent-text-hover relative text-[13px] font-semibold whitespace-nowrap transition-colors after:absolute after:-inset-x-2 after:-inset-y-3 disabled:opacity-50"
     >
       Move to today
     </button>
   );
 
   const actionClass =
-    "text-text-tertiary hover:text-burgundy relative transition-colors after:absolute after:-inset-x-2.5 after:-inset-y-3 disabled:pointer-events-none disabled:opacity-50 data-disabled:pointer-events-none data-disabled:opacity-50";
+    "text-text-tertiary hover:text-accent-text relative transition-colors after:absolute after:-inset-x-2.5 after:-inset-y-3 disabled:pointer-events-none disabled:opacity-50 data-disabled:pointer-events-none data-disabled:opacity-50";
 
   return (
     <li className="border-tasks-row-divider border-t">
       <div
         className={cn(
-          "-mx-2.5 flex items-start gap-3 rounded-[10px] px-2.5 py-3.5 transition-opacity",
+          "-mx-2.5 flex items-start gap-3 rounded-[10px] px-2.5 py-3.5 transition-opacity duration-(--dur-2)",
           critical && "bg-tasks-critical-row",
           dimmed && "opacity-45",
         )}
@@ -204,27 +204,32 @@ export function TaskRow({
           className={cn(
             "relative mt-px flex size-5 shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors after:absolute after:-inset-3",
             done
-              ? "border-burgundy bg-burgundy-tint text-burgundy"
-              : "border-border-medium enabled:hover:border-burgundy enabled:hover:text-burgundy text-transparent",
+              ? "border-accent-line bg-burgundy-tint text-accent-text"
+              : "border-border-medium enabled:hover:border-accent-line enabled:hover:text-accent-text text-transparent",
           )}
         >
-          <Check aria-hidden className="size-[11px]" strokeWidth={2.6} />
+          <Check
+            aria-hidden
+            className={cn("size-[11px]", done && "check-draw")}
+            strokeWidth={2.6}
+          />
         </button>
 
         <div className="flex min-w-0 flex-1 flex-col gap-[5px]">
           <Link href={`/tasks/${taskId}`} className="flex flex-col gap-[5px]">
             <span
               className={cn(
-                "text-text-primary text-[15.5px] leading-[1.35] text-pretty",
+                // MOTION_SPEC §2 — the strike fades in rather than snaps.
+                "text-text-primary text-[15.5px] leading-[1.35] text-pretty line-through decoration-transparent transition-[text-decoration-color] duration-(--dur-2)",
                 critical && "font-semibold",
-                done && "decoration-tasks-done-strike line-through",
+                done && "decoration-tasks-done-strike",
               )}
             >
               {title}
             </span>
             <span
               className={cn(
-                overdue && !done ? "text-burgundy" : "text-tasks-meta",
+                overdue && !done ? "text-accent-text" : "text-tasks-meta",
               )}
             >
               <MetaLine segments={meta} className={columnMeta && "md:hidden"} />
@@ -239,7 +244,7 @@ export function TaskRow({
           {conflict && (
             <Link
               href={`/tasks/${conflict.taskId}`}
-              className="text-tasks-conflict-text hover:text-burgundy flex items-center gap-1.5 self-start text-[12.5px] transition-colors"
+              className="text-tasks-conflict-text hover:text-accent-text flex items-center gap-1.5 self-start text-[12.5px] transition-colors"
             >
               <span
                 aria-hidden
@@ -253,7 +258,7 @@ export function TaskRow({
         </div>
 
         {critical && (
-          <span className="bg-burgundy mt-0.5 shrink-0 rounded-[4px] px-[7px] py-[3px] text-[10px] font-semibold tracking-[0.12em] text-white uppercase">
+          <span className="bg-burgundy text-on-accent mt-0.5 shrink-0 rounded-[4px] px-[7px] py-[3px] text-[10px] font-semibold tracking-[0.12em] uppercase">
             Critical
           </span>
         )}

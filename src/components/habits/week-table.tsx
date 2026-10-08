@@ -26,7 +26,7 @@ export function WeekTable({ week }: { week: WeekTableData }) {
                 abbr={day.name}
                 className={cn(
                   "text-[11px] font-medium",
-                  day.today ? "text-burgundy" : "text-tasks-meta",
+                  day.today ? "text-accent-text" : "text-tasks-meta",
                 )}
               >
                 {day.letter}

@@ -21,7 +21,7 @@ import type { CalendarEvent } from "@/features/scheduling/calendar-view";
 
 const LEFT_EDGE: Record<BlockAccent, string> = {
   closed: "border-l-calendar-accent-closed",
-  strong: "border-l-burgundy",
+  strong: "border-l-accent-line",
   fixed: "border-l-calendar-accent-fixed",
   flexible: "border-l-calendar-busy-line",
 };
@@ -109,7 +109,7 @@ export function WeekEventBlock({
         }
       }}
       className={cn(
-        "hover:shadow-calendar-block has-[a:focus-visible]:ring-ring absolute box-border flex gap-1.5 overflow-hidden rounded-[6px] border transition-[box-shadow,opacity] has-[a:focus-visible]:ring-2",
+        "hover:bg-tasks-hover has-[a:focus-visible]:ring-ring absolute box-border flex gap-1.5 overflow-hidden rounded-[6px] border transition-[box-shadow,opacity] has-[a:focus-visible]:ring-2",
         // п.4 — no text selection or iOS link preview on a long press.
         movable &&
           "cursor-grab touch-manipulation select-none [-webkit-touch-callout:none] active:cursor-grabbing",
@@ -144,11 +144,15 @@ export function WeekEventBlock({
             // clipped to the block by its overflow.
             mobile && "after:absolute after:-inset-[15px]",
             tone.done
-              ? "border-burgundy bg-burgundy-tint text-burgundy"
-              : "border-border-medium enabled:hover:border-burgundy text-transparent",
+              ? "border-accent-line bg-burgundy-tint text-accent-text"
+              : "border-border-medium enabled:hover:border-accent-line text-transparent",
           )}
         >
-          <Check aria-hidden className="size-[9px]" strokeWidth={3} />
+          <Check
+            aria-hidden
+            className={cn("size-[9px]", tone.done && "check-draw")}
+            strokeWidth={3}
+          />
         </button>
       )}
       {/* A column-wrapping flex box: when the meta line doesn't fit under

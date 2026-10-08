@@ -15,7 +15,7 @@ export function TasksHeader({ summary }: { summary?: string }) {
         </h1>
         <Link
           href="/tasks/new"
-          className="text-burgundy hover:text-burgundy-hover hidden items-center gap-1.5 px-0.5 py-1.5 text-[13px] font-semibold transition-colors md:flex"
+          className="text-accent-text hover:text-accent-text-hover hidden items-center gap-1.5 px-0.5 py-1.5 text-[13px] font-semibold transition-colors md:flex"
         >
           <Plus aria-hidden className="size-3.5" strokeWidth={1.8} />
           New task

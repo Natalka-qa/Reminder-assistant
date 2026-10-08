@@ -3,22 +3,20 @@ import { analyticsService } from "@/features/analytics/analytics.service";
 import { habitService } from "@/features/habits/habit.service";
 import { HabitList } from "@/components/habits/habit-list";
 import { PraiseBanner } from "@/components/habits/praise-banner";
-import { RecentActivity } from "./recent-activity";
-import { BehaviorPatternsSection } from "./behavior-patterns";
+import { GroupedRows, GroupedRow } from "@/components/ui/grouped-rows";
 
 // sprint-21-tasks.md п.5 — Progress, a nav tab since Sprint 21 (it took
-// Inbox's place): the good news, the habits, then "How it's going" — what
-// the user's task history says (S13-04), unchanged.
+// Inbox's place): the good news, the habits, then a row to "How it's
+// going" — its own screen since Sprint 23 (/progress/how).
 export default async function ProgressPage() {
   await verifySession();
   const user = await getCurrentUser();
-  const [habits, stats, patterns] = user
+  const [habits, stats] = user
     ? await Promise.all([
         habitService.getProgress(user.id, user.timezone, new Date()),
         analyticsService.getRecentActivity(user.id, user.timezone),
-        analyticsService.getBehaviorPatterns(user.id, user.timezone),
       ])
-    : [null, null, null];
+    : [null, null];
 
   return (
     <div className="flex flex-col gap-8">
@@ -40,24 +38,16 @@ export default async function ProgressPage() {
         />
       )}
 
-      <section
-        className="flex flex-col gap-6"
-        aria-labelledby="how-its-going-heading"
-      >
-        <div className="flex flex-col gap-1">
-          <h2
-            id="how-its-going-heading"
-            className="font-display text-[28px] leading-none font-light"
-          >
-            How it&apos;s going
-          </h2>
-          <p className="text-tasks-meta text-sm">
-            Your tasks: what you planned, and what got done.
-          </p>
-        </div>
-        {stats && <RecentActivity stats={stats} />}
-        {patterns && <BehaviorPatternsSection patterns={patterns} />}
-      </section>
+      {/* sprint-23-tasks.md решение 1 — How it's going has its own screen
+          now; here, one row that leads there. */}
+      <GroupedRows>
+        <GroupedRow
+          label="How it's going"
+          hint="Your tasks, the last 7 days"
+          value={stats?.percent == null ? undefined : `${stats.percent}% done`}
+          href="/progress/how"
+        />
+      </GroupedRows>
     </div>
   );
 }

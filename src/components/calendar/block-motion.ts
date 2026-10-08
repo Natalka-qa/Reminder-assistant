@@ -1,6 +1,7 @@
 "use client";
 
 import { useLayoutEffect, type RefObject } from "react";
+import { duration, ease, prefersReducedMotion } from "@/lib/motion";
 
 // sprint-22-tasks.md, доработка 2026-10-07 — a block put back by Undo
 // glides there instead of jumping: where it stood is noted before the
@@ -9,7 +10,6 @@ import { useLayoutEffect, type RefObject } from "react";
 // glows briefly. Only for a move asked for — picking another day or a
 // re-render never animates.
 
-const GLIDE_MS = 420;
 const FORGET_AFTER_MS = 4000;
 
 const departures = new Map<string, DOMRect>();
@@ -48,27 +48,27 @@ export function useArrival(
     const dy = from.top - to.top;
     if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
     departures.delete(occurrenceId);
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (prefersReducedMotion()) return;
     block.animate(
       [
         {
           transform: `translate(${dx}px, ${dy}px)`,
-          boxShadow: "0 10px 28px -6px rgba(116, 52, 71, 0.35)",
+          boxShadow: "var(--lift-shadow)",
           zIndex: 30,
         },
         {
           transform: "translate(0, 0)",
-          boxShadow: "0 0 0 4px rgba(116, 52, 71, 0.18)",
+          boxShadow: "0 0 0 4px var(--lift-ring)",
           zIndex: 30,
           offset: 0.75,
         },
         {
           transform: "translate(0, 0)",
-          boxShadow: "0 0 0 0 rgba(116, 52, 71, 0)",
+          boxShadow: "0 0 0 0 transparent",
           zIndex: 30,
         },
       ],
-      { duration: GLIDE_MS + 300, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
+      { duration: duration("--dur-4") + 300, easing: ease("--ease-out") },
     );
   });
 }

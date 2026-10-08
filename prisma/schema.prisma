@@ -66,6 +66,11 @@ model User {
   // sprint-21-tasks.md п.10 — the evening "habits left today" message in
   // Telegram: minutes after local midnight, null = off (the default); sentOn
   // is the local "YYYY-MM-DD" it last went out, like the summary's.
+  // sprint-23-tasks.md S23-03 (DARK_THEME_SPEC §3) — Appearance: SYSTEM
+  // follows the device, LIGHT / DARK are fixed. Kept here so a new device
+  // gets the same; next-themes applies it before the first paint.
+  theme Theme @default(SYSTEM)
+
   habitReminderMinutes Int?
   habitReminderSentOn  String?
 
@@ -273,6 +278,12 @@ model HabitLog {
   updatedAt DateTime @updatedAt
 
   @@unique([habitId, date])
+}
+
+enum Theme {
+  SYSTEM
+  LIGHT
+  DARK
 }
 
 enum HabitKind {

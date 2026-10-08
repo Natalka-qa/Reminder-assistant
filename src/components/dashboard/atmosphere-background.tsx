@@ -11,7 +11,7 @@ export function AtmosphereBackground() {
         className="pointer-events-none absolute -top-[130px] -right-[60px] -left-[60px] h-[480px]"
         style={{
           background:
-            "radial-gradient(58% 52% at 76% 28%, rgba(240,222,202,0.52) 0%, rgba(247,246,243,0) 72%)",
+            "radial-gradient(58% 52% at 76% 28%, var(--sky-glow) 0%, transparent 72%)",
         }}
       />
       <div

@@ -84,7 +84,7 @@ function DayRow({
           className={cn(
             "rounded-pill flex size-11 shrink-0 items-center justify-center border transition-colors",
             day.met
-              ? "bg-burgundy border-burgundy text-white"
+              ? "bg-burgundy border-accent-line text-on-accent"
               : "border-border-medium bg-surface text-transparent",
           )}
         >

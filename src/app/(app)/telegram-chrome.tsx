@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Script from "next/script";
 import { usePathname, useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
 import { backTarget, nextDepth } from "@/lib/telegram/back-target";
 import {
   TELEGRAM_WEB_APP_SCRIPT,
@@ -13,8 +14,8 @@ import {
 // sprint-16-tasks.md S16-05 — what the app adds inside Telegram, and only
 // there: outside it (no initData) this renders the script tag and nothing
 // else changes.
-// - Header and background in the app's own --background (п.9), so there's
-//   no dark Telegram strip above the light page; Telegram's theme isn't used.
+// - Header and background in the app's own --background (п.9), light or
+//   dark with the app's theme (Sprint 23); Telegram's theme isn't used.
 // - Telegram's Back button on nested pages (п.10).
 const FALLBACK_BACKGROUND = "#f7f6f3"; // globals.css :root --background
 
@@ -29,6 +30,8 @@ export function TelegramChrome() {
   const pathname = usePathname();
   const router = useRouter();
   const inside = Boolean(webApp?.initData);
+  // sprint-23-tasks.md S23-03 — the header follows the app's theme.
+  const { resolvedTheme } = useTheme();
 
   useEffect(() => {
     if (!webApp || !inside) return;
@@ -43,7 +46,7 @@ export function TelegramChrome() {
       : FALLBACK_BACKGROUND;
     webApp.setHeaderColor(background);
     webApp.setBackgroundColor(background);
-  }, [webApp, inside]);
+  }, [webApp, inside, resolvedTheme]);
 
   useEffect(() => {
     const onPopState = () => {

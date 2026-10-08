@@ -68,7 +68,7 @@ export default function PrivacyPage() {
           APIs adheres to the{" "}
           <a
             href="https://developers.google.com/terms/api-services-user-data-policy"
-            className="text-burgundy font-semibold"
+            className="text-accent-text font-semibold"
           >
             Google API Services User Data Policy
           </a>
@@ -82,7 +82,7 @@ export default function PrivacyPage() {
           tokens — or from your Google account at{" "}
           <a
             href="https://myaccount.google.com/permissions"
-            className="text-burgundy font-semibold"
+            className="text-accent-text font-semibold"
           >
             myaccount.google.com/permissions
           </a>

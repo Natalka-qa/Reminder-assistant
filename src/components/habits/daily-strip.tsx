@@ -108,7 +108,7 @@ export function DailyStrip({ daily }: { daily: Daily }) {
           )}
           <Link
             href="/progress"
-            className="text-burgundy min-h-11 content-center px-3 text-sm font-semibold"
+            className="text-accent-text min-h-11 content-center px-3 text-sm font-semibold"
           >
             Edit
           </Link>
@@ -181,7 +181,7 @@ function HabitTile({ item, onTap }: { item: DailyItem; onTap: () => void }) {
       className={cn(
         "relative flex min-h-[72px] w-full flex-col justify-between gap-1 overflow-hidden rounded-2xl border px-3.5 py-3 text-left transition-colors",
         item.met
-          ? "bg-burgundy-tint border-burgundy/25"
+          ? "bg-burgundy-tint border-accent-line/25"
           : "bg-surface border-border hover:border-border-medium",
       )}
     >
@@ -198,12 +198,12 @@ function HabitTile({ item, onTap }: { item: DailyItem; onTap: () => void }) {
           className={cn(
             "rounded-pill flex size-[22px] shrink-0 items-center justify-center border",
             item.met
-              ? "bg-burgundy border-burgundy text-white"
+              ? "bg-burgundy border-accent-line text-on-accent"
               : "border-border-medium text-text-secondary bg-surface",
           )}
         >
           {item.met ? (
-            <Check className="size-3.5" strokeWidth={2.4} />
+            <Check className="check-draw size-3.5" strokeWidth={2.4} />
           ) : item.mode === "step" ? (
             <Plus className="size-3.5" strokeWidth={2.2} />
           ) : null}
@@ -212,7 +212,7 @@ function HabitTile({ item, onTap }: { item: DailyItem; onTap: () => void }) {
           className={cn(
             // Two lines before an ellipsis: "Morning workout" fits whole.
             "line-clamp-2 text-[15px] leading-tight font-medium break-words",
-            item.met ? "text-burgundy" : "text-text-primary",
+            item.met ? "text-accent-text" : "text-text-primary",
           )}
         >
           {item.title}
@@ -223,7 +223,7 @@ function HabitTile({ item, onTap }: { item: DailyItem; onTap: () => void }) {
           // Clear of the "⋯" in the corner.
           "relative truncate text-xs tabular-nums",
           count && "pr-8",
-          item.met ? "text-burgundy" : "text-tasks-meta",
+          item.met ? "text-accent-text" : "text-tasks-meta",
         )}
       >
         {detail}

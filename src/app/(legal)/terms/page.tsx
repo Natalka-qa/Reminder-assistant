@@ -35,7 +35,7 @@ export default function TermsPage() {
           You are responsible for what happens under your account. What you add
           is yours; you allow us to store and process it only to run the service
           for you, as described in the{" "}
-          <Link href="/privacy" className="text-burgundy font-semibold">
+          <Link href="/privacy" className="text-accent-text font-semibold">
             Privacy Policy
           </Link>
           .

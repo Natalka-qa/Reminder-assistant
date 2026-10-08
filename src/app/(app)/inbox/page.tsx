@@ -62,7 +62,7 @@ export default async function InboxPage() {
               </div>
               <Link
                 href={`/tasks/${entry.taskId}`}
-                className="text-burgundy text-meta shrink-0 font-semibold"
+                className="text-accent-text text-meta shrink-0 font-semibold"
               >
                 View task
               </Link>

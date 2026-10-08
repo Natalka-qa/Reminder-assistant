@@ -182,7 +182,7 @@ export function TelegramConnect({
           href={deepLink}
           target="_blank"
           rel="noreferrer"
-          className="text-burgundy text-[15px] font-semibold"
+          className="text-accent-text text-[15px] font-semibold"
         >
           Open Telegram to finish connecting →
         </a>

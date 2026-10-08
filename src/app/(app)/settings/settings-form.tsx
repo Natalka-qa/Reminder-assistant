@@ -4,6 +4,8 @@ import { startTransition, useActionState, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Pencil } from "lucide-react";
 import { GroupedRows, GroupedRow } from "@/components/ui/grouped-rows";
+import type { ThemeSetting } from "@/lib/theme";
+import { AppearanceRow } from "./appearance-row";
 import {
   Select,
   SelectContent,
@@ -42,6 +44,7 @@ const initialPreferencesState: UpdateSchedulePreferencesState = {
 export function SettingsForm({
   currentName,
   emailName = null,
+  theme = "SYSTEM",
   currentTimezone,
   daySummary,
   reminderPreferences,
@@ -50,6 +53,8 @@ export function SettingsForm({
   currentName: string;
   /** What Home calls you while the name is empty (displayName). */
   emailName?: string | null;
+  /** Settings → Appearance, as saved (sprint-23-tasks.md S23-03). */
+  theme?: ThemeSetting;
   currentTimezone: string;
   /** "08:00–21:00 · Work Mon–Fri 09:00–17:00" (daySummary). */
   daySummary: string;
@@ -132,6 +137,7 @@ export function SettingsForm({
           }
           value={<NameField initialName={currentName} emailName={emailName} />}
         />
+        <AppearanceRow saved={theme} />
         <GroupedRow
           label="Timezone"
           hint="Used for scheduling"
@@ -278,7 +284,7 @@ function NameField({
         onKeyDown={(event) => {
           if (event.key === "Enter") event.currentTarget.blur();
         }}
-        className="text-text-primary placeholder:text-placeholder-text group-hover:bg-tasks-hover focus:ring-burgundy/40 focus:bg-surface w-full min-w-0 rounded-[8px] bg-transparent px-2 py-1 text-right text-[15px] outline-none focus:ring-1"
+        className="text-text-primary placeholder:text-placeholder-text group-hover:bg-tasks-hover focus:ring-accent-line/40 focus:bg-surface w-full min-w-0 rounded-[8px] bg-transparent px-2 py-1 text-right text-[15px] outline-none focus:ring-1"
       />
       <Pencil
         aria-hidden

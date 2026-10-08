@@ -113,7 +113,7 @@ export function GoogleBusyNote({
       <p className="text-text-secondary text-[13px]">
         <Link
           href="/settings"
-          className="text-burgundy font-semibold underline-offset-2 hover:underline"
+          className="text-accent-text font-semibold underline-offset-2 hover:underline"
         >
           Reconnect Google Calendar in Settings
         </Link>{" "}

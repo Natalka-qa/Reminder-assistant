@@ -15,7 +15,7 @@ export function TaskExamples({ examples }: { examples: TaskExample[] }) {
           <li key={example.text}>
             <Link
               href={newTaskHref(example.text)}
-              className="text-burgundy decoration-newtask-example-underline hover:decoration-burgundy inline-flex min-h-11 items-center text-[15px] underline underline-offset-[3px]"
+              className="text-accent-text decoration-newtask-example-underline hover:decoration-accent-line inline-flex min-h-11 items-center text-[15px] underline underline-offset-[3px]"
             >
               {example.text}
             </Link>

@@ -54,7 +54,7 @@ export function AnyTimeRow({
         Any time
       </span>
       <div
-        className="grid min-w-0 flex-1"
+        className="grid min-w-0 flex-1 transition-[grid-template-columns] duration-(--dur-3) ease-in-out motion-reduce:transition-none"
         style={{ gridTemplateColumns: columns }}
       >
         {days.map((day) => {

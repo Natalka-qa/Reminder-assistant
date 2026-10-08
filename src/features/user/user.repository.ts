@@ -53,6 +53,11 @@ export const userRepository = {
     return prisma.user.update({ where: { id }, data: preferences });
   },
 
+  // sprint-23-tasks.md S23-03 — Settings → Appearance.
+  updateTheme(id: string, theme: "SYSTEM" | "LIGHT" | "DARK") {
+    return prisma.user.update({ where: { id }, data: { theme } });
+  },
+
   updateTelegramSummary(id: string, minutes: number | null) {
     return prisma.user.update({
       where: { id },

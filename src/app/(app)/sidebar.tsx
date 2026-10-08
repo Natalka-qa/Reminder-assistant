@@ -64,7 +64,7 @@ export function Sidebar({
                 className={cn(
                   "flex items-center gap-2.5 rounded-[12px] px-3 py-[11px] text-sm",
                   active
-                    ? "bg-burgundy-tint text-burgundy font-semibold"
+                    ? "bg-burgundy-tint text-accent-text font-semibold"
                     : "text-text-tertiary font-medium",
                 )}
               >

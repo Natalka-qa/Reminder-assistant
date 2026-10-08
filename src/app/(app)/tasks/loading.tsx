@@ -4,7 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 // rows) so the list doesn't jump when it arrives. Wide like the page.
 export default function TasksLoading() {
   return (
-    <div data-layout="wide" className="flex flex-col">
+    <div data-layout="wide" className="appear-late flex flex-col">
       <div className="flex items-end justify-between gap-4">
         <Skeleton className="h-[45px] w-32" />
         <Skeleton className="h-5 w-20" />

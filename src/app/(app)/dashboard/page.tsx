@@ -145,7 +145,7 @@ export default async function DashboardPage() {
         <SkyScene timeOfDay={timeOfDay} />
 
         <div className="relative flex items-center gap-[9px]">
-          <AssistantMark tone="personal" animated />
+          <AssistantMark tone="personal" />
           <span className="text-text-secondary text-[15px]">
             {greetingName ? GREETINGS[timeOfDay] : "Your day"}
           </span>

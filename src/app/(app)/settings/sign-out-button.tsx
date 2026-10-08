@@ -10,7 +10,7 @@ export function SignOutButton() {
     <button
       type="button"
       onClick={() => signOutAction()}
-      className="text-burgundy self-start text-[15px] font-medium"
+      className="text-accent-text self-start text-[15px] font-medium"
     >
       Sign out
     </button>

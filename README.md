@@ -336,6 +336,11 @@ The card under the greeting ("From your assistant") is on Home every day, empty 
 - **Many phrasings**, more than twenty for an empty day alone (by weekday, and for evening and night). Which one is picked depends on the user and the date: the text stays put on reload and changes when the day does — a task closed, a new one added, evening coming.
 - Headlines match: "A full day ahead", "A light day", "Making progress", "Almost there", "All done", "Winding down", "A free weekend day", "Room to catch up".
 
+## Appearance and motion
+
+- **Dark theme** ("Espresso + Wine", Sprint 23): Settings → **Appearance** — System (default, follows the device), Light, Dark. Saved with the account (`User.theme`) and on the device; applied before the page draws, so there's no white flash. Warm espresso surfaces, ivory text, burgundy shifted to wine and used only for large fills; thin lines in brick (`--accent-line`); burgundy text turns ivory (`--accent-text`); overdue is the one warm-red text. Every colour is a token in `globals.css` with a light and a dark value — no hex in components. The Telegram Mini App's header follows the theme.
+- **Motion** (`MOTION_SPEC.md`): one set of curves and durations (`--ease-*`, `--dur-1…4`; `lib/motion.ts` for script). Buttons give 2% on press; marking done draws the check and fades the strike in; menus fade in 4px; dialogs slide up as a sheet on a phone; inline blocks expand smoothly (`Expand`); tabs cross-fade, pages further in rise 12px from the side; each tab keeps its scroll; skeletons show only after 300ms. No glow, bounce or decorative loops — except the next task's dot and what was asked for (the Undo button's glow). `prefers-reduced-motion` turns it off.
+
 ## Your patterns
 
 The app counts what happened to your past tasks and shows it back to you. It's plain counting over each task's status and planned time — no model, nothing new is tracked or stored.
@@ -354,7 +359,7 @@ The app counts what happened to your past tasks and shows it back to you. It's p
 
 **Where it shows:**
 
-- **`/progress`, "How it's going"** — the Progress tab, below Habits, and from Home's sentence. Two blocks:
+- **`/progress/how`, "How it's going"** (redesigned in Sprint 23) — a row on the Progress tab, and Home's sentence, lead there: the share done in the last 7 days as a large number with a line, "Your rhythm" (each part of the day over the last 30 days, a bar per part, "limited data" under 5 tasks, the strongest in burgundy), and "A small pattern" ("You tend to finish more tasks in the evening.") only when two parts with enough data are 20 points apart, with "Adjust your schedule →" to Calendar. It reveals once on arrival (counting up, rows one by one). Weekdays vs weekends and the usual workout time sit quietly at the end. Before Sprint 23 it had two blocks:
   - **"Last 7 days"** — today and the six days before: Completed, Partial, Skipped, Missed and the completion rate. Missed only counts days that are over.
   - **"Last 30 days"** — the 30 whole days before today, so the numbers don't change during the day. The share done in each part of the day, by the task's planned local start: morning 05–12, afternoon 12–18, evening 18–20, after 20:00 20–05. Then weekdays against Saturday and Sunday.
 - **Home, "From your assistant"** — the pattern sentence ends the assistant's message (see "Home: the assistant's message") only when it's about today: "You finish 33% of tasks after 20:00 — two of today's are that late.", with a "How it's going →" link. One small extra database query per Home render.

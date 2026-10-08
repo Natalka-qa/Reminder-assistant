@@ -37,7 +37,7 @@ export function AddTasksStep({
               />
               <button
                 type="submit"
-                className="bg-surface border-border hover:border-burgundy flex w-full flex-col items-start gap-0.5 rounded-[18px] border px-5 py-4 text-left transition-colors"
+                className="bg-surface border-border hover:border-accent-line flex w-full flex-col items-start gap-0.5 rounded-[18px] border px-5 py-4 text-left transition-colors"
               >
                 <span className="text-text-secondary text-[12px] font-semibold tracking-[0.06em] uppercase">
                   {example.kind}
