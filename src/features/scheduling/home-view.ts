@@ -91,11 +91,14 @@ export function selectUpNext<T extends HomeOccurrence>(
   const timed = actionable.filter(hasTime);
   const ordered = orderByTimeThenFixedFirst(timed);
 
+  // 2026-10-08 — only something still to do: a day with everything done
+  // or skipped has no "Up next" (it read as a task you could still mark,
+  // with buttons that did nothing — and was unclear in the dark theme).
   const primary =
     ordered.find((o) => o.scheduledStart >= nineAmUtc) ??
     ordered[0] ??
-    actionable.find((o) => !hasTime(o)) ??
-    occurrences[occurrences.length - 1];
+    actionable.find((o) => !hasTime(o));
+  if (!primary) return null;
 
   const alsoNow = hasTime(primary)
     ? timed.filter(
@@ -176,9 +179,25 @@ export function untimedRemaining<T extends HomeOccurrence>(
 }
 
 /** "in 20 minutes" / "in 2 hours" / "now" — HOME_V2_UPDATE.md § 2's `nextIn`. */
-export function formatRelativeTimeLabel(target: Date, now: Date): string {
+/** How long a started task still reads "now": its length, at least this. */
+const NOW_MIN_MINUTES = 15;
+
+/**
+ * "in 20 minutes", "in 2 hours"; "now" while it's on (its length, at least
+ * 15 minutes); after that "40 min ago", "2 h ago" — 2026-10-08: a task two
+ * hours past said "now", and the time didn't show it had gone by.
+ */
+export function formatRelativeTimeLabel(
+  target: Date,
+  now: Date,
+  durationMinutes = 0,
+): string {
   const diffMinutes = Math.round((target.getTime() - now.getTime()) / 60_000);
-  if (diffMinutes <= 0) return "now";
+  if (diffMinutes <= 0) {
+    const ago = -diffMinutes;
+    if (ago <= Math.max(durationMinutes, NOW_MIN_MINUTES)) return "now";
+    return ago < 60 ? `${ago} min ago` : `${Math.round(ago / 60)} h ago`;
+  }
   if (diffMinutes < 60) {
     return `in ${diffMinutes} minute${diffMinutes === 1 ? "" : "s"}`;
   }

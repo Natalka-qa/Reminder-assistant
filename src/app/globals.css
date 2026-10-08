@@ -814,6 +814,14 @@
   }
 }
 
+/* 2026-10-08 — a theme change cross-fades (Settings → Appearance,
+   View Transitions) instead of snapping; the spec's "instant" looked rough. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--dur-4);
+  animation-timing-function: var(--ease-out);
+}
+
 /* §5 — a loading screen shows only after 300ms, then fades in (--dur-2):
    a quick load never flashes a skeleton. */
 @keyframes appearLate {
