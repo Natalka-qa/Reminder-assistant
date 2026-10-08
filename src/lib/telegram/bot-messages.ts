@@ -6,8 +6,12 @@ import { buttonData } from "./button-data";
 // escaping). Pure: dates and times arrive already formatted in the user's
 // zone, so this module has no Luxon and no clock.
 
+// 2026-10-08 — Bot API `style`: green for doing it, blue for the main
+// other choice, red for taking something away; older apps ignore it.
+export type ButtonStyle = "success" | "primary" | "danger";
+
 export type InlineButton =
-  | { text: string; callback_data: string }
+  | { text: string; callback_data: string; style?: ButtonStyle }
   // Opens the task in the app (п.12) — no round trip through the webhook.
   | { text: string; url: string }
   // The same, inside Telegram as the Mini App (sprint-16-tasks.md S16-06).
@@ -31,45 +35,85 @@ export type DayItem = {
   status: DayItemStatus;
 };
 
-const STATUS_MARK: Record<DayItemStatus, string> = {
-  open: "",
-  done: "✓ ",
-  partial: "◐ ",
-  skipped: "· skipped · ",
-};
+/**
+ * 2026-10-08 — the day's messages (/today, /next, the morning summary, the
+ * evening check-in, reminders) are sent as HTML: bold headings, crossed-out
+ * done tasks, the habits in a folding quote. Anything the user typed goes
+ * through escapeHtml.
+ */
+export function escapeHtml(text: string): string {
+  return text
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+const CLOCKS = [
+  "🕛",
+  "🕐",
+  "🕑",
+  "🕒",
+  "🕓",
+  "🕔",
+  "🕕",
+  "🕖",
+  "🕗",
+  "🕘",
+  "🕙",
+  "🕚",
+];
+
+/** The clock face for "18:30" (🕕); a sparkle for no time. */
+function clockFor(time: string | null): string {
+  if (!time) return "✨";
+  return CLOCKS[Number(time.slice(0, 2)) % 12];
+}
 
 function dayLine(item: DayItem): string {
   const duration =
     item.durationMinutes > 0
       ? ` · ${formatDuration(item.durationMinutes)}`
       : "";
-  return `${STATUS_MARK[item.status]}${item.time ?? "Anytime"} · ${item.title}${duration}`;
+  const when = item.time ?? "Anytime";
+  const title = escapeHtml(item.title);
+  switch (item.status) {
+    case "done":
+      return `✅ <s>${when} · ${title}</s>`;
+    case "skipped":
+      return `⏭ <s>${when} · ${title}</s> · skipped`;
+    case "partial":
+      return `◐ ${when} · ${title} · partly`;
+    default:
+      return `${clockFor(item.time)} ${when} · <b>${title}</b>${duration}`;
+  }
 }
 
 function overdueLine(count: number): string {
-  return count === 1 ? "1 overdue task" : `${count} overdue tasks`;
+  return `⚠️ <i>${count === 1 ? "1 overdue task" : `${count} overdue tasks`}</i>`;
 }
 
-/** `/today` — "Today · Wed, Sep 30", then one line per task. */
+/** `/today` — "📅 Today · Wed, Sep 30", then one line per task. HTML. */
 export function todayMessage(
   dateLabel: string,
   items: DayItem[],
   overdueCount: number,
 ): string {
-  const lines = [`Today · ${dateLabel}`];
+  const lines = [`📅 <b>Today · ${escapeHtml(dateLabel)}</b>`];
   if (overdueCount > 0) lines.push(overdueLine(overdueCount));
   lines.push("");
   lines.push(
     items.length > 0
       ? items.map(dayLine).join("\n")
-      : "Nothing planned for today.",
+      : "<i>Nothing planned for today.</i>",
   );
   return lines.join("\n");
 }
 
 /** `/next` — the nearest open task, or that the day is clear. */
 export function nextMessage(item: DayItem | null): string {
-  return item ? `Up next\n\n${dayLine(item)}` : "Nothing left for today.";
+  return item
+    ? `⏭ <b>Up next</b>\n\n${dayLine(item)}`
+    : "<i>Nothing left for today.</i>";
 }
 
 /**
@@ -207,13 +251,23 @@ export function occurrenceButtons(occurrence: {
 }): InlineKeyboard {
   const { id, taskId, appUrl, recurring } = occurrence;
   const second: InlineButton[] = recurring
-    ? [{ text: "Remove this one", callback_data: buttonData("remove", id) }]
+    ? [
+        {
+          text: "Remove this one",
+          callback_data: buttonData("remove", id),
+          style: "danger",
+        },
+      ]
     : [];
   second.push(openAppButton("Open", appUrl, `/tasks/${taskId}`));
   return {
     inline_keyboard: [
       [
-        { text: "Done", callback_data: buttonData("done", id) },
+        {
+          text: "✓ Done",
+          callback_data: buttonData("done", id),
+          style: "success",
+        },
         { text: "Snooze 15 min", callback_data: buttonData("snooze15", id) },
         { text: "Skip", callback_data: buttonData("skip", id) },
       ],
@@ -235,7 +289,13 @@ export function occurrenceButtons(occurrence: {
 export function removedButtons(occurrenceId: string): InlineKeyboard {
   return {
     inline_keyboard: [
-      [{ text: "Undo", callback_data: buttonData("restore", occurrenceId) }],
+      [
+        {
+          text: "Undo",
+          callback_data: buttonData("restore", occurrenceId),
+          style: "primary",
+        },
+      ],
     ],
   };
 }
@@ -259,7 +319,11 @@ export function createdButtons(task: {
   }
   const rows: InlineButton[][] = fix.length > 0 ? [fix] : [];
   rows.push([
-    { text: "Undo", callback_data: buttonData("undo", task.id) },
+    {
+      text: "Undo",
+      callback_data: buttonData("undo", task.id),
+      style: "primary",
+    },
     openAppButton("Open", task.appUrl, `/tasks/${task.id}`),
   ]);
   return { inline_keyboard: rows };
@@ -278,7 +342,19 @@ export type HabitLineItem = {
   goalAmount: string | null;
   /** "+250 ml" for an amount; null for CHECK. */
   stepLabel: string | null;
+  /** Today's value and goal — the progress bar of an amount. */
+  value?: number;
+  goal?: number;
 };
+
+const BAR_CELLS = 5;
+
+/** "▰▰▱▱▱" — how far an amount is towards its goal. */
+export function progressBar(value: number, goal: number): string {
+  const filled =
+    goal > 0 ? Math.min(BAR_CELLS, Math.floor((value / goal) * BAR_CELLS)) : 0;
+  return "▰".repeat(filled) + "▱".repeat(BAR_CELLS - filled);
+}
 
 /**
  * "Daily · 1/3", then a line per habit ("✓ Exercise", "Water 0/2 L"),
@@ -291,22 +367,34 @@ export function habitsSection(
 ): string | null {
   if (items.length === 0) return null;
   const done = items.filter((item) => item.met).length;
-  const lines = [
+  const heading =
     done === items.length
-      ? "Daily · all done ✓"
-      : `Daily · ${done}/${items.length}`,
-    ...items.map(
-      (item) =>
-        `${item.met ? "✓" : "○"} ${item.title}${item.progressLabel ? ` · ${item.progressLabel}` : ""}`,
-    ),
+      ? "🌱 <b>Daily · all done</b> ✓"
+      : `🌱 <b>Daily · ${done}/${items.length}</b>`;
+  const lines = items.map((item) => {
+    const title = escapeHtml(item.title);
+    if (item.met)
+      return `✅ ${title}${item.progressLabel ? ` · ${item.progressLabel}` : ""}`;
+    const bar =
+      item.mode !== "check" &&
+      item.goal !== undefined &&
+      item.value !== undefined
+        ? ` ${progressBar(item.value, item.goal)}`
+        : "";
+    return `○ ${title}${bar}${item.progressLabel ? ` ${item.progressLabel}` : ""}`;
+  });
+  // 2026-10-08 — a folding quote: a long list doesn't push the day away.
+  const parts = [
+    heading,
+    `<blockquote expandable>${lines.join("\n")}</blockquote>`,
   ];
-  if (praise) lines.push("", `🎉 ${praise}`);
-  return lines.join("\n");
+  if (praise) parts.push(`🎉 <i>${escapeHtml(praise)}</i>`);
+  return parts.join("\n");
 }
 
-/** п.10 — "Evening check-in", then what's left ("2 habits left today: …"). */
+/** п.10 — "🌙 Evening check-in", then what's left. HTML. */
 export function habitReminderMessage(left: string): string {
-  return `Evening check-in\n\n${left}`;
+  return `🌙 <b>Evening check-in</b>\n\n${escapeHtml(left)}`;
 }
 
 export const HABIT_BUTTONS_MAX = 8;
@@ -325,6 +413,7 @@ export function habitButtons(items: HabitLineItem[]): InlineButton[][] {
         ? {
             text: `${item.title} ${item.stepLabel}`,
             callback_data: buttonData("hplus", item.id),
+            style: "primary" as const,
           }
         : {
             text:
@@ -332,6 +421,7 @@ export function habitButtons(items: HabitLineItem[]): InlineButton[][] {
                 ? `✓ ${item.title} ${item.goalAmount}`
                 : `✓ ${item.title}`,
             callback_data: buttonData("hdone", item.id),
+            style: "success" as const,
           },
     );
   const rows: InlineButton[][] = [];
@@ -358,6 +448,7 @@ export function summaryButtons(
         // "✓ Buy groceries" for a task without a time (sprint-18 п.20).
         text: item.time ? `✓ ${item.time} ${item.title}` : `✓ ${item.title}`,
         callback_data: buttonData("sdone", item.id),
+        style: "success",
       },
     ]),
   };

@@ -262,6 +262,7 @@ export const notificationService = {
               appUrl: env.AUTH_URL,
               recurring: task.recurrenceRule !== null,
             }),
+            { html: true },
           );
           telegramSent = true;
         } catch (error) {

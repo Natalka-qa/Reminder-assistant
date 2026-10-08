@@ -9,16 +9,26 @@ describe("buildReminderTelegramMessage", () => {
         timeLabel: "19:00",
         durationMinutes: 60,
       }),
-    ).toBe("Workout is scheduled for 19:00 (60 min).");
+    ).toBe("⏰ <b>Workout</b>\nat 19:00 · 60 min");
   });
 
-  it("omits the duration parenthetical when durationMinutes is 0", () => {
+  it("leaves the length out when durationMinutes is 0", () => {
     expect(
       buildReminderTelegramMessage({
         title: "Workout",
         timeLabel: "19:00",
         durationMinutes: 0,
       }),
-    ).toBe("Workout is scheduled for 19:00.");
+    ).toBe("⏰ <b>Workout</b>\nat 19:00");
+  });
+
+  it("escapes the title (HTML, 2026-10-08)", () => {
+    expect(
+      buildReminderTelegramMessage({
+        title: "A<b>",
+        timeLabel: "19:00",
+        durationMinutes: 0,
+      }),
+    ).toBe("⏰ <b>A&lt;b&gt;</b>\nat 19:00");
   });
 });

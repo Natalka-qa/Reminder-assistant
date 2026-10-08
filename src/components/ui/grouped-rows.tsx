@@ -26,10 +26,15 @@ export function GroupedRow({
   href?: string;
   className?: string;
 }) {
+  // The divider sits on the row's outermost element: inside a link the
+  // content is always its parent's last child, so `last:` would drop it
+  // under every linked row (2026-10-08).
+  const divider = "border-border-soft border-b last:border-b-0";
   const content = (
     <div
       className={cn(
-        "border-border-soft flex items-center justify-between gap-3 border-b px-5 py-[17px] last:border-b-0",
+        "flex items-center justify-between gap-3 px-5 py-[17px]",
+        !href && divider,
         className,
       )}
     >
@@ -53,7 +58,7 @@ export function GroupedRow({
   );
 
   return href ? (
-    <Link href={href} className="block">
+    <Link href={href} className={cn("block", divider)}>
       {content}
     </Link>
   ) : (

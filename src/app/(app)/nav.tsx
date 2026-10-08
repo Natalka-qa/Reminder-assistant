@@ -1,4 +1,5 @@
 import { getCurrentUser } from "@/lib/auth/dal";
+import { displayName } from "@/features/user/display-name";
 import { Sidebar } from "./sidebar";
 import { BottomNav } from "./bottom-nav";
 
@@ -9,7 +10,7 @@ export async function Nav() {
   return (
     <>
       <Sidebar
-        name={user?.name ?? null}
+        name={displayName(user?.name, user?.email)}
         email={user?.email ?? ""}
         timezone={user?.timezone ?? "UTC"}
       />

@@ -1,5 +1,7 @@
 import { verifySession, getCurrentUser } from "@/lib/auth/dal";
 import { userService } from "@/features/user/user.service";
+import { displayName } from "@/features/user/display-name";
+import { daySummary } from "@/features/user/day-summary";
 import { isTelegramEnabled } from "@/lib/telegram/telegram.config";
 import { googleCalendarService } from "@/features/google-calendar/google-calendar.service";
 import { isGoogleCalendarEnabled } from "@/lib/google-calendar/google-calendar.config";
@@ -41,21 +43,24 @@ export default async function SettingsPage() {
           />
         ) : (
           <div className="bg-burgundy rounded-pill flex size-[72px] shrink-0 items-center justify-center text-2xl font-semibold text-white">
-            {(user?.name ?? user?.email ?? "?").charAt(0).toUpperCase()}
+            {(displayName(user?.name, user?.email) ?? user?.email ?? "?")
+              .charAt(0)
+              .toUpperCase()}
           </div>
         )}
         <div className="flex min-w-0 flex-col gap-1">
           <SectionLabel>Settings</SectionLabel>
           <p className="font-display truncate text-[44px] leading-[1.04] font-light">
-            {user?.name ?? user?.email ?? "Account"}
+            {displayName(user?.name, user?.email) ?? user?.email ?? "Account"}
           </p>
         </div>
       </div>
 
       <SettingsForm
         currentName={profile?.name ?? ""}
+        emailName={displayName(null, user?.email)}
         currentTimezone={user?.timezone ?? "UTC"}
-        preferences={preferences}
+        daySummary={daySummary(preferences)}
         reminderPreferences={
           profile
             ? {

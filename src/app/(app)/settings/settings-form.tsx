@@ -4,8 +4,6 @@ import { startTransition, useActionState, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Pencil } from "lucide-react";
 import { GroupedRows, GroupedRow } from "@/components/ui/grouped-rows";
-import { SectionLabel } from "@/components/ui/section-label";
-import { WeekdayPicker } from "@/components/ui/weekday-picker";
 import {
   Select,
   SelectContent,
@@ -17,18 +15,15 @@ import { SwitchTrack } from "@/components/ui/switch-track";
 import {
   updateNameAction,
   updateReminderPreferencesAction,
-  updateSchedulePreferencesAction,
   updateTimezoneAction,
   type UpdateReminderPreferencesState,
   type UpdateSchedulePreferencesState,
   type UpdateTimezoneState,
 } from "@/features/user/actions";
-import { HALF_HOURS, TimeSelect } from "@/components/ui/time-select";
 import { REMINDER_CHOICES } from "@/features/tasks/new-task-fields";
 import {
   NAME_MAX_LENGTH,
   type ReminderPreferences,
-  type SchedulePreferences,
 } from "@/lib/validation/user";
 
 const timezones = Intl.supportedValuesOf("timeZone");
@@ -46,14 +41,18 @@ const initialPreferencesState: UpdateSchedulePreferencesState = {
 // starts) and Email reminders are real too.
 export function SettingsForm({
   currentName,
+  emailName = null,
   currentTimezone,
-  preferences,
+  daySummary,
   reminderPreferences,
   telegramLinked,
 }: {
   currentName: string;
+  /** What Home calls you while the name is empty (displayName). */
+  emailName?: string | null;
   currentTimezone: string;
-  preferences: SchedulePreferences;
+  /** "08:00–21:00 · Work Mon–Fri 09:00–17:00" (daySummary). */
+  daySummary: string;
   reminderPreferences: ReminderPreferences;
   /** Telegram reminders are on — they keep coming with email off. */
   telegramLinked: boolean;
@@ -78,49 +77,6 @@ export function SettingsForm({
     const data = new FormData();
     data.set("timezone", value);
     startTransition(() => formAction(data));
-  }
-
-  const [prefsState, prefsAction] = useActionState(
-    updateSchedulePreferencesAction,
-    initialPreferencesState,
-  );
-  // What's on screen, what the server last accepted, and what was just
-  // sent — so a refused change (the day ending before it starts) snaps
-  // back to the saved hours instead of showing ones that aren't in effect.
-  const [prefs, setPrefs] = useState(preferences);
-  const [savedPrefs, setSavedPrefs] = useState(preferences);
-  const [sentPrefs, setSentPrefs] = useState(preferences);
-  const [seenPrefsState, setSeenPrefsState] = useState(prefsState);
-  if (prefsState !== seenPrefsState) {
-    setSeenPrefsState(prefsState);
-    if (prefsState.status === "success") setSavedPrefs(sentPrefs);
-    if (prefsState.status === "error") setPrefs(savedPrefs);
-  }
-
-  useEffect(() => {
-    if (prefsState.status === "success") {
-      toast.success("Hours saved");
-    } else if (prefsState.status === "error" && prefsState.message) {
-      toast.error(prefsState.message);
-    }
-  }, [prefsState]);
-
-  function savePrefs(next: SchedulePreferences) {
-    setPrefs(next);
-    setSentPrefs(next);
-    const data = new FormData();
-    data.set("dayStartMinutes", String(next.dayStartMinutes));
-    data.set("dayEndMinutes", String(next.dayEndMinutes));
-    for (const day of next.workDays) data.append("workDays", String(day));
-    data.set("workStartMinutes", String(next.workStartMinutes));
-    data.set("workEndMinutes", String(next.workEndMinutes));
-    data.set(
-      "workoutLatestStartMinutes",
-      next.workoutLatestStartMinutes === null
-        ? ""
-        : String(next.workoutLatestStartMinutes),
-    );
-    startTransition(() => prefsAction(data));
   }
 
   // S14-06 — same snap-back as the hours: a refused change shows what's
@@ -162,22 +118,19 @@ export function SettingsForm({
       ? "Reminders go to Telegram and the app"
       : "Reminders will only show in the app";
 
-  function toggleWorkDay(day: number) {
-    savePrefs({
-      ...prefs,
-      workDays: prefs.workDays.includes(day)
-        ? prefs.workDays.filter((d) => d !== day)
-        : [...prefs.workDays, day].sort((a, b) => a - b),
-    });
-  }
-
   return (
     <>
       <GroupedRows>
         <GroupedRow
           label="Name"
-          hint="How I greet you on Home — tap to change"
-          value={<NameField initialName={currentName} />}
+          hint={
+            currentName
+              ? "How I greet you on Home — tap to change"
+              : emailName
+                ? "Taken from your email — tap to change"
+                : "How I greet you on Home"
+          }
+          value={<NameField initialName={currentName} emailName={emailName} />}
         />
         <GroupedRow
           label="Timezone"
@@ -200,6 +153,24 @@ export function SettingsForm({
               </SelectContent>
             </Select>
           }
+        />
+        {/* 2026-10-08 — the hours live on their own page, so Settings
+            isn't crowded; here, what they are at a glance. */}
+        <GroupedRow
+          label="Your day"
+          hint="Day and work hours"
+          value={
+            // Wraps only between the parts, never inside "9–17".
+            <span className="flex flex-wrap justify-end gap-x-1.5">
+              {daySummary.split(" · ").map((part, index) => (
+                <span key={part} className="whitespace-nowrap">
+                  {index > 0 && "· "}
+                  {part}
+                </span>
+              ))}
+            </span>
+          }
+          href="/settings/day"
         />
         <GroupedRow
           label="Default reminder"
@@ -238,51 +209,6 @@ export function SettingsForm({
           }
         />
         <GroupedRow
-          label="Start of day"
-          hint="No time is suggested earlier"
-          value={
-            <TimeSelect
-              ariaLabel="Start of day"
-              value={prefs.dayStartMinutes}
-              options={HALF_HOURS.slice(0, -1)}
-              onChange={(minutes) =>
-                minutes !== null &&
-                savePrefs({ ...prefs, dayStartMinutes: minutes })
-              }
-            />
-          }
-        />
-        <GroupedRow
-          label="End of day"
-          hint="Or later"
-          value={
-            <TimeSelect
-              ariaLabel="End of day"
-              value={prefs.dayEndMinutes}
-              options={HALF_HOURS.slice(1)}
-              onChange={(minutes) =>
-                minutes !== null &&
-                savePrefs({ ...prefs, dayEndMinutes: minutes })
-              }
-            />
-          }
-        />
-        <GroupedRow
-          label="Workouts start by"
-          hint="The latest a workout is suggested"
-          value={
-            <TimeSelect
-              ariaLabel="Workouts start by"
-              value={prefs.workoutLatestStartMinutes}
-              options={HALF_HOURS.slice(0, -1)}
-              allowNone
-              onChange={(minutes) =>
-                savePrefs({ ...prefs, workoutLatestStartMinutes: minutes })
-              }
-            />
-          }
-        />
-        <GroupedRow
           label="Email reminders"
           hint={emailHint}
           value={
@@ -304,46 +230,19 @@ export function SettingsForm({
           }
         />
       </GroupedRows>
-
-      <div className="flex flex-col gap-3">
-        <SectionLabel>Work hours</SectionLabel>
-        <WeekdayPicker selected={prefs.workDays} onToggle={toggleWorkDay} />
-        {prefs.workDays.length > 0 && (
-          <div className="text-text-primary flex items-center gap-2 text-[15px]">
-            <TimeSelect
-              ariaLabel="Work starts"
-              value={prefs.workStartMinutes}
-              options={HALF_HOURS.slice(0, -1)}
-              onChange={(minutes) =>
-                minutes !== null &&
-                savePrefs({ ...prefs, workStartMinutes: minutes })
-              }
-            />
-            <span className="text-text-secondary">to</span>
-            <TimeSelect
-              ariaLabel="Work ends"
-              value={prefs.workEndMinutes}
-              options={HALF_HOURS.slice(1)}
-              onChange={(minutes) =>
-                minutes !== null &&
-                savePrefs({ ...prefs, workEndMinutes: minutes })
-              }
-            />
-          </div>
-        )}
-        <p className="text-text-secondary text-xs">
-          {prefs.workDays.length > 0
-            ? "Suggested times skip these hours, except for tasks you can do during work."
-            : "No work hours — suggestions can use the whole day."}
-        </p>
-      </div>
     </>
   );
 }
 
 // The name the app calls you by (also set on /onboarding), saved when the
 // field is left; a refused one goes back to what's saved.
-function NameField({ initialName }: { initialName: string }) {
+function NameField({
+  initialName,
+  emailName,
+}: {
+  initialName: string;
+  emailName: string | null;
+}) {
   const [name, setName] = useState(initialName);
   const [saved, setSaved] = useState(initialName);
 
@@ -373,7 +272,7 @@ function NameField({ initialName }: { initialName: string }) {
         aria-label="Name"
         value={name}
         maxLength={NAME_MAX_LENGTH}
-        placeholder="Add your name"
+        placeholder={emailName ?? "Add your name"}
         onChange={(event) => setName(event.target.value)}
         onBlur={save}
         onKeyDown={(event) => {

@@ -42,6 +42,7 @@ describe("backTarget", () => {
     ["/tasks/abc/edit", "/tasks/abc"],
     ["/tasks/new", "/dashboard"],
     ["/inbox", "/settings"],
+    ["/settings/day", "/settings"],
     ["/progress/habits/new", "/progress"],
     ["/progress/habits/abc", "/progress"],
   ])("%s falls back to %s without history", (path, parent) => {
