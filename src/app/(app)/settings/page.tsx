@@ -42,7 +42,7 @@ export default async function SettingsPage() {
             className="rounded-pill size-[72px] shrink-0 object-cover"
           />
         ) : (
-          <div className="bg-burgundy rounded-pill flex size-[72px] shrink-0 items-center justify-center text-2xl font-semibold text-white">
+          <div className="bg-burgundy rounded-pill text-on-accent flex size-[72px] shrink-0 items-center justify-center text-2xl font-semibold">
             {(displayName(user?.name, user?.email) ?? user?.email ?? "?")
               .charAt(0)
               .toUpperCase()}
@@ -59,6 +59,7 @@ export default async function SettingsPage() {
       <SettingsForm
         currentName={profile?.name ?? ""}
         emailName={displayName(null, user?.email)}
+        theme={user?.theme ?? "SYSTEM"}
         currentTimezone={user?.timezone ?? "UTC"}
         daySummary={daySummary(preferences)}
         reminderPreferences={

@@ -19,6 +19,8 @@ export type CurrentUser = {
   timezone: string;
   /** Finished or skipped /onboarding; until then the app sends them there. */
   onboarded: boolean;
+  /** Settings → Appearance (sprint-23-tasks.md S23-03). */
+  theme: "SYSTEM" | "LIGHT" | "DARK";
 };
 
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
@@ -33,5 +35,6 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     image: session.user.image ?? null,
     timezone: session.user.timezone,
     onboarded: session.user.onboarded ?? true,
+    theme: session.user.theme ?? "SYSTEM",
   };
 });

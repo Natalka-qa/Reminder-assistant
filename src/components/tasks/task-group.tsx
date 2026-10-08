@@ -15,7 +15,7 @@ export function TaskGroup({
   tone: "overdue" | "default";
   children: ReactNode;
 }) {
-  const color = tone === "overdue" ? "text-burgundy" : "text-text-tertiary";
+  const color = tone === "overdue" ? "text-accent-text" : "text-text-tertiary";
 
   return (
     <section className="mt-[38px] flex flex-col">

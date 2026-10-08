@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth/dal";
 import { Nav } from "./nav";
 import { OnboardingBanner } from "./onboarding-banner";
 import { TelegramChrome } from "./telegram-chrome";
+import { ThemeSync } from "./theme-sync";
 
 // design_handoff_reminder_assistant/README.md § Sidebar (desktop) /
 // BottomNavigation (mobile) — Nav renders both, each hidden on the other
@@ -28,7 +29,10 @@ export default async function AppLayout({
   if (user && !user.onboarded) redirect("/onboarding");
 
   return (
-    <div className="flex min-h-full flex-1 flex-col md:flex-row">
+    // DARK_THEME_SPEC §2 — in dark, the shell gets the warm ambient
+    // gradient, fixed behind the scrolling content; screens stay flat.
+    <div className="flex min-h-full flex-1 flex-col md:flex-row dark:bg-(image:--bg-ambient) dark:bg-fixed">
+      {user && <ThemeSync setting={user.theme} />}
       <TelegramChrome />
       <Nav />
       <div className="flex min-w-0 flex-1 flex-col overflow-x-clip">

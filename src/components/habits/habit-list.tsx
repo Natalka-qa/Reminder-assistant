@@ -58,14 +58,14 @@ export function HabitList({
               type="button"
               onClick={() => setEditing((value) => !value)}
               aria-pressed={editing}
-              className="text-burgundy min-h-11 px-3 text-sm font-semibold"
+              className="text-accent-text min-h-11 px-3 text-sm font-semibold"
             >
               {editing ? "Done" : "Edit list"}
             </button>
           )}
           <Link
             href="/progress/habits/new"
-            className="text-burgundy flex min-h-11 items-center gap-1 px-3 text-sm font-semibold"
+            className="text-accent-text flex min-h-11 items-center gap-1 px-3 text-sm font-semibold"
           >
             <Plus className="size-4" strokeWidth={2} aria-hidden />
             New habit
@@ -85,7 +85,7 @@ export function HabitList({
           </p>
           <Link
             href="/progress/habits/new"
-            className="bg-burgundy rounded-pill px-4 py-2.5 text-sm font-semibold text-white"
+            className="bg-burgundy rounded-pill text-on-accent px-4 py-2.5 text-sm font-semibold"
           >
             Add a habit
           </Link>
@@ -152,7 +152,7 @@ export function HabitList({
                         type="button"
                         disabled={pending}
                         onClick={() => run(unarchiveHabitAction, habit.id)}
-                        className="text-burgundy min-h-11 shrink-0 px-2 text-sm font-semibold"
+                        className="text-accent-text min-h-11 shrink-0 px-2 text-sm font-semibold"
                       >
                         Restore
                       </button>

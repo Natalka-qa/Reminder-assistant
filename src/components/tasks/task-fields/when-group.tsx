@@ -199,7 +199,7 @@ export function OverlapNotice({
                 type="button"
                 onClick={() => onChoose(slot)}
                 aria-label={`Move to ${formatWhenDate(slot.date, today)}, ${slot.time}${slot.note ? ` — ${slot.note}` : ""}`}
-                className="text-burgundy decoration-newtask-example-underline hover:decoration-burgundy font-semibold underline underline-offset-[3px]"
+                className="text-accent-text decoration-newtask-example-underline hover:decoration-accent-line font-semibold underline underline-offset-[3px]"
               >
                 {formatNearbySlot(slot, currentDate)}
               </button>

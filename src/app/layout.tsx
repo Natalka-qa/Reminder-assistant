@@ -69,14 +69,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col">
-        {/* Forced light — the design handoff (design_handoff_reminder_assistant)
-            only specifies a light palette; following the OS into dark mode
-            would silently fall back to the old shadcn dark tokens instead of
-            this design. Revisit once/if a dark variant is designed. */}
+        {/* Light and dark ("Espresso + Wine", DARK_THEME_SPEC.md) since
+            Sprint 23; Settings → Appearance picks, System by default. */}
         <ThemeProvider
+          // sprint-23-tasks.md S23-03 — System by default; a change is an
+          // instant swap (no cross-fade), color-scheme follows the theme.
           attribute="class"
-          defaultTheme="light"
-          enableSystem={false}
+          defaultTheme="system"
+          enableSystem
           disableTransitionOnChange
         >
           {children}

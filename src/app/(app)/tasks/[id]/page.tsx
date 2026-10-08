@@ -35,7 +35,7 @@ const HISTORY_LIMIT = 10;
 // "Edit" and "Remove" on a row of "Next occurrences": quiet text, a 44 px
 // target around it.
 const ROW_ACTION_CLASS =
-  "text-text-tertiary hover:text-burgundy text-meta relative min-h-11 transition-colors after:absolute after:-inset-x-2 after:-inset-y-1";
+  "text-text-tertiary hover:text-accent-text text-meta relative min-h-11 transition-colors after:absolute after:-inset-x-2 after:-inset-y-1";
 
 // design_handoff_reminder_assistant/README.md § Task detail.
 //

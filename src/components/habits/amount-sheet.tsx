@@ -90,7 +90,7 @@ export function AmountSheet({
         <button
           type="button"
           onClick={() => setDraft(String(round(item.goal / scale)))}
-          className="text-burgundy mx-auto min-h-11 px-3 text-sm font-semibold"
+          className="text-accent-text mx-auto min-h-11 px-3 text-sm font-semibold"
         >
           Goal ✓ {formatAmount(item.goal, item.unit)}
         </button>

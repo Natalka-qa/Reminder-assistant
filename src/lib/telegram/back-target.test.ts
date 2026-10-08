@@ -44,6 +44,7 @@ describe("backTarget", () => {
     ["/inbox", "/settings"],
     ["/settings/day", "/settings"],
     ["/progress/habits/new", "/progress"],
+    ["/progress/how", "/progress"],
     ["/progress/habits/abc", "/progress"],
   ])("%s falls back to %s without history", (path, parent) => {
     expect(backTarget(path)).toBe(parent);

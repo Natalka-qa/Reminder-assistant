@@ -29,7 +29,7 @@ const FACE = [
 type CloudClearingProps = {
   /** Seconds for one full loop. Default 18. */
   loopSeconds?: number;
-  /** Accent used for checkmarks and the face. Default --color-plum (#743447). */
+  /** Accent used for checkmarks and the face. Default --accent-line. */
   accentColor?: string;
   /** Draw the white card frame around the animation. Default false — sits on the page background. */
   framed?: boolean;
@@ -43,7 +43,7 @@ type CloudClearingProps = {
  */
 export default function CloudClearing({
   loopSeconds = 18,
-  accentColor = "#743447",
+  accentColor = "var(--accent-line)",
   framed = false,
   className,
 }: CloudClearingProps) {
@@ -72,7 +72,7 @@ export default function CloudClearing({
           <g className={styles.drift}>
             <path
               d="M118,332 C70,332 52,286 84,262 C62,222 96,180 138,190 C150,144 208,128 240,158 C272,120 338,134 344,180 C388,182 400,226 374,250 C404,278 386,328 344,328 C332,354 292,362 270,344 C244,372 180,368 166,342 C148,346 128,344 118,332 Z"
-              stroke="#2C2B2F"
+              stroke="var(--cloud-line)"
               strokeWidth="1.5"
               strokeLinejoin="round"
             />
@@ -80,21 +80,21 @@ export default function CloudClearing({
               cx="104"
               cy="382"
               r="8.5"
-              stroke="#2C2B2F"
+              stroke="var(--cloud-line)"
               strokeWidth="1.4"
             />
             <circle
               cx="84"
               cy="404"
               r="5.5"
-              stroke="#2C2B2F"
+              stroke="var(--cloud-line)"
               strokeWidth="1.3"
             />
             <circle
               cx="69"
               cy="420"
               r="3.4"
-              stroke="#2C2B2F"
+              stroke="var(--cloud-line)"
               strokeWidth="1.2"
             />
 
@@ -120,8 +120,8 @@ export default function CloudClearing({
                 <g className={`${styles.task} ${t.cls}`}>
                   <path
                     d={TASK_CLOUD}
-                    fill="#E8F0F4"
-                    stroke="#315766"
+                    fill="var(--cloud-card)"
+                    stroke="var(--cloud-card-ink)"
                     strokeWidth="1.3"
                     strokeLinejoin="round"
                   />
@@ -131,7 +131,11 @@ export default function CloudClearing({
           </g>
 
           <g className={styles.list}>
-            <path d="M580,166 L580,454" stroke="#E4E1DC" strokeWidth="1.2" />
+            <path
+              d="M580,166 L580,454"
+              stroke="var(--cloud-rule)"
+              strokeWidth="1.2"
+            />
 
             {ROWS.map((r) => (
               <g key={r.y}>
@@ -140,12 +144,12 @@ export default function CloudClearing({
                     cx="612"
                     cy={r.y}
                     r="9"
-                    stroke="#C9C6C1"
+                    stroke="var(--cloud-check)"
                     strokeWidth="1.3"
                   />
                   <path
                     d={`M640,${r.y} L${r.len},${r.y}`}
-                    stroke="#DAD6D0"
+                    stroke="var(--cloud-check-faint)"
                     strokeWidth="1.2"
                     strokeLinecap="round"
                   />

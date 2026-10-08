@@ -15,7 +15,7 @@ import { PickerField, SelectRow } from "./shared";
 // Sprint 19).
 
 const NUMBER_INPUT =
-  "border-newtask-input-rule text-text-primary placeholder:text-placeholder-text focus:border-burgundy min-h-11 w-14 rounded-none border-0 border-b bg-transparent text-right text-[16px] tabular-nums outline-none";
+  "border-newtask-input-rule text-text-primary placeholder:text-placeholder-text focus:border-accent-line min-h-11 w-14 rounded-none border-0 border-b bg-transparent text-right text-[16px] tabular-nums outline-none";
 
 function wholeNumber(text: string, min: number, max: number): number | null {
   if (!/^\d+$/.test(text.trim())) return null;

@@ -133,9 +133,9 @@ function MonthCell({
         className={cn(
           "group-focus-visible:ring-ring flex size-8 items-center justify-center rounded-full border text-[15px] tabular-nums group-focus-visible:ring-2",
           selected
-            ? "bg-burgundy border-burgundy font-semibold text-white"
+            ? "bg-burgundy border-accent-line text-on-accent font-semibold"
             : day.isToday
-              ? "border-burgundy text-burgundy font-semibold"
+              ? "border-accent-line text-accent-text font-semibold"
               : day.isPast
                 ? "text-calendar-quiet-text border-transparent"
                 : "text-text-primary border-transparent",
@@ -207,7 +207,7 @@ function DaySummary({ day }: { day: CalendarDay }) {
       )}
       <Link
         href={`/calendar?date=${day.date}`}
-        className="text-burgundy hover:text-burgundy-hover self-start text-[13px] font-semibold transition-colors"
+        className="text-accent-text hover:text-accent-text-hover self-start text-[13px] font-semibold transition-colors"
       >
         Open in week →
       </Link>

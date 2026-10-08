@@ -182,6 +182,20 @@ export async function updateHabitReminderAction(
   return { status: "success" };
 }
 
+// sprint-23-tasks.md S23-03 — Settings → Appearance: System / Light / Dark.
+// The page switches at once (next-themes); this keeps it for other devices.
+export async function updateThemeAction(
+  value: string,
+): Promise<{ status: "success" | "error"; message?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { status: "error", message: "Not signed in." };
+  if (value !== "SYSTEM" && value !== "LIGHT" && value !== "DARK") {
+    return { status: "error", message: "Pick System, Light or Dark." };
+  }
+  await userService.setTheme(user.id, value);
+  return { status: "success" };
+}
+
 export async function disconnectTelegramAction(): Promise<DisconnectTelegramState> {
   const user = await getCurrentUser();
   if (!user) {

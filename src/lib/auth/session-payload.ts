@@ -7,6 +7,7 @@ type SessionUser = {
   image?: string | null;
   timezone: string;
   onboardedAt?: Date | null;
+  theme?: "SYSTEM" | "LIGHT" | "DARK";
 };
 
 /**
@@ -32,6 +33,8 @@ export function toSessionPayload(
       timezone: user.timezone,
       // Whether to send them to /onboarding — a yes/no, not the date.
       onboarded: Boolean(user.onboardedAt),
+      // sprint-23-tasks.md S23-03 — Appearance, so a new device gets it.
+      theme: user.theme ?? "SYSTEM",
     },
   };
 }

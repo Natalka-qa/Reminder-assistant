@@ -46,7 +46,7 @@ export function FormActions({
         disabled={!canSubmit || pending}
         aria-disabled={!canSubmit || pending}
         className={cn(
-          "h-[50px] rounded-full px-[30px] text-[15px] font-semibold text-white transition-colors",
+          "text-on-accent h-[50px] rounded-full px-[30px] text-[15px] font-semibold transition-colors",
           canSubmit
             ? "bg-burgundy hover:bg-burgundy-hover"
             : "bg-newtask-muted-burgundy cursor-not-allowed",

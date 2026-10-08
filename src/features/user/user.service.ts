@@ -136,6 +136,10 @@ export const userService = {
     return userRepository.claimHabitReminder(userId, today);
   },
 
+  setTheme(userId: string, theme: "SYSTEM" | "LIGHT" | "DARK") {
+    return userRepository.updateTheme(userId, theme);
+  },
+
   getReminderPreferences(userId: string): Promise<ReminderPreferences | null> {
     return userRepository.findReminderPreferences(userId);
   },

@@ -43,7 +43,7 @@ export function BottomNav() {
         href={href}
         className={cn(
           "flex flex-col items-center gap-1.5 text-[10px] font-medium",
-          active ? "text-burgundy" : "text-text-secondary",
+          active ? "text-accent-text" : "text-text-secondary",
         )}
       >
         <Icon className="size-[21px]" strokeWidth={1.6} />
@@ -58,7 +58,7 @@ export function BottomNav() {
       <Link
         href="/tasks/new"
         aria-label="New task"
-        className="bg-burgundy shadow-fab rounded-pill mx-auto flex size-[54px] items-center justify-center text-white"
+        className="bg-burgundy shadow-fab rounded-pill text-on-accent mx-auto flex size-[54px] items-center justify-center"
       >
         <Plus className="size-[22px]" strokeWidth={1.6} />
       </Link>

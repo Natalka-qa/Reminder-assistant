@@ -9,7 +9,7 @@ export const CELL: Record<GridCell["state"], string> = {
   met: "bg-burgundy",
   partial: "bg-calendar-dot-selected",
   missed: "bg-separator",
-  open: "border-burgundy border bg-surface",
+  open: "border-accent-line border bg-surface",
   off: "bg-transparent",
   future: "border-border border bg-transparent",
 };

@@ -229,7 +229,7 @@ function DesktopWeek({
     <div className="flex flex-col">
       {/* § 2.1 — same column template as the timeline, past the gutter. */}
       <div
-        className="border-border ml-12 grid border-b"
+        className="border-border ml-12 grid border-b transition-[grid-template-columns] duration-(--dur-3) ease-in-out motion-reduce:transition-none"
         style={{ gridTemplateColumns: columns }}
       >
         {days.map((day) => (
@@ -277,7 +277,7 @@ function DesktopWeek({
         <div className="relative min-w-0 flex-1" style={{ height }}>
           <HourLines range={range} hourHeight={DESKTOP.hourHeight} />
           <div
-            className="absolute inset-0 grid"
+            className="absolute inset-0 grid transition-[grid-template-columns] duration-(--dur-3) ease-in-out motion-reduce:transition-none"
             style={{ gridTemplateColumns: columns }}
           >
             {days.map((day, index) => {
@@ -516,7 +516,7 @@ function DayCell({
       onClick={() => onSelect(day.date)}
       aria-label={`${day.label} · ${day.countsLabel}${selected ? " · selected" : ""}`}
       className={cn(
-        "focus-visible:ring-ring flex min-w-0 flex-col items-center gap-1 py-2.5 outline-none focus-visible:ring-2",
+        "focus-visible:ring-ring flex min-w-0 flex-col items-center gap-1 py-2.5 transition-colors duration-(--dur-2) outline-none focus-visible:ring-2",
         variant === "desktop" ? "rounded-t-[10px]" : "rounded-[12px]",
         selected && "bg-burgundy-tint",
       )}
@@ -524,17 +524,17 @@ function DayCell({
       <span
         className={cn(
           "text-[11px] font-semibold tracking-[0.08em] uppercase",
-          selected ? "text-burgundy" : "text-calendar-quiet-text",
+          selected ? "text-accent-text" : "text-calendar-quiet-text",
         )}
       >
         {day.weekdayShort}
       </span>
       <span
         className={cn(
-          "flex size-[30px] items-center justify-center rounded-full border text-[16px] tabular-nums",
-          today ? "border-burgundy" : "border-transparent",
+          "flex size-[30px] items-center justify-center rounded-full border text-[16px] tabular-nums transition-colors duration-(--dur-2)",
+          today ? "border-accent-line" : "border-transparent",
           selected || today
-            ? "text-burgundy font-semibold"
+            ? "text-accent-text font-semibold"
             : day.isPast
               ? "text-calendar-quiet-text"
               : "text-text-primary",
@@ -588,7 +588,7 @@ function HourGutter({
       ))}
       {now !== null && (
         <span
-          className="bg-background text-burgundy absolute left-0 -translate-y-1/2 py-0.5 pr-1 text-[11px] font-semibold tabular-nums"
+          className="bg-background text-accent-text absolute left-0 -translate-y-1/2 py-0.5 pr-1 text-[11px] font-semibold tabular-nums"
           style={{ top: ((now - range.startHour * 60) / 60) * hourHeight }}
         >
           {formatMinutes(now)}

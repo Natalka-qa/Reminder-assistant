@@ -406,8 +406,8 @@ export function DropGhost({
         // 15-minute steps rather than jumping.
         "pointer-events-none absolute inset-x-0.5 z-20 flex flex-col gap-0.5 overflow-hidden rounded-[8px] px-2 py-1 transition-[top,box-shadow,background-color] duration-150 ease-out motion-reduce:transition-none",
         drag.valid
-          ? "bg-surface border-l-burgundy border-l-[3px] shadow-[0_10px_28px_-6px_rgba(116,52,71,0.35),0_0_0_1px_rgba(116,52,71,0.14)]"
-          : "bg-surface/95 border-l-overdue-ink border-l-[3px] shadow-[0_6px_18px_-6px_rgba(0,0,0,0.22),0_0_0_1px_rgba(0,0,0,0.06)]",
+          ? "bg-surface border-l-accent-line border-l-[3px] shadow-(--drag-shadow)"
+          : "bg-surface/95 border-l-overdue-ink border-l-[3px] shadow-(--drag-shadow-invalid)",
       )}
       style={{ top, height }}
     >
@@ -417,7 +417,7 @@ export function DropGhost({
       <span
         className={cn(
           "text-[11px] font-semibold tabular-nums",
-          drag.valid ? "text-burgundy" : "text-overdue-ink",
+          drag.valid ? "text-accent-text" : "text-overdue-ink",
         )}
       >
         {drag.valid ? drag.label : "Can't go here"}
@@ -439,7 +439,7 @@ export function SlotHint({
     <div
       aria-hidden
       // The same soft look as the dragged card, no dashed outline.
-      className="bg-burgundy-tint/70 text-burgundy pointer-events-none absolute inset-x-0.5 z-10 rounded-[8px] px-2 py-1 text-[11px] font-semibold tabular-nums shadow-[0_0_0_1px_rgba(116,52,71,0.12)] transition-[top] duration-100 ease-out motion-reduce:transition-none"
+      className="bg-burgundy-tint/70 text-accent-text pointer-events-none absolute inset-x-0.5 z-10 rounded-[8px] px-2 py-1 text-[11px] font-semibold tabular-nums shadow-[0_0_0_1px_var(--lift-ring)] transition-[top] duration-100 ease-out motion-reduce:transition-none"
       style={{ top, height: geometry.hourHeight / 2 - 2 }}
     >
       + {formatMinutes(minutes)}

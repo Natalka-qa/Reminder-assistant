@@ -315,7 +315,7 @@ function GoogleStatusLine({ busy }: { busy: BusyBetween | null }) {
       <p className="text-text-secondary -mb-4 text-[13px]">
         <Link
           href="/settings"
-          className="text-burgundy font-semibold underline-offset-2 hover:underline"
+          className="text-accent-text font-semibold underline-offset-2 hover:underline"
         >
           Reconnect Google Calendar in Settings
         </Link>{" "}
@@ -442,7 +442,7 @@ export function HomeAssistant({
     <AssistantInsight
       title={assistantTitle(assistantFacts)}
       body={assistantMessage(assistantFacts)}
-      moreHref={facts.patternLine ? "/progress" : undefined}
+      moreHref={facts.patternLine ? "/progress/how" : undefined}
     />
   );
 }

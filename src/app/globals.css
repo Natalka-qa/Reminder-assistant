@@ -4,7 +4,30 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* sprint-23-tasks.md (MOTION_SPEC.md §1) — one set of easings for the app:
+   ease-out to enter, ease-in-out to move, ease-in only to leave. Durations
+   are --dur-1…4 in :root, used as duration-(--dur-2). */
+@theme {
+  --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-in: cubic-bezier(0.32, 0, 0.67, 0);
+}
+
 @theme inline {
+  /* sprint-23-tasks.md (DARK_THEME_SPEC.md, решение 12) — the accent's
+     three roles: --burgundy for large fills (as before), --accent-line for
+     thin graphics, --accent-text for burgundy used as text. One colour in
+     light; split in dark. (`--accent` itself is shadcn's.) */
+  --color-accent-line: var(--accent-line);
+  --color-accent-text: var(--accent-text);
+  --color-accent-text-hover: var(--accent-text-hover);
+  --color-on-accent: var(--on-accent);
+  --color-overdue-text: var(--overdue-text);
+  --color-chart-neutral: var(--chart-neutral);
+  --color-chart-track: var(--chart-track);
+  --color-text-muted: var(--text-muted);
+  --color-inverse-bg: var(--inverse-bg);
+  --color-inverse-text: var(--inverse-text);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
@@ -113,13 +136,10 @@
   /* Skeletons: shimmer, not a spinner — README § Skeletons. */
   --animate-shimmer: shimmer 1.6s ease-in-out infinite;
 
-  /* Home v2 "Atmosphere" (HOME_V2_UPDATE.md § 5 Motion). Durations vary per
-     call site (e.g. orbitSpin runs 180s/200s/240s depending on which sky/
-     insight-card ring uses it) so these are the bare keyframe names, not
-     full animate-* shorthands — components set their own duration inline. */
-  --animate-orbit-spin: orbitSpin linear infinite;
+  /* Home v2 "Atmosphere" — only the next task's dot still breathes, once
+     in 4.6 s (sprint-23-tasks.md решение 7; the orbit spin, drift and
+     sparkle loops went in Sprint 23). */
   --animate-soft-pulse: softPulse 4.6s ease-in-out infinite;
-  --animate-drift-y: driftY ease-in-out infinite;
 
   --color-home-insight-border: var(--home-insight-border);
   --color-home-insight-eyebrow: var(--home-insight-eyebrow);
@@ -186,7 +206,6 @@
   --animate-rise-640: riseIn 600ms ease-out 640ms both;
   --animate-rise-720: riseIn 600ms ease-out 720ms both;
   --animate-rise-820: riseIn 600ms ease-out 820ms both;
-  --animate-sparkle-breathe: sparkleBreathe 4.5s ease-in-out 900ms infinite;
 }
 
 @keyframes shimmer {
@@ -230,27 +249,7 @@
   }
 }
 
-@keyframes sparkleBreathe {
-  0%,
-  100% {
-    opacity: 0.55;
-    transform: scale(0.94);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
 /* Home v2 "Atmosphere" (HOME_V2_UPDATE.md § 5 Motion). */
-@keyframes orbitSpin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
 
 @keyframes softPulse {
   0%,
@@ -264,16 +263,6 @@
   }
 }
 
-@keyframes driftY {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-5px);
-  }
-}
-
 /* sprint-22-tasks.md, доработка 2026-10-07 — "Undo" in a toast (a moved
    block, a removed day, an archived habit) breathes a soft burgundy glow so
    it's easy to find in its 10 seconds. More specific than Sonner's own
@@ -282,13 +271,13 @@
   0%,
   100% {
     box-shadow:
-      0 0 0 0 rgba(116, 52, 71, 0),
-      0 2px 6px -2px rgba(116, 52, 71, 0.3);
+      0 0 0 0 transparent,
+      0 2px 6px -2px var(--undo-glow-near);
   }
   50% {
     box-shadow:
-      0 0 0 5px rgba(116, 52, 71, 0.16),
-      0 6px 18px -4px rgba(116, 52, 71, 0.5);
+      0 0 0 5px var(--undo-glow-ring),
+      0 6px 18px -4px var(--undo-glow-far);
   }
 }
 
@@ -299,7 +288,7 @@
   padding: 0 14px !important;
   border-radius: 9999px !important;
   background: var(--burgundy) !important;
-  color: #fff !important;
+  color: var(--on-accent) !important;
   font-weight: 600;
   animation: undoGlow 1.8s ease-in-out infinite;
 }
@@ -311,7 +300,7 @@
 @media (prefers-reduced-motion: reduce) {
   /* No breathing — a still glow instead. */
   [data-sonner-toast] [data-button].undo-glow {
-    box-shadow: 0 0 0 4px rgba(116, 52, 71, 0.16);
+    box-shadow: 0 0 0 4px var(--undo-glow-ring);
   }
 }
 
@@ -417,6 +406,72 @@
   --overdue-card-border: #ead9dc;
   --skeleton: #eae8e4;
   --placeholder-text: #a9a6a2;
+
+  /* sprint-23-tasks.md — tokens the dark theme splits (DARK_THEME_SPEC §1).
+     In light they keep today's colours. --text-muted is the spec's muted
+     ink at a value that passes AA on --background (#77747A doesn't). */
+  --accent-line: #743447;
+  --accent-text: #743447;
+  --accent-text-hover: #5c2837;
+  --on-accent: #ffffff;
+  --overdue-text: #8c4c52;
+  --text-muted: #6b686e;
+  --chart-neutral: #c9c2bb;
+  --chart-track: #e7e4df;
+  --inverse-bg: #242326;
+  --inverse-text: #ffffff;
+
+  /* MOTION_SPEC §1 — press/hover, small UI, panels and screens, reveals. */
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 280ms;
+  --dur-4: 420ms;
+  /* sprint-23-tasks.md S23-04 — illustration and lift colours, once inline
+     hex in components: the Home sky (sun / moon), the assistant card, the
+     suggestion card's rings, the empty-state ring, the login line art and
+     the shadows of lifted things (a dragged block, a folding card). Dark
+     values from the prototype's light→dark table. */
+  --sky-sun: #f4e7d9;
+  --sky-sun-rim: #ecdaca;
+  --sky-orbit: #e4dad2;
+  --sky-orbit-dot: #d9c3b3;
+  --sky-halo: #ebe5de;
+  --sky-horizon: #e7dfd7;
+  --sky-dust: #dcccc2;
+  --sky-dust-faint: #e3d4cb;
+  --sky-moon: #e9e7ee;
+  --sky-night-orbit: #dedce4;
+  --sky-night-orbit-dot: #c8c4d2;
+  --sky-night-halo: #e7e5ea;
+  --sky-star: #cfcbd8;
+  --sky-star-faint: #d8d5e0;
+  --sky-glow: rgba(240, 222, 202, 0.52);
+  --insight-from: #e9f1f3;
+  --insight-mid: #eef0ec;
+  --insight-to: #f5efe8;
+  --insight-disc: #e3edef;
+  --insight-line: #cfdfe3;
+  --insight-orbit: #dce7e9;
+  --insight-dot: #c3d7dc;
+  --insight-thread: #d3e1e4;
+  --suggestion-ring: #e0e6d9;
+  --suggestion-ring-inner: #e4e9de;
+  --empty-ring: #e9e2dd;
+  --cloud-line: #2c2b2f;
+  --cloud-card: #e8f0f4;
+  --cloud-card-ink: #315766;
+  --cloud-rule: #e4e1dc;
+  --cloud-check: #c9c6c1;
+  --cloud-check-faint: #dad6d0;
+  --lift-shadow: 0 12px 30px -10px rgba(116, 52, 71, 0.3);
+  --lift-ring: rgba(116, 52, 71, 0.18);
+  --drag-shadow:
+    0 10px 28px -6px rgba(116, 52, 71, 0.35), 0 0 0 1px rgba(116, 52, 71, 0.14);
+  --drag-shadow-invalid:
+    0 6px 18px -6px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  --undo-glow-near: rgba(116, 52, 71, 0.3);
+  --undo-glow-far: rgba(116, 52, 71, 0.5);
+  --undo-glow-ring: rgba(116, 52, 71, 0.16);
 
   /* Priority chip colors — outline chips, transparent background. */
   --priority-critical-text: var(--burgundy);
@@ -537,38 +592,182 @@
   --newtask-chevron: var(--calendar-accent-fixed);
 }
 
+/* sprint-23-tasks.md S23-03 (DARK_THEME_SPEC.md, "Espresso + Wine") — the
+   same app at night: warm espresso surfaces, ivory text, burgundy shifted
+   to wine and used sparingly. Every token gets a dark value; most come
+   from the prototype's light→dark table (text and fill roles apart),
+   tokens that only reference others follow on their own. No blue, no
+   pink: the assistant's blue tints and the rose tints map to warm browns.
+   next-themes puts .dark on <html> (and color-scheme: dark). */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #161211;
+  --foreground: #e9e5dd;
+  --card: #201915;
+  --card-foreground: #e9e5dd;
+  --popover: #201915;
+  --popover-foreground: #e9e5dd;
+  --primary: #e9e5dd;
+  --primary-foreground: #161211;
+  --secondary: #2a221c;
+  --secondary-foreground: #e9e5dd;
+  --muted: #2a221c;
+  --muted-foreground: #9c9992;
+  --accent: #2a221c;
+  --accent-foreground: #e9e5dd;
+  --destructive: #c0806a;
+  --border: #362c25;
+  --input: #362c25;
+  --ring: #6a5a50;
+  --chart-1: #4e423a;
+  --chart-2: #6a5d52;
+  --chart-3: #8c8073;
+  --chart-4: #a39a90;
+  --chart-5: #b5b0a8;
+  --sidebar: #201915;
+  --sidebar-foreground: #e9e5dd;
+  --sidebar-primary: #7c3530;
+  --sidebar-primary-foreground: #f3eee7;
+  --sidebar-accent: #2a221c;
+  --sidebar-accent-foreground: #e9e5dd;
+  --sidebar-border: #362c25;
+  --sidebar-ring: #6a5a50;
+  --surface: #201915;
+  --text-primary: #e9e5dd;
+  --text-secondary: #a8a39b;
+  --text-tertiary: #b5b0a8;
+  --border-soft: #2c241e;
+  --border-medium: #62554b;
+  --separator: #342a23;
+  --burgundy: #7c3530;
+  --burgundy-hover: #8e3e37;
+  --burgundy-tint: #2a221c;
+  --soft-blue: #8a7a6c;
+  --calendar-dot-selected: #3e3229;
+  --blue-tint: #241c17;
+  --blue-tint-border: #3a2f27;
+  --blue-ring-border: #4a3c32;
+  --chip-selected-bg: #2e241d;
+  --chip-selected-text: #e9e5dd;
+  --blue-ink: #c9b9a4;
+  --blue-ink-title: #e9e5dd;
+  --blue-ink-body: #b5b0a8;
+  --rose-gold: #6a5a50;
+  --rose-tint: #261e19;
+  --rose-tint-border: #3e3229;
+  --rose-tint-text: #b5ada5;
+  --rose-tint-label: #bdb3aa;
+  --overdue-ink: #c0806a;
+  --overdue-card-border: #3e3229;
+  --skeleton: #302720;
+  --placeholder-text: #85827b;
+  --accent-line: #a0504a;
+  --accent-text: #e9e5dd;
+  --accent-text-hover: #ffffff;
+  --on-accent: #f3eee7;
+  --overdue-text: #c0806a;
+  --text-muted: #9c9992;
+  --chart-neutral: #4e423a;
+  --chart-track: #342a23;
+  --inverse-bg: #e9e5dd;
+  --inverse-text: #161211;
+  --priority-critical-border: #3e3229;
+  --priority-high-text: #bdb3aa;
+  --priority-high-border: #3e3229;
+  --priority-normal-text: #c9b9a4;
+  --shadow-soft: 0 8px 30px rgba(0, 0, 0, 0.3);
+  --shadow-fab: 0 10px 24px rgba(0, 0, 0, 0.45);
+  --home-insight-border: #362b24;
+  --home-insight-eyebrow: #9c9992;
+  --home-muted-rose: #b5ada5;
+  --home-overdue-dot-bg: #a0504a;
+  --home-overdue-dot-border: #8e3e37;
+  --home-dot-idle-border: #5a4d44;
+  --home-divider-soft: #302720;
+  --home-overdue-underline: #3e3229;
+  --home-timeline-hover: #2a221c;
+  --home-timeline-rail: #3a2f27;
+  --home-timeline-end-dot-border: #3a352f;
+  --home-badge-bg: #2a221c;
+  --home-blush: #261e19;
+  --home-blush-border: #342520;
+  --home-sage: #1f221b;
+  --home-sage-border: #2b2f27;
+  --home-mark-personal-ring: #6a5a50;
+  --home-mark-insight-ring: #745d4e;
+  --home-mark-insight-core: #c9b9a4;
+  --home-mark-suggestion-ring: #636a5b;
+  --home-mark-suggestion-core: #b0bca5;
+  --home-quiet-title: #dcd7ce;
+  --home-quiet-meta: #a8a39b;
+  --tasks-conflict-text: #c0806a;
+  --tasks-muted: #85827b;
+  --tasks-dot: #8c8073;
+  --tasks-marker-normal: #54473e;
+  --tasks-row-divider: #2b2823;
+  --tasks-critical-row: #261e19;
+  --tasks-hover: #28231e;
+  --tasks-menu-hover: #231e19;
+  --tasks-conflict-dot: #6a5a50;
+  --tasks-done-strike: #806655;
+  --calendar-column-rule: #2a221c;
+  --calendar-selected-column: #1d1714;
+  --calendar-busy-line: #5a4d44;
+  --calendar-flexible-bg: #1c1613;
+  --calendar-accent-fixed: #907360;
+  --calendar-block-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  --calendar-google-busy-hatch: #3a352f;
+  --newtask-hairline: #2c2823;
+  --newtask-input-rule: #3c3834;
+  --newtask-control-hover: #2a221c;
+  --newtask-choice-selected: #261e19;
+  --newtask-muted-burgundy: #4a3a30;
+  --sky-sun: #35281b;
+  --sky-sun-rim: #403124;
+  --sky-orbit: #39312a;
+  --sky-orbit-dot: #514136;
+  --sky-halo: #302a24;
+  --sky-horizon: #352e27;
+  --sky-dust: #463a32;
+  --sky-dust-faint: #3f332c;
+  --sky-moon: #2c231d;
+  --sky-night-orbit: #372c24;
+  --sky-night-orbit-dot: #4c3d33;
+  --sky-night-halo: #2f261f;
+  --sky-star: #45372e;
+  --sky-star-faint: #3c3028;
+  /* §2 — the same shapes, warm and low. */
+  --sky-glow: rgba(217, 184, 154, 0.07);
+  --insight-from: #28201b;
+  --insight-mid: #28201b;
+  --insight-to: #292219;
+  --insight-disc: #2d241e;
+  --insight-line: #3e3129;
+  --insight-orbit: #342a23;
+  --insight-dot: #473930;
+  --insight-thread: #3b2f27;
+  --suggestion-ring: #2e3428;
+  --suggestion-ring-inner: #2b3025;
+  --empty-ring: #302a25;
+  --cloud-line: #b5b0a8;
+  --cloud-card: #2a221c;
+  --cloud-card-ink: #9c9992;
+  --cloud-rule: #5a4d44;
+  --cloud-check: #6a5d52;
+  --cloud-check-faint: #5a4d44;
+  /* §2 — depth by surface steps; shadows only under floating things. */
+  --lift-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.55);
+  --lift-ring: rgba(160, 80, 74, 0.35);
+  --drag-shadow:
+    0 10px 28px -6px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(160, 80, 74, 0.35);
+  --drag-shadow-invalid:
+    0 6px 18px -6px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --undo-glow-near: rgba(0, 0, 0, 0.3);
+  --undo-glow-far: rgba(160, 80, 74, 0.45);
+  --undo-glow-ring: rgba(160, 80, 74, 0.3);
+  /* Burgundy as text is ivory in dark (§2); the light value is a fill. */
+  --priority-critical-text: var(--accent-text);
+  /* The app shell's ambient background (§2: the shell only, fixed). */
+  --bg-ambient: linear-gradient(180deg, #161211 0%, #1b1512 55%, #31211a 100%);
 }
 
 @layer base {
@@ -589,4 +788,100 @@
   .font-display {
     font-feature-settings: "lnum" 1;
   }
+
+  /* sprint-23-tasks.md S23-05/06 (MOTION_SPEC.md) — calm, app-wide. */
+  /* §6 — anchors and programmatic jumps glide; the wheel is never touched
+     (this only affects scrollIntoView / #links). */
+  html {
+    scroll-behavior: smooth;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+  /* §4 — a jump lands 16px below the top, not under it. */
+  [id] {
+    scroll-margin-top: 1rem;
+  }
+  /* §2 — press: a 2% give, no ripple. `scale`, not `transform`, so a
+     button's own translate isn't lost. */
+  @media (prefers-reduced-motion: no-preference) {
+    button:not(:disabled):active,
+    [role="button"]:active {
+      scale: 0.98;
+    }
+  }
+}
+
+/* §5 — a loading screen shows only after 300ms, then fades in (--dur-2):
+   a quick load never flashes a skeleton. */
+@keyframes appearLate {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.appear-late {
+  animation: appearLate var(--dur-2) var(--ease-out) 300ms both;
+}
+
+/* §3 — screens: tabs cross-fade, a page further in rises from the side. */
+@keyframes screenFade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes screenPush {
+  from {
+    opacity: 0;
+    translate: 12px 0;
+  }
+}
+
+.screen-fade {
+  animation: screenFade var(--dur-2) var(--ease-out);
+}
+
+.screen-push {
+  animation: screenPush var(--dur-3) var(--ease-out);
+}
+
+/* §2 — inline expand: rows 0fr → 1fr with a fade, so what's below moves
+   smoothly instead of jumping. Put the content in one child. */
+.expand {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--dur-2) var(--ease-out),
+    opacity var(--dur-2) var(--ease-out),
+    margin-top var(--dur-2) var(--ease-out);
+}
+
+.expand[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.expand > * {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* §2 — a check drawing itself in (lucide's Check, a 20-unit stroke). */
+@keyframes checkDraw {
+  from {
+    stroke-dashoffset: 20;
+  }
+}
+
+.check-draw path,
+.check-draw polyline {
+  stroke-dasharray: 20;
+  animation: checkDraw var(--dur-2) var(--ease-out);
 }

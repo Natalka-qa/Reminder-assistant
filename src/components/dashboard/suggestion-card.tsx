@@ -27,8 +27,14 @@ export function SuggestionCard({
         fill="none"
         className="pointer-events-none absolute -top-[30px] -right-6"
       >
-        <circle cx="94" cy="46" r="52" stroke="#E0E6D9" strokeDasharray="2 9" />
-        <circle cx="94" cy="46" r="30" stroke="#E4E9DE" />
+        <circle
+          cx="94"
+          cy="46"
+          r="52"
+          stroke="var(--suggestion-ring)"
+          strokeDasharray="2 9"
+        />
+        <circle cx="94" cy="46" r="30" stroke="var(--suggestion-ring-inner)" />
       </svg>
 
       <div className="relative flex items-center gap-2.5">
@@ -42,7 +48,7 @@ export function SuggestionCard({
       </p>
       <Link
         href={editHref}
-        className="text-burgundy relative self-start text-[13px] font-semibold"
+        className="text-accent-text relative self-start text-[13px] font-semibold"
       >
         Move this task →
       </Link>

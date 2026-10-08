@@ -294,7 +294,7 @@ export function EditTaskForm({
           rows={1}
           maxLength={200}
           placeholder="What the task is"
-          className="border-newtask-input-rule font-display text-text-primary placeholder:text-placeholder-text focus:border-burgundy field-sizing-content min-h-14 w-full resize-none rounded-none border-0 border-b bg-transparent pt-1 pb-3 text-[34px]/[1.15] font-light outline-none"
+          className="border-newtask-input-rule font-display text-text-primary placeholder:text-placeholder-text focus:border-accent-line field-sizing-content min-h-14 w-full resize-none rounded-none border-0 border-b bg-transparent pt-1 pb-3 text-[34px]/[1.15] font-light outline-none"
         />
       </div>
 

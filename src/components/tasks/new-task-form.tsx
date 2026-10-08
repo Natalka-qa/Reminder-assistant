@@ -11,6 +11,7 @@ import {
 import { Mic } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Expand } from "@/components/ui/expand";
 import { formatDuration } from "@/lib/format";
 import { useZonedClock } from "@/lib/date/zoned-clock";
 import { useSpeechDictation } from "@/lib/speech/use-speech-dictation";
@@ -498,7 +499,7 @@ export function NewTaskForm({
             placeholder="Call the dentist tomorrow at 9 for 30 minutes"
             aria-describedby={ids.status}
             className={cn(
-              "border-newtask-input-rule text-text-primary placeholder:text-placeholder-text focus:border-burgundy field-sizing-content min-h-16 w-full resize-none rounded-none border-0 border-b bg-transparent pt-1.5 pb-3.5 text-[20px]/[1.45] outline-none",
+              "border-newtask-input-rule text-text-primary placeholder:text-placeholder-text focus:border-accent-line field-sizing-content min-h-16 w-full resize-none rounded-none border-0 border-b bg-transparent pt-1.5 pb-3.5 text-[20px]/[1.45] outline-none",
               voice.supported && "pr-12",
             )}
           />
@@ -512,7 +513,7 @@ export function NewTaskForm({
               aria-pressed={voice.listening}
               className={cn(
                 "hover:bg-newtask-control-hover absolute right-0 bottom-2 flex size-11 items-center justify-center rounded-full transition-colors",
-                voice.listening ? "text-burgundy" : "text-text-tertiary",
+                voice.listening ? "text-accent-text" : "text-text-tertiary",
               )}
             >
               <Mic
@@ -582,7 +583,7 @@ export function NewTaskForm({
                   key={example}
                   type="button"
                   onClick={() => changeText(example)}
-                  className="text-burgundy decoration-newtask-example-underline hover:decoration-burgundy p-1 text-left underline underline-offset-[3px]"
+                  className="text-accent-text decoration-newtask-example-underline hover:decoration-accent-line p-1 text-left underline underline-offset-[3px]"
                 >
                   {example}
                 </button>
@@ -631,15 +632,18 @@ export function NewTaskForm({
           {fields.durationGuessed && fields.durationMinutes > 0 && (
             <DurationGuessNote minutes={fields.durationMinutes} />
           )}
-          {overlap && overlapText && (
-            <OverlapNotice
-              text={overlapText}
-              freeNearby={overlap.freeNearby}
-              currentDate={fields.date}
-              today={today}
-              onChoose={chooseSlot}
-            />
-          )}
+          {/* MOTION_SPEC §2 — slides open and shut, not a jump. */}
+          <Expand open={Boolean(overlap && overlapText)} gap="0.375rem">
+            {overlap && overlapText && (
+              <OverlapNotice
+                text={overlapText}
+                freeNearby={overlap.freeNearby}
+                currentDate={fields.date}
+                today={today}
+                onChoose={chooseSlot}
+              />
+            )}
+          </Expand>
           {timeSearch && (
             <p className="text-newtask-quiet-text text-[13px]/[1.5] text-pretty">
               {searching ? (
@@ -680,10 +684,10 @@ export function NewTaskForm({
                           onClick={() => chooseFoundSlot(slot)}
                           aria-label={`${formatWhenDate(slot.date, today)}, ${slot.time}${slot.note ? ` — ${slot.note}` : ""}`}
                           className={cn(
-                            "text-burgundy font-semibold",
+                            "text-accent-text font-semibold",
                             current
                               ? "bg-burgundy-tint rounded px-1"
-                              : "decoration-newtask-example-underline hover:decoration-burgundy underline underline-offset-[3px]",
+                              : "decoration-newtask-example-underline hover:decoration-accent-line underline underline-offset-[3px]",
                           )}
                         >
                           {formatNearbySlot(slot, foundSlots[0].date)}

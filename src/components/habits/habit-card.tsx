@@ -63,7 +63,7 @@ function StreakBadge({ current }: { current: number }) {
   }
   return (
     <span
-      className="text-burgundy flex shrink-0 items-center gap-1 text-sm font-semibold"
+      className="text-accent-text flex shrink-0 items-center gap-1 text-sm font-semibold"
       aria-label={`${daysLabel(current)} in a row`}
     >
       <Flame className="size-4" strokeWidth={1.8} aria-hidden />

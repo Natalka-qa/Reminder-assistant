@@ -78,7 +78,7 @@ export function SchedulingChoice({
               className={cn(
                 "flex min-h-16 flex-col gap-[3px] rounded-[14px] border px-4 py-3.5 text-left transition-colors",
                 on
-                  ? "bg-newtask-choice-selected border-burgundy"
+                  ? "bg-newtask-choice-selected border-accent-line"
                   : unavailable
                     ? "border-border cursor-not-allowed bg-transparent"
                     : "bg-surface border-border hover:border-newtask-muted-burgundy",
@@ -88,7 +88,7 @@ export function SchedulingChoice({
                 className={cn(
                   "flex items-center justify-between gap-2 text-[15px] font-semibold",
                   on
-                    ? "text-burgundy"
+                    ? "text-accent-text"
                     : unavailable
                       ? "text-newtask-quiet-text"
                       : "text-text-primary",
@@ -97,7 +97,10 @@ export function SchedulingChoice({
                 {choice.label}
                 <Check
                   aria-hidden
-                  className={cn("text-burgundy size-3.5", !on && "opacity-0")}
+                  className={cn(
+                    "text-accent-text size-3.5",
+                    !on && "opacity-0",
+                  )}
                   strokeWidth={1.8}
                 />
               </span>

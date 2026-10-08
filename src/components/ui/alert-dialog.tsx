@@ -22,6 +22,10 @@ function AlertDialogPortal({ ...props }: AlertDialogPrimitive.Portal.Props) {
   )
 }
 
+// sprint-23-tasks.md S23-05 (MOTION_SPEC §2, решение 9) — a sheet on a
+// phone: slides up from the bottom (--dur-3, ease-out), leaves faster
+// (--dur-2, ease-in); centred with an 8px rise from sm. The backdrop fades
+// to 0.4 — no blur, no zoom.
 function AlertDialogOverlay({
   className,
   ...props
@@ -30,7 +34,7 @@ function AlertDialogOverlay({
     <AlertDialogPrimitive.Backdrop
       data-slot="alert-dialog-overlay"
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 isolate z-50 bg-black/40 duration-(--dur-3) ease-out data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 data-closed:duration-(--dur-2) data-closed:ease-in motion-reduce:duration-0",
         className
       )}
       {...props}
@@ -52,7 +56,7 @@ function AlertDialogContent({
         data-slot="alert-dialog-content"
         data-size={size}
         className={cn(
-          "group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "group/alert-dialog-content fixed inset-x-0 bottom-0 z-50 grid w-full gap-4 rounded-t-2xl bg-popover p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-popover-foreground shadow-(--lift-shadow) ring-1 ring-foreground/10 outline-none overscroll-contain duration-(--dur-3) ease-out data-open:animate-in data-open:slide-in-from-bottom data-closed:animate-out data-closed:slide-out-to-bottom data-closed:duration-(--dur-2) data-closed:ease-in sm:inset-x-auto sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:pb-4 sm:data-open:slide-in-from-bottom-2 sm:data-open:fade-in-0 sm:data-closed:slide-out-to-bottom-2 sm:data-closed:fade-out-0 data-[size=default]:sm:max-w-sm data-[size=sm]:sm:max-w-xs motion-reduce:duration-0",
           className
         )}
         {...props}

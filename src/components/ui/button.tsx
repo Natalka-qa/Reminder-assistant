@@ -13,7 +13,7 @@ const buttonVariants = cva(
         // sizes (xs/sm/icon-*) for compact and icon-only buttons unrelated to
         // that spec.
         default:
-          "bg-burgundy text-white font-semibold text-button rounded-pill hover:bg-burgundy-hover active:opacity-90",
+          "bg-burgundy text-on-accent font-semibold text-button rounded-pill hover:bg-burgundy-hover active:opacity-90",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         // SecondaryButton: white surface, bordered, pill shape.

@@ -18,7 +18,7 @@ function RowSkeleton() {
 // before the real content arrives.
 export default function DashboardLoading() {
   return (
-    <div className="flex flex-col gap-[30px]">
+    <div className="appear-late flex flex-col gap-[30px]">
       <div className="flex flex-col gap-2">
         <Skeleton className="h-4 w-32" />
         <Skeleton className="h-14 w-48" />

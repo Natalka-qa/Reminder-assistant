@@ -40,6 +40,7 @@ describe("toSessionPayload", () => {
         image: "https://lh3.googleusercontent.com/a/avatar",
         timezone: "Europe/Madrid",
         onboarded: true,
+        theme: "SYSTEM",
       },
     });
   });
@@ -77,6 +78,7 @@ describe("toSessionPayload", () => {
       timezone: "UTC",
       // A new user: no onboardedAt yet — the app sends them to /onboarding.
       onboarded: false,
+      theme: "SYSTEM",
     });
   });
 });

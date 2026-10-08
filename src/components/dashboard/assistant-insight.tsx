@@ -23,7 +23,7 @@ export function AssistantInsight({
       className="relative flex flex-col gap-[9px] overflow-hidden rounded-[20px] border p-[22px] pb-6"
       style={{
         background:
-          "linear-gradient(152deg, #E9F1F3 0%, #EEF0EC 54%, #F5EFE8 100%)",
+          "linear-gradient(152deg, var(--insight-from) 0%, var(--insight-mid) 54%, var(--insight-to) 100%)",
         borderColor: "var(--home-insight-border)",
       }}
     >
@@ -35,22 +35,18 @@ export function AssistantInsight({
         fill="none"
         className="pointer-events-none absolute -right-7 -bottom-[62px]"
       >
-        <circle cx="156" cy="100" r="58" fill="#E3EDEF" />
-        <path d="M2 100 H 268" stroke="#CFDFE3" />
+        <circle cx="156" cy="100" r="58" fill="var(--insight-disc)" />
+        <path d="M2 100 H 268" stroke="var(--insight-line)" />
         <circle
           cx="156"
           cy="100"
           r="84"
-          stroke="#DCE7E9"
+          stroke="var(--insight-orbit)"
           strokeDasharray="2 9"
-          style={{
-            transformOrigin: "156px 100px",
-            animation: "orbitSpin 240s linear infinite",
-          }}
         />
-        <circle cx="48" cy="36" r="1.8" fill="#C3D7DC" />
-        <circle cx="80" cy="18" r="1.2" fill="#C3D7DC" />
-        <path d="M48 36 L80 18" stroke="#D3E1E4" />
+        <circle cx="48" cy="36" r="1.8" fill="var(--insight-dot)" />
+        <circle cx="80" cy="18" r="1.2" fill="var(--insight-dot)" />
+        <path d="M48 36 L80 18" stroke="var(--insight-thread)" />
       </svg>
 
       <div className="relative flex items-center gap-2">

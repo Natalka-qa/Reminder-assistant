@@ -72,7 +72,7 @@ export function OverdueRow({
   const dimmed = status === "DONE" || status === "SKIPPED";
 
   return (
-    <div className="bg-home-blush border-home-blush-border flex flex-wrap items-center gap-x-3.5 gap-y-2.5 rounded-2xl border px-[18px] py-[15px] transition-transform hover:-translate-y-px">
+    <div className="bg-home-blush border-home-blush-border flex flex-wrap items-center gap-x-3.5 gap-y-2.5 rounded-2xl border px-[18px] py-[15px]">
       <button
         type="button"
         aria-label={status === "DONE" ? "Mark as not done" : "Mark as done"}
@@ -102,7 +102,7 @@ export function OverdueRow({
           type="button"
           disabled={!actionable || pending}
           onClick={() => run(completeOccurrenceAction)}
-          className="bg-burgundy rounded-pill px-3.5 py-2 text-xs font-semibold text-white disabled:opacity-50"
+          className="bg-burgundy rounded-pill text-on-accent px-3.5 py-2 text-xs font-semibold disabled:opacity-50"
         >
           Done
         </button>

@@ -57,7 +57,7 @@ function ActionLink({
   // Never --muted (#A9A6A2) here — the README calls that out explicitly as
   // failing contrast for an interactive label.
   const className = primary
-    ? "text-burgundy text-meta font-semibold"
+    ? "text-accent-text text-meta font-semibold"
     : "text-text-secondary text-meta";
 
   if (action.href) {
