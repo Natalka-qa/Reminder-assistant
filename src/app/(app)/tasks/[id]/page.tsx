@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { PriorityChip, PRIORITY_LABELS } from "@/components/ui/priority-chip";
 import { GroupedRows, GroupedRow } from "@/components/ui/grouped-rows";
+import { NoteText } from "@/components/tasks/note-text";
 import { SectionLabel } from "@/components/ui/section-label";
 import { TaskDetailActions } from "@/components/tasks/task-detail-actions";
 import { RemoveOccurrenceButton } from "@/components/tasks/remove-occurrence-button";
@@ -227,7 +228,10 @@ export default async function TaskDetailPage({
           value={formatReminder(task.reminderKind, task.reminderOffsetMinutes)}
         />
         {task.description && (
-          <GroupedRow label="Notes" value={task.description} />
+          <GroupedRow
+            label="Notes"
+            value={<NoteText note={task.description} />}
+          />
         )}
       </GroupedRows>
 

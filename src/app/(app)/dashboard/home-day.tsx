@@ -254,6 +254,7 @@ export function HomeDay({
               ? formatRelativeTimeLabel(
                   upNext.primary.scheduledStart,
                   now.toJSDate(),
+                  upNext.primary.task.durationMinutes,
                 )
               : "today"
           }

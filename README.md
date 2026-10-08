@@ -338,8 +338,12 @@ The card under the greeting ("From your assistant") is on Home every day, empty 
 
 ## Appearance and motion
 
-- **Dark theme** ("Espresso + Wine", Sprint 23): Settings → **Appearance** — System (default, follows the device), Light, Dark. Saved with the account (`User.theme`) and on the device; applied before the page draws, so there's no white flash. Warm espresso surfaces, ivory text, burgundy shifted to wine and used only for large fills; thin lines in brick (`--accent-line`); burgundy text turns ivory (`--accent-text`); overdue is the one warm-red text. Every colour is a token in `globals.css` with a light and a dark value — no hex in components. The Telegram Mini App's header follows the theme.
+- **Dark theme** ("Espresso + Wine", Sprint 23): Settings → **Appearance** — System (default, follows the device), Light, Dark — a monitor, a sun and a moon on a burgundy thumb; the change cross-fades. Saved with the account (`User.theme`) and on the device; applied before the page draws, so there's no white flash. Warm espresso surfaces, ivory text, burgundy shifted to wine and used only for large fills; thin lines in brick (`--accent-line`); burgundy text turns ivory (`--accent-text`); overdue is the one warm-red text. Every colour is a token in `globals.css` with a light and a dark value — no hex in components. The Telegram Mini App's header follows the theme.
 - **Motion** (`MOTION_SPEC.md`): one set of curves and durations (`--ease-*`, `--dur-1…4`; `lib/motion.ts` for script). Buttons give 2% on press; marking done draws the check and fades the strike in; menus fade in 4px; dialogs slide up as a sheet on a phone; inline blocks expand smoothly (`Expand`); tabs cross-fade, pages further in rise 12px from the side; each tab keeps its scroll; skeletons show only after 300ms. No glow, bounce or decorative loops — except the next task's dot and what was asked for (the Undo button's glow). `prefers-reduced-motion` turns it off.
+
+## Links in notes
+
+On a task's page the note's links open in a new tab, and a line that reads as an address (a number and a street word — ул., вул., St, Ave, Calle, Carrer, Rue, …straße — or after "Address:" / "Адрес:") opens in Google Maps. Inside Telegram they open through the Mini App's `openLink`. `features/tasks/note-links.ts`.
 
 ## Your patterns
 

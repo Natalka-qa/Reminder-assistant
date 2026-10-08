@@ -95,14 +95,12 @@ describe("selectUpNext", () => {
     expect(result?.primary.id).toBe("early");
   });
 
-  it("falls back to the day's last occurrence when everything is resolved", () => {
+  it("has nothing up next when everything is done or skipped", () => {
     const occurrences = [
       occurrence("first", 8, 0, { status: "DONE" }),
       occurrence("last", 12, 0, { status: "SKIPPED" }),
     ];
-    const result = selectUpNext(occurrences, NINE_AM);
-    expect(result?.primary.id).toBe("last");
-    expect(result?.alsoNow).toEqual([]);
+    expect(selectUpNext(occurrences, NINE_AM)).toBeNull();
   });
 
   it("returns null for an empty day", () => {
@@ -141,8 +139,19 @@ describe("groupRemainingByTime", () => {
 describe("formatRelativeTimeLabel", () => {
   const now = new Date(Date.UTC(2026, 3, 26, 9, 0));
 
-  it("returns 'now' for a time at or before now", () => {
+  it("returns 'now' while the task is on", () => {
     expect(formatRelativeTimeLabel(now, now)).toBe("now");
+    const tenAgo = new Date(now.getTime() - 10 * 60_000);
+    expect(formatRelativeTimeLabel(tenAgo, now)).toBe("now");
+    const fiftyAgo = new Date(now.getTime() - 50 * 60_000);
+    expect(formatRelativeTimeLabel(fiftyAgo, now, 60)).toBe("now");
+  });
+
+  it("says how long ago once it's gone by (2026-10-08)", () => {
+    const fortyAgo = new Date(now.getTime() - 40 * 60_000);
+    expect(formatRelativeTimeLabel(fortyAgo, now)).toBe("40 min ago");
+    const twoHoursAgo = new Date(now.getTime() - 125 * 60_000);
+    expect(formatRelativeTimeLabel(twoHoursAgo, now, 40)).toBe("2 h ago");
   });
 
   it("formats minutes for under an hour away", () => {

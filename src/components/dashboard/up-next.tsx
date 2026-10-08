@@ -87,7 +87,15 @@ export function UpNext({
             className="bg-burgundy rounded-pill -ml-[27px] size-2"
             style={{ animation: "softPulse 4.6s ease-in-out infinite" }}
           />
-          <span className="text-accent-text text-[13px] font-semibold tracking-[0.02em]">
+          {/* 2026-10-08 — gone by ("2 h ago") reads in the overdue colour,
+              so a late task is plain in either theme. */}
+          <span
+            className={
+              relativeLabel.endsWith("ago")
+                ? "text-overdue-text text-[13px] font-semibold tracking-[0.02em]"
+                : "text-accent-text text-[13px] font-semibold tracking-[0.02em]"
+            }
+          >
             {timeLabel} · {relativeLabel}
           </span>
         </div>

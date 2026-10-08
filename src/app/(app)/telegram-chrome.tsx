@@ -37,15 +37,26 @@ export function TelegramChrome() {
     if (!webApp || !inside) return;
     webApp.ready();
     webApp.expand();
-    // setHeaderColor only takes #RRGGBB.
-    const token = getComputedStyle(document.documentElement)
-      .getPropertyValue("--background")
-      .trim();
-    const background = /^#[0-9a-f]{6}$/i.test(token)
-      ? token
-      : FALLBACK_BACKGROUND;
-    webApp.setHeaderColor(background);
-    webApp.setBackgroundColor(background);
+    // setHeaderColor only takes #RRGGBB. Read on the next frame:
+    // next-themes puts the theme on <html> in its own effect, which runs
+    // after this one — read at once, it gave the old colour (2026-10-08).
+    const paint = () => {
+      const token = getComputedStyle(document.documentElement)
+        .getPropertyValue("--background")
+        .trim();
+      const background = /^#[0-9a-f]{6}$/i.test(token)
+        ? token
+        : FALLBACK_BACKGROUND;
+      webApp.setHeaderColor(background);
+      webApp.setBackgroundColor(background);
+    };
+    const frame = requestAnimationFrame(() => requestAnimationFrame(paint));
+    // A theme change cross-fades for a moment; paint again after it.
+    const later = setTimeout(paint, 500);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(later);
+    };
   }, [webApp, inside, resolvedTheme]);
 
   useEffect(() => {
