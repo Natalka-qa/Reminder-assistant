@@ -28,6 +28,11 @@ const serverEnvSchema = z.object({
   // to the Resend account's owner, so everyone else would wait for a link
   // that never comes. Only "true" turns it on (lib/auth/email-sign-in.ts).
   EMAIL_SIGN_IN_ENABLED: z.string().optional(),
+  // Optional — Vercel Blob, where uploaded profile photos live. Connecting
+  // a Blob store to the Vercel project adds it; without it Settings simply
+  // doesn't offer "Upload photo" (isAvatarUploadEnabled(),
+  // lib/blob/blob.config.ts). Removing a photo works either way.
+  BLOB_READ_WRITE_TOKEN: z.string().optional(),
 });
 
 function loadServerEnv() {

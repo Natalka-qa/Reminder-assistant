@@ -204,17 +204,14 @@ function TimeSelect({
 }) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger
-        aria-label={label}
-        className="h-auto w-fit gap-1 border-0 bg-transparent p-0 text-[15px]"
-      >
+      <SelectTrigger aria-label={label} variant="inline">
         <SelectValue>
           {(current: string) =>
             choices.find((choice) => choice.value === current)?.label
           }
         </SelectValue>
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent alignItemWithTrigger={false} align="end">
         {choices.map((choice) => (
           <SelectItem key={choice.value} value={choice.value}>
             {choice.label}

@@ -4,20 +4,26 @@ import {
   monthDayDate,
   NUMERIC_DATE,
   numericDateOf,
+  numberPattern,
   numericDateRule,
   rule,
+  setDailyDayPart,
   setDailyInterval,
+  setDayPart,
   setDaysAhead,
   setDue,
   setDuration,
   setMonthDay,
+  setMonthsAhead,
   setNextWeekday,
+  setNextWeeksDay,
   setPartOfDay,
-  setRepeatFor,
+  setRepeatCount,
   setRepeatUntil,
   setSearchDuration,
   setTime,
   setWeekly,
+  spanRule,
   startTimeSearch,
   words,
   type Language,
@@ -26,8 +32,8 @@ import {
 // NEW_TASK_V2_UPDATE.md § 3.1 — Russian: its own rules with the case
 // forms people actually write ("в понедельник", "по понедельникам",
 // "1 октября", "в 9", "на час"), not a translation into English. "Утром"
-// or "вечером" alone set no time — the spec says don't guess — and stay in
-// the title.
+// or "вечером" alone are the part of the day's time, 09:00 or 20:00
+// (2026-10-09 decision 1; before, they set nothing).
 
 // Every form a weekday takes here, by ISO number. Short forms stand alone;
 // full ones need a preposition in a date ("в среду") — bare "среда" is as
@@ -88,8 +94,50 @@ function hourWithDaypart(hour: number, daypart: string | undefined): number {
 export const WEEKDAY_PATTERN = WEEKDAY;
 
 // sprint-20-tasks.md п.3 — the unit of "for a month" / "на 2 недели".
-const UNIT_MONTH = /^мес/iu;
-const UNIT_WEEK = /^нед/iu;
+const UNITS = { month: /^мес/iu, week: /^нед/iu };
+
+// A count in digits or words: "3", "три", "трёх".
+const NUM = numberPattern([
+  "один",
+  "одна",
+  "одну",
+  "одного",
+  "одной",
+  "два",
+  "две",
+  "двух",
+  "три",
+  "трёх",
+  "трех",
+  "четыре",
+  "четырёх",
+  "четырех",
+  "пять",
+  "пяти",
+  "шесть",
+  "шести",
+  "семь",
+  "семи",
+  "восемь",
+  "восьми",
+  "девять",
+  "девяти",
+  "десять",
+  "десяти",
+]);
+
+const SPAN_UNIT =
+  "день|дня|дней|неделю|недели|недель|неделя|месяц|месяца|месяцев";
+
+// Not how long: "через 2 дня" is a date, "каждые 3 дня" a step, "в 3 дня"
+// a time, "за 2 дня" before.
+const NOT_A_SPAN =
+  "(?<!(?<![\\p{L}\\p{N}])(?:через|каждые|каждый|каждую|каждое|раз в|за|во?|к|до|после|с|на|этот|эту|следующий|следующую|прошлый|прошлую) )";
+
+// The parts of the day, said once ("утром") or as a habit ("по утрам").
+// "С днём рождения" isn't the afternoon.
+const MORNING_HABIT = "каждое утро|по утрам|утрами";
+const EVENING_HABIT = "каждый вечер|по вечерам|вечерами";
 
 export const ru: Language = {
   id: "ru",
@@ -127,8 +175,8 @@ export const ru: Language = {
       rule("через день|каждый второй день|раз в два дня", (_, { out }) =>
         setDailyInterval(out, 2),
       ),
-      rule("(?:каждые|раз в) (\\d{1,2}) (?:дня|дней)", (match, { out }) =>
-        setDailyInterval(out, Number(match[1])),
+      rule(`(?:каждые|раз в) (${NUM}) (?:дня|дней)`, (match, { out }) =>
+        setDailyInterval(out, countOf(match[1])),
       ),
       rule(
         "по будням|в будни|по рабочим дням|каждый будний день|каждый рабочий день",
@@ -150,8 +198,11 @@ export const ru: Language = {
           );
         },
       ),
+      // 2026-10-09 decision 1 — "по утрам" is daily, at 09:00.
+      rule(MORNING_HABIT, (_, ctx) => setDailyDayPart(ctx, "morning")),
+      rule(EVENING_HABIT, (_, ctx) => setDailyDayPart(ctx, "evening")),
       rule(
-        "каждый день|ежедневно|каждое утро|каждый вечер|каждую ночь|по утрам|по вечерам",
+        "каждый день|ежедневно|каждую ночь",
         (_, { out }) => void (out.repeat = "DAILY"),
       ),
       rule(
@@ -163,21 +214,36 @@ export const ru: Language = {
         (_, { out }) => void (out.repeat = "MONTHLY"),
       ),
     ],
+    // The part of the day: its time unless the text gives one (engine).
+    [
+      rule(`утром|с утра|поутру|${MORNING_HABIT}`, (_, ctx) =>
+        setDayPart(ctx, "morning"),
+      ),
+      rule(
+        "(?<!(?<![\\p{L}\\p{N}])(?:с|со) )дн[её]м(?! рожд)|после обеда",
+        (_, ctx) => setDayPart(ctx, "afternoon"),
+      ),
+      rule(`вечером|${EVENING_HABIT}`, (_, ctx) => setDayPart(ctx, "evening")),
+    ],
     // sprint-20-tasks.md п.3 — сколько идёт повтор: «на месяц», «в течение
-    // 2 недель», «до 3 ноября». Только после повтора, иначе слова остаются.
+    // 2 недель», «до 3 ноября», «10 дней подряд», «3 раза». Без повтора
+    // срок сам говорит «каждый день» (решение 3 от 2026-10-09).
     [
       rule(
-        "(?:на|в течение) (?:(\\d{1,3}) )?(день|дня|дней|неделю|недели|недель|месяц|месяца|месяцев)",
-        (match, ctx) => {
-          const n = countOf(match[1]);
-          const unit = match[2].toLowerCase();
-          return setRepeatFor(
-            ctx,
-            UNIT_MONTH.test(unit)
-              ? { months: n }
-              : { days: UNIT_WEEK.test(unit) ? n * 7 : n },
-          );
-        },
+        `(?:на|в течени[еи]|на протяжении|в продолжение) (?:(${NUM}) )?(${SPAN_UNIT})(?: подряд)?`,
+        spanRule(UNITS),
+      ),
+      rule(
+        `${NOT_A_SPAN}(${NUM}) (${SPAN_UNIT})(?: подряд)?(?! назад| спустя)`,
+        spanRule(UNITS),
+      ),
+      // A bare "неделю" / "месяц" — only last, so "месяц" in the middle
+      // of a title stays.
+      rule(`${NOT_A_SPAN}()(неделю|месяц)(?=[\\s.!]*$)`, spanRule(UNITS)),
+      // "3 раза" — not "3 раза в день", the doses of a course (course.ts).
+      rule(
+        `(${NUM}) раза?(?! (?:в|за|на) (?:день|сутки|неделю|месяц))`,
+        (match, ctx) => setRepeatCount(ctx, countOf(match[1])),
       ),
       rule(`до (\\d{1,2})(?:-?го)? (${MONTH})`, (match, ctx) =>
         setRepeatUntil(
@@ -194,16 +260,31 @@ export const ru: Language = {
       rule("послезавтра", (_, ctx) => setDaysAhead(ctx, 2)),
       rule("завтра", (_, ctx) => setDaysAhead(ctx, 1)),
       rule("сегодня", (_, ctx) => setDaysAhead(ctx, 0)),
-      rule("через (\\d{1,3}) (?:день|дня|дней)", (match, ctx) =>
-        setDaysAhead(ctx, Number(match[1])),
+      rule(`через (${NUM}) (?:день|дня|дней)`, (match, ctx) =>
+        setDaysAhead(ctx, countOf(match[1])),
       ),
-      // sprint-20-tasks.md п.11 — "03/10" is October 3.
-      numericDateRule("на"),
+      rule(`через (?:(${NUM}) )?(?:неделю|недели|недель)`, (match, ctx) =>
+        setDaysAhead(ctx, countOf(match[1]) * 7),
+      ),
+      rule(`через (?:(${NUM}) )?(?:месяц|месяца|месяцев)`, (match, ctx) =>
+        setMonthsAhead(ctx, countOf(match[1])),
+      ),
+      rule("на (?:следующей|будущей) неделе", (_, ctx) =>
+        setNextWeeksDay(ctx, 1),
+      ),
+      // sprint-20-tasks.md п.11 — "03/10" is October 3; "в 20.10" a time.
+      numericDateRule("на", "во? |к |до "),
       rule(`(?:на )?(\\d{1,2})(?:-?го)? (${MONTH})\\.?`, (match, ctx) =>
         setMonthDay(ctx, monthOf(match[2]), Number(match[1])),
       ),
+      // "в следующую субботу" — next week's (engine's setNextWeeksDay).
+      rule(`(?:(?:во?|на) )?следующ\\p{L}* (${WEEKDAY})`, (match, ctx) => {
+        const day = weekdayOf(match[1]);
+        if (!day) return false;
+        setNextWeeksDay(ctx, day);
+      }),
       rule(
-        `(?:во?|на) (?:(?:следующ\\p{L}*|эт\\p{L}*|ближайш\\p{L}*) )?(${WEEKDAY})`,
+        `(?:во?|на) (?:(?:эт\\p{L}*|ближайш\\p{L}*) )?(${WEEKDAY})`,
         (match, ctx) => {
           const day = weekdayOf(match[1]);
           if (!day) return false;
@@ -277,7 +358,7 @@ export const ru: Language = {
   searchFillers: /^(?:для|чтобы|на)\s+/iu,
   kindWords: {
     workout: words(
-      "тренировк\\p{L}*|тренироваться|спортзал\\p{L}*|зал|зале|тренажёрн\\p{L}*|тренажерн\\p{L}*|бег|бегать|побегать|пробежк\\p{L}*|йог\\p{L}*|пилатес\\p{L}*|плавани\\p{L}*|бассейн\\p{L}*|фитнес\\p{L}*|растяжк\\p{L}*|кроссфит\\p{L}*|зарядк\\p{L}*",
+      "тренировк\\p{L}*|тренироваться|присед\\p{L}*|спортзал\\p{L}*|зал|зале|тренажёрн\\p{L}*|тренажерн\\p{L}*|бег|бегать|побегать|пробежк\\p{L}*|йог\\p{L}*|пилатес\\p{L}*|плавани\\p{L}*|бассейн\\p{L}*|фитнес\\p{L}*|растяжк\\p{L}*|кроссфит\\p{L}*|зарядк\\p{L}*",
     ),
     remote: words(
       "позвонить|звонок|звонк\\p{L}*|созвон\\p{L}*|набрать|написать|напиши|ответить|письм\\p{L}*|почт\\p{L}*|email|оплатить|оплат\\p{L}*|заплатить|заказать|записаться|забронировать|онлайн|zoom",

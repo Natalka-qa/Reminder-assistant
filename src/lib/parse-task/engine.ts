@@ -30,9 +30,16 @@ export type ParsedFields = {
    */
   repeatUntil?: string;
   /**
-   * п.5–6 — one dose of a course ("twice a day for a month", course.ts):
-   * its time is the app's default for that part of the day, so the task
-   * is Flexible and reminded at its start.
+   * The repeat's end as a number of times: "3 раза", "10 days in a row",
+   * "на 5 дней" (a daily repeat, one day apart). Only with a repeat; never
+   * together with `repeatUntil`.
+   */
+  repeatCount?: number;
+  /**
+   * п.5–6 — the time is the app's default for a part of the day, not one
+   * the text gave: a course's dose ("twice a day for a month", course.ts)
+   * or a part of the day alone ("утром", "in the evening" — 09:00, 14:00,
+   * 20:00). So the task is Flexible and reminded at its start.
    */
   course?: boolean;
   /**
@@ -68,9 +75,25 @@ export type RuleContext = {
   searchNoun: boolean;
   /**
    * п.3 — "for a month": how long the repeat runs, made a last day once
-   * the date is known (the date rules come after the repeat's).
+   * the date is known (the date rules come after the repeat's). `byDay` —
+   * said in days ("5 дней"): a daily repeat a day apart counts them.
    */
-  repeatFor?: { days?: number; months?: number };
+  repeatFor?: { days?: number; months?: number; byDay?: boolean };
+  /**
+   * "утром", "in the evening", "по вечерам": the part of the day the task
+   * is in — its default time when the text gives none (see runLanguage).
+   */
+  partOfDay?: DayPart;
+};
+
+/** A part of the day with a time of its own. */
+export type DayPart = Exclude<PartOfDay, "any">;
+
+/** The app's time for each part of the day (and for a course's doses). */
+export const PART_OF_DAY_TIMES: Record<DayPart, string> = {
+  morning: "09:00",
+  afternoon: "14:00",
+  evening: "20:00",
 };
 
 /** Return false to reject the match: nothing is set, nothing consumed. */
@@ -192,15 +215,64 @@ export function setDailyInterval(out: ParsedFields, interval: number): boolean {
   return true;
 }
 
-/** п.3 — "for a month", "на 2 недели": only a repeat runs for a while. */
+/**
+ * п.3 — "for a month", "на 2 недели", "5 дней": how long a repeat runs. A
+ * span with no repeat of its own says "daily" (2026-10-09 decision 3) —
+ * one that's more than a day: "на день" alone is no repeat.
+ */
 export function setRepeatFor(
   ctx: RuleContext,
-  span: { days?: number; months?: number },
+  span: { days?: number; months?: number; byDay?: boolean },
 ): boolean {
   const amount = span.days ?? span.months ?? 0;
-  if (!ctx.out.repeat || amount < 1 || (span.days ?? 0) > 366) return false;
-  if ((span.months ?? 0) > 12) return false;
+  if (!Number.isInteger(amount) || amount < 1) return false;
+  if ((span.days ?? 0) > 366 || (span.months ?? 0) > 12) return false;
+  if (!ctx.out.repeat) {
+    if (span.days === 1) return false;
+    ctx.out.repeat = "DAILY";
+  }
   ctx.repeatFor = span;
+  return true;
+}
+
+/** A span's count and unit word as days or months. */
+function spanUnit(
+  n: number,
+  unit: string,
+  units: { month: RegExp; week: RegExp },
+): { days?: number; months?: number; byDay?: boolean } {
+  if (units.month.test(unit)) return { months: n };
+  if (units.week.test(unit)) return { days: n * 7 };
+  return { days: n, byDay: true };
+}
+
+/** A span rule's apply: the count in `match[1]`, the unit in `match[2]`. */
+export function spanRule(units: { month: RegExp; week: RegExp }): Apply {
+  return (match, ctx) =>
+    setRepeatFor(ctx, spanUnit(countOf(match[1]), match[2], units));
+}
+
+/**
+ * "3 раза", "5 times", "3 рази": the repeat ends after that many times. A
+ * count with no repeat of its own says "daily", as a span does.
+ */
+export function setRepeatCount(ctx: RuleContext, count: number): boolean {
+  if (!Number.isInteger(count) || count < 2 || count > 366) return false;
+  ctx.out.repeat ??= "DAILY";
+  ctx.out.repeatCount = count;
+  return true;
+}
+
+/** "утром", "in the evening": the task's part of the day. */
+export function setDayPart(ctx: RuleContext, part: DayPart): boolean {
+  ctx.partOfDay = part;
+  return true;
+}
+
+/** "по утрам", "every evening", "щовечора": daily, in that part of the day. */
+export function setDailyDayPart(ctx: RuleContext, part: DayPart): boolean {
+  ctx.out.repeat = "DAILY";
+  ctx.partOfDay = part;
   return true;
 }
 
@@ -211,36 +283,117 @@ export function setRepeatUntil(ctx: RuleContext, date: string | null): boolean {
   return true;
 }
 
-/** "a"/"one" → 1, "2" → 2 — the count in "for a month", "на 2 недели". */
+// Numbers written as words, in every form a count takes after a
+// preposition ("трёх недель", "п'яти днів"). Russian and Ukrainian share
+// most of them.
+export const NUMBER_WORDS: Record<string, number> = {
+  a: 1,
+  an: 1,
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  один: 1,
+  одна: 1,
+  одну: 1,
+  одного: 1,
+  одной: 1,
+  два: 2,
+  две: 2,
+  дві: 2,
+  двух: 2,
+  двох: 2,
+  три: 3,
+  трёх: 3,
+  трех: 3,
+  трьох: 3,
+  четыре: 4,
+  чотири: 4,
+  четырёх: 4,
+  четырех: 4,
+  чотирьох: 4,
+  пять: 5,
+  "п'ять": 5,
+  пяти: 5,
+  "п'яти": 5,
+  шесть: 6,
+  шість: 6,
+  шести: 6,
+  семь: 7,
+  сім: 7,
+  семи: 7,
+  восемь: 8,
+  вісім: 8,
+  восьми: 8,
+  девять: 9,
+  "дев'ять": 9,
+  девяти: 9,
+  "дев'яти": 9,
+  десять: 10,
+  десяти: 10,
+};
+
+// The apostrophe in п'ять comes typed several ways.
+const APOSTROPHES = /['’ʼ`]/gu;
+
+/**
+ * The number words of one language as a pattern, longest first, with any
+ * apostrophe typed any way. With `\d{1,3}` — a count in digits or words.
+ */
+export function numberPattern(wordList: string[]): string {
+  const alternatives = [...wordList]
+    .sort((a, b) => b.length - a.length)
+    .map((word) => word.replace("'", "['’ʼ`]"));
+  return `\\d{1,3}|${alternatives.join("|")}`;
+}
+
+/** "a"/"one" → 1, "2" → 2, "трёх" → 3 — the count in "на 2 недели". */
 export function countOf(word: string | undefined): number {
   if (!word) return 1;
   const n = Number(word);
-  return Number.isFinite(n) ? n : 1;
+  if (Number.isFinite(n)) return n;
+  return NUMBER_WORDS[word.toLowerCase().replace(APOSTROPHES, "'")] ?? 1;
 }
 
 /**
  * sprint-20-tasks.md п.11 — a date in digits is always day/month: "03/10"
- * is October 3 (the users are in Europe). With "/" it's a date with or
- * without a year ("3/10", "03/10/2026"); with "." only with one
- * ("03.10.26") — a bare "03.10" stays a time, as "в 9.30" always was.
- * `prefix` is the language's "on" ("on", "на"). A date or slash next to
- * it ("2026/03/10", "1/2/3") isn't taken apart.
+ * is October 3 (the users are in Europe). With "/" with or without a year
+ * ("3/10", "03/10/2026"); with "." too ("03.10.26", and since 2026-10-09
+ * decision 2 "20.10" — a two-digit month, not followed by a unit). A dotted
+ * one right after the language's "at" (`notAfter`: "в 20.10", "at 20.10")
+ * stays a time, as does one that can't be a date ("9.30"). `prefix` is the
+ * language's "on" ("on", "на"). A date or slash next to it ("2026/03/10",
+ * "1/2/3") isn't taken apart.
  */
-export function numericDateRule(prefix: string): Rule {
-  return rule(`(?:${prefix} )?${NUMERIC_DATE}`, (match, ctx) => {
-    const date = numericDateOf(match, 1, ctx.today);
-    if (!date) return false;
-    ctx.out.date = date;
-    return true;
-  });
+export function numericDateRule(prefix: string, notAfter: string): Rule {
+  return rule(
+    `(?<!(?<![\\p{L}\\p{N}])(?:${notAfter}))(?:${prefix} )?${NUMERIC_DATE}`,
+    (match, ctx) => {
+      const date = numericDateOf(match, 1, ctx.today);
+      if (!date) return false;
+      ctx.out.date = date;
+      return true;
+    },
+  );
 }
 
+// What can follow "20.10" when it's a time or an amount: "9.30 утра",
+// "1.25 hours", "2.10 ч".
+const TIME_OR_AMOUNT_AFTER =
+  "(?! ?(?:h|hrs?|hours?|m|mins?|minutes?|am|pm|a\\.m|p\\.m|ч|час\\p{L}*|мин\\p{L}*|утра|дня|вечера|ночи|год\\p{L}*|хв\\p{L}*|ранку|вечора|ночі)(?!\\p{L}))";
+
 /**
- * A date in digits, five groups: day, then month and year after "/", or
- * month and year after "." (see numericDateRule).
+ * A date in digits, six groups: day, then month and year after "/", or
+ * month and year after ".", or a two-digit month after "." with no year
+ * (see numericDateRule).
  */
-export const NUMERIC_DATE =
-  "(?<![/.\\d])(\\d{1,2})(?:/(\\d{1,2})(?:/(\\d{4}|\\d{2}))?|\\.(\\d{1,2})\\.(\\d{4}|\\d{2}))(?![/.]\\d)";
+export const NUMERIC_DATE = `(?<![/.\\d])(\\d{1,2})(?:/(\\d{1,2})(?:/(\\d{4}|\\d{2}))?|\\.(\\d{1,2})\\.(\\d{4}|\\d{2})|\\.(\\d{2})${TIME_OR_AMOUNT_AFTER})(?![/.]\\d)`;
 
 /** The date NUMERIC_DATE matched, its groups from `first` on; or null. */
 export function numericDateOf(
@@ -249,7 +402,9 @@ export function numericDateOf(
   today: string,
 ): string | null {
   const day = Number(match[first]);
-  const month = Number(match[first + 1] ?? match[first + 3]);
+  const month = Number(
+    match[first + 1] ?? match[first + 3] ?? match[first + 5],
+  );
   const year = match[first + 2] ?? match[first + 4];
   if (year === undefined) return monthDayDate(today, month, day);
   return calendarDate(
@@ -265,10 +420,37 @@ export function setNextWeekday(ctx: RuleContext, weekday: number): void {
   ctx.out.date = shiftDate(ctx.today, ahead);
 }
 
+/**
+ * "в следующую субботу", "next Saturday": that day of next week (weeks
+ * start on Monday) — from Friday, October 9, Saturday the 17th, not the
+ * 10th. "Next week" alone is its Monday.
+ */
+export function setNextWeeksDay(ctx: RuleContext, weekday: number): void {
+  const nextMonday = shiftDate(ctx.today, 8 - isoWeekday(ctx.today));
+  ctx.out.date = shiftDate(nextMonday, weekday - 1);
+}
+
 export function setDaysAhead(ctx: RuleContext, days: number): boolean {
-  if (days > 366) return false;
+  if (!Number.isInteger(days) || days < 0 || days > 366) return false;
   ctx.out.date = shiftDate(ctx.today, days);
   return true;
+}
+
+/** "через месяц", "in 2 months": the same day that many months on. */
+export function setMonthsAhead(ctx: RuleContext, months: number): boolean {
+  if (!Number.isInteger(months) || months < 1 || months > 12) return false;
+  ctx.out.date = shiftMonths(ctx.today, months);
+  return true;
+}
+
+/** The same day `months` on — or that month's last, if it's shorter. */
+function shiftMonths(date: string, months: number): string {
+  const [y, m, d] = date.split("-").map(Number);
+  const total = m - 1 + months;
+  const year = y + Math.floor(total / 12);
+  const month = (total % 12) + 1;
+  const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return calendarDate(year, month, Math.min(d, last))!;
 }
 
 export function setDuration(out: ParsedFields, minutes: number): boolean {
@@ -297,7 +479,8 @@ export function startTimeSearch(ctx: RuleContext, named: boolean): void {
 
 /**
  * A part of the day narrows a time search ("evening"). Outside one it
- * sets nothing and stays in the title — the spec's "don't guess a time".
+ * sets nothing here: the language's part-of-day rules read it as the
+ * part's time instead (setDayPart, 2026-10-09 decision 1).
  */
 export function setPartOfDay(out: ParsedFields, partOfDay: PartOfDay): boolean {
   if (!out.timeSearch) return false;
@@ -379,22 +562,33 @@ export function runLanguage(
   }
 
   // sprint-20-tasks.md п.3 — "for a month" runs from the task's date: the
-  // last day is the day before the same date a month on.
-  if (ctx.repeatFor && out.repeat && !out.repeatUntil) {
+  // last day is the day before the same date a month on. Days of a daily
+  // repeat a day apart ("10 дней подряд") are a count; with a step ("через
+  // день 10 дней") they're still a last day.
+  if (ctx.repeatFor && out.repeat && !out.repeatUntil && !out.repeatCount) {
     const start = out.date ?? today;
-    const { days, months } = ctx.repeatFor;
-    if (days) {
+    const { days, months, byDay } = ctx.repeatFor;
+    if (days && byDay && out.repeat === "DAILY" && !out.repeatInterval) {
+      out.repeatCount = days;
+    } else if (days) {
       out.repeatUntil = shiftDate(start, days - 1);
     } else if (months) {
-      const [y, m, d] = start.split("-").map(Number);
-      const total = m - 1 + months;
-      const year = y + Math.floor(total / 12);
-      const month = (total % 12) + 1;
-      const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
-      out.repeatUntil = shiftDate(
-        calendarDate(year, month, Math.min(d, last))!,
-        -1,
-      );
+      out.repeatUntil = shiftDate(shiftMonths(start, months), -1);
+    }
+  }
+
+  // 2026-10-09 decision 1 — a part of the day alone ("Позвонить маме
+  // утром") is its time: 09:00, 14:00 or 20:00, Flexible like a course's
+  // dose. A time the text gives wins — "вечером в 8" is 20:00, though.
+  if (ctx.partOfDay && !out.timeSearch) {
+    if (!out.time) {
+      out.time = PART_OF_DAY_TIMES[ctx.partOfDay];
+      out.course = true;
+    } else if (ctx.partOfDay === "evening") {
+      const hour = Number(out.time.slice(0, 2));
+      if (hour >= 1 && hour < 12) {
+        out.time = `${hour + 12}${out.time.slice(2)}`;
+      }
     }
   }
 

@@ -14,6 +14,10 @@ import { SettingsForm } from "./settings-form";
 import { TelegramConnect } from "./telegram-connect";
 import { GoogleCalendarConnect } from "./google-calendar-connect";
 import { SignOutButton } from "./sign-out-button";
+// Photo upload is off until a Vercel Blob store is connected — see
+// profile-photo.tsx and the commented-out <ProfilePhoto> below.
+// import { ProfilePhoto } from "./profile-photo";
+// import { isAvatarUploadEnabled } from "@/lib/blob/blob.config";
 import { GroupedRows, GroupedRow } from "@/components/ui/grouped-rows";
 
 // design_handoff_reminder_assistant/README.md § Settings.
@@ -32,6 +36,13 @@ export default async function SettingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center gap-4">
+        {/* <ProfilePhoto
+          image={user?.image ?? null}
+          initial={(displayName(user?.name, user?.email) ?? user?.email ?? "?")
+            .charAt(0)
+            .toUpperCase()}
+          uploadEnabled={isAvatarUploadEnabled()}
+        /> */}
         {user?.image ? (
           // External OAuth avatar URL; next/image would need remotePatterns
           // config for a single small circular image that's never resized.

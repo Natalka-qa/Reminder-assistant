@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import {
   Select,
   SelectContent,
@@ -24,16 +25,32 @@ export function TimeSelect({
   value,
   options,
   allowNone = false,
+  align = "end",
   onChange,
 }: {
   ariaLabel: string;
   value: number | null;
   options: number[];
   allowNone?: boolean;
+  /** Which edge of the pill the list hangs from: "end" in a row's value
+   * column, "start" where the select leads a line (work hours). */
+  align?: "start" | "end";
   onChange: (minutes: number | null) => void;
 }) {
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // The list hangs under the pill and is capped in height, so it opens on
+  // the chosen time instead of 00:00.
+  function showChosen(open: boolean) {
+    if (!open) return;
+    listRef.current
+      ?.querySelector("[data-selected]")
+      ?.scrollIntoView({ block: "center" });
+  }
+
   return (
     <Select
+      onOpenChangeComplete={showChosen}
       value={value === null ? NO_LIMIT : String(value)}
       onValueChange={(next) => {
         if (next === null) return;
@@ -42,7 +59,7 @@ export function TimeSelect({
     >
       <SelectTrigger
         aria-label={ariaLabel}
-        className="h-auto w-fit gap-1 border-0 bg-transparent p-0 text-[15px]"
+        variant="inline"
       >
         {/* Select.Value shows the raw value unless told how to format it. */}
         <SelectValue>
@@ -51,7 +68,12 @@ export function TimeSelect({
           }
         </SelectValue>
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent
+        ref={listRef}
+        alignItemWithTrigger={false}
+        align={align}
+        className="max-h-[min(18rem,var(--available-height))]"
+      >
         {allowNone && <SelectItem value={NO_LIMIT}>No limit</SelectItem>}
         {options.map((minutes) => (
           <SelectItem key={minutes} value={String(minutes)}>

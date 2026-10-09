@@ -65,10 +65,13 @@ describe("Russian", () => {
     expect(parsed.durationMinutes).toBeUndefined();
   });
 
-  it("sets no time for 'утром' — the spec says don't guess", () => {
+  // 2026-10-09 decision 1 — "утром" is 09:00, Flexible (before, no time).
+  it("reads 'утром' as 09:00, a default time, not a given one", () => {
     expect(parse("Позвонить маме утром")).toEqual({
-      title: "Позвонить маме утром",
-      hits: [],
+      title: "Позвонить маме",
+      time: "09:00",
+      course: true,
+      hits: ["утром"],
       kind: "remote",
       language: "ru",
       durationGuess: 5,

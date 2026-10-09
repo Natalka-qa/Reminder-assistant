@@ -147,10 +147,10 @@ export function SettingsForm({
               onValueChange={handleTimezoneChange}
               disabled={pending}
             >
-              <SelectTrigger className="h-auto w-fit gap-1 border-0 bg-transparent p-0 text-[15px]">
+              <SelectTrigger variant="inline">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent alignItemWithTrigger={false} align="end">
                 {timezones.map((tz) => (
                   <SelectItem key={tz} value={tz}>
                     {tz}
@@ -192,10 +192,7 @@ export function SettingsForm({
                 })
               }
             >
-              <SelectTrigger
-                aria-label="Default reminder"
-                className="h-auto w-fit gap-1 border-0 bg-transparent p-0 text-[15px]"
-              >
+              <SelectTrigger aria-label="Default reminder" variant="inline">
                 <SelectValue>
                   {(value: string) =>
                     REMINDER_CHOICES.find(
@@ -204,7 +201,7 @@ export function SettingsForm({
                   }
                 </SelectValue>
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent alignItemWithTrigger={false} align="end">
                 {REMINDER_CHOICES.map((choice) => (
                   <SelectItem key={choice.value} value={String(choice.value)}>
                     {choice.label}

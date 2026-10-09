@@ -12,6 +12,7 @@ import { userRepository } from "@/features/user/user.repository";
 import { runInTransaction } from "@/lib/db/transaction";
 import { occurrenceService } from "@/features/scheduling/occurrence.service";
 import {
+  AvatarUploadError,
   InvalidNameError,
   InvalidReminderPreferencesError,
   InvalidTelegramSummaryError,
@@ -23,6 +24,13 @@ import {
   createTelegramLinkCode,
   isTelegramLinkCodeActive,
 } from "@/features/user/telegram-link-code";
+import {
+  avatarPathname,
+  isOwnAvatarUrl,
+  parseAvatarFile,
+} from "@/features/user/avatar";
+import { isAvatarUploadEnabled } from "@/lib/blob/blob.config";
+import { deleteBlobQuietly, uploadPublicBlob } from "@/lib/blob/blob-storage";
 
 // Auth.js's own default session.maxAge — the same 30 days as after Google
 // ("Расхождения" п.4).
@@ -61,6 +69,48 @@ export const userService = {
       );
     }
     return userRepository.updateName(userId, result.data);
+  },
+
+  // Settings → "Upload photo". The browser sends a small square JPEG; it's
+  // checked again here, stored in Vercel Blob, and replaces User.image. The
+  // previous photo is deleted only if this app uploaded it — never Google's.
+  async setAvatar(userId: string, input: unknown): Promise<string> {
+    if (!isAvatarUploadEnabled()) {
+      throw new AvatarUploadError("Photo upload isn't set up yet.");
+    }
+    const { file, contentType } = await parseAvatarFile(input);
+    const before = await userRepository.findImage(userId);
+
+    let url: string;
+    try {
+      url = await uploadPublicBlob(
+        avatarPathname(userId, contentType),
+        file,
+        contentType,
+      );
+    } catch (error) {
+      console.error("Avatar upload failed", error);
+      throw new AvatarUploadError("Couldn't upload the photo. Try again.");
+    }
+
+    try {
+      await userRepository.updateImage(userId, url);
+    } catch (error) {
+      await deleteBlobQuietly(url);
+      throw error;
+    }
+    if (isOwnAvatarUrl(before?.image)) await deleteBlobQuietly(before.image);
+    return url;
+  },
+
+  // Settings → "Remove photo": back to the initial letter. Works without a
+  // Blob store too (a Google photo has nothing to delete).
+  async removeAvatar(userId: string): Promise<void> {
+    const before = await userRepository.findImage(userId);
+    await userRepository.updateImage(userId, null);
+    if (isOwnAvatarUrl(before?.image) && isAvatarUploadEnabled()) {
+      await deleteBlobQuietly(before.image);
+    }
   },
 
   // /onboarding finished or skipped: the app stops sending them there.

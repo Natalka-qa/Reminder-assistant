@@ -565,6 +565,20 @@ describe("how a series ends and steps (sprint-20 п.3–4)", () => {
     });
   });
 
+  it("reads a count from the text as After N times", () => {
+    expect(
+      resolveTaskFields({ repeat: "DAILY", repeatCount: 5 }, {}, DEFAULTS)
+        .repeatEnd,
+    ).toEqual({ kind: "AFTER_COUNT", count: 5 });
+    expect(
+      resolveTaskFields(
+        { repeat: "DAILY", repeatCount: 5 },
+        { repeatEnd: { kind: "NEVER" } },
+        DEFAULTS,
+      ).repeatEnd,
+    ).toEqual({ kind: "NEVER" });
+  });
+
   it("a hand-picked end wins over the text", () => {
     expect(
       resolveTaskFields(

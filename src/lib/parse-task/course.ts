@@ -1,4 +1,5 @@
 import { parseTask, type ParsedTask } from "@/lib/parse-task";
+import { PART_OF_DAY_TIMES } from "@/lib/parse-task/engine";
 import { splitTaskPhrase } from "@/lib/parse-task/split";
 
 // sprint-20-tasks.md п.5–6 — "Pills twice a day for a month", "Таблетки
@@ -6,8 +7,9 @@ import { splitTaskPhrase } from "@/lib/parse-task/split";
 // day. A task has one time for all its days (and a series one day per
 // date), so each dose is its own task — "Pills — morning" at 09:00 and
 // "Pills — evening" at 20:00 — sharing the repeat and its end. Only for a
-// course: the text must say how long it runs or every N days; "every
-// morning" alone stays a task without a time, as in Sprint 18.
+// course: the text must say how long it runs (a span or a count) or every
+// N days. A single part of the day ("every morning") is parseTask's own:
+// the part's time (2026-10-09 decision 1).
 
 const L = "[\\p{L}\\p{N}]";
 const words = (source: string) =>
@@ -54,42 +56,16 @@ const DAYPARTS = words(
   ].join("|"),
 );
 
-// One dose at one part of the day: "every other day in the evening for a
-// month", "через день вечером в течение месяца" (backlog 2026-10-03 №2).
-const ONE_DAYPART = words(
-  [
-    "(?<!(?:every|each) )(?:in the )?(morning|afternoon|evening)s?",
-    "(утром|дн[её]м|вечером)",
-    "(вранці|зранку|вдень|ввечері|увечері)",
-  ].join("|"),
-);
-
-const PART_OF_WORD: Record<string, 0 | 1 | 2> = {
-  morning: 0,
-  afternoon: 1,
-  evening: 2,
-  утром: 0,
-  днём: 1,
-  днем: 1,
-  вечером: 2,
-  вранці: 0,
-  зранку: 0,
-  вдень: 1,
-  ввечері: 2,
-  увечері: 2,
-};
-
-const PART_TIMES = ["09:00", "14:00", "20:00"] as const;
-
+const { morning, afternoon, evening } = PART_OF_DAY_TIMES;
 const DOSES: Record<number, { time: string; part: 0 | 1 | 2 }[]> = {
   2: [
-    { time: "09:00", part: 0 },
-    { time: "20:00", part: 2 },
+    { time: morning, part: 0 },
+    { time: evening, part: 2 },
   ],
   3: [
-    { time: "09:00", part: 0 },
-    { time: "14:00", part: 1 },
-    { time: "20:00", part: 2 },
+    { time: morning, part: 0 },
+    { time: afternoon, part: 1 },
+    { time: evening, part: 2 },
   ],
 };
 
@@ -135,9 +111,7 @@ export function splitCoursePhrase(
     rest = `${rest} ${DAILY[parsed.language]}`;
     parsed = parseTask(rest, today);
   }
-  const isCourse =
-    parsed.repeatUntil !== undefined || parsed.repeatInterval !== undefined;
-  if (!isCourse || parsed.time || parsed.timeSearch || !parsed.title) {
+  if (!isCourse(parsed) || parsed.time || parsed.timeSearch || !parsed.title) {
     return null;
   }
 
@@ -150,36 +124,23 @@ export function splitCoursePhrase(
   }));
 }
 
-/**
- * "Medicine every other day in the evening for a month": one dose, so one
- * task — at the part of the day's time, the word out of the title. Only
- * for a course (a span or a step) and with no time of its own; anything
- * else is parseTask's reading as it is.
- */
-export function parseTaskText(text: string, today: string): ParsedTask {
-  return oneDoseCourse(text, today) ?? parseTask(text, today);
+/** A course runs for a while (a last day or a count) or every N days. */
+function isCourse(parsed: ParsedTask): boolean {
+  return (
+    parsed.repeatUntil !== undefined ||
+    parsed.repeatCount !== undefined ||
+    parsed.repeatInterval !== undefined
+  );
 }
 
-function oneDoseCourse(text: string, today: string): ParsedTask | null {
-  const found = [...text.matchAll(ONE_DAYPART)];
-  if (found.length !== 1) return null;
-  const word = found[0].slice(1).find(Boolean)!.toLowerCase();
-  const part = PART_OF_WORD[word];
-  if (part === undefined) return null;
-  const rest = text.replace(found[0][0], " ").replace(/\s+/g, " ").trim();
-  const parsed = parseTask(rest, today);
-  const isCourse =
-    parsed.repeat !== undefined &&
-    (parsed.repeatUntil !== undefined || parsed.repeatInterval !== undefined);
-  if (!isCourse || parsed.time || parsed.timeSearch || !parsed.title) {
-    return null;
-  }
-  return {
-    ...parsed,
-    time: PART_TIMES[part],
-    course: true,
-    hits: [...parsed.hits, found[0][0].trim()],
-  };
+/**
+ * One task's reading of `text`, as the New task form and the bot show it.
+ * "Medicine every other day in the evening for a month" — one dose, so one
+ * task at the part of the day's time — is parseTask's own since every part
+ * of the day sets its time (2026-10-09 decision 1).
+ */
+export function parseTaskText(text: string, today: string): ParsedTask {
+  return parseTask(text, today);
 }
 
 /**

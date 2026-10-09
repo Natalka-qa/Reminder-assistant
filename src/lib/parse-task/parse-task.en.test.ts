@@ -46,10 +46,14 @@ describe("§ 11 test cases", () => {
     expect(parse("Call Mom at 18:00").date).toBeUndefined();
   });
 
-  it("5. every morning repeats daily and sets no time", () => {
-    const parsed = parse("Take vitamins every morning");
-    expect(parsed).toMatchObject({ title: "Take vitamins", repeat: "DAILY" });
-    expect(parsed.time).toBeUndefined();
+  // 2026-10-09 decision 1 — before, no time.
+  it("5. every morning repeats daily at 09:00", () => {
+    expect(parse("Take vitamins every morning")).toMatchObject({
+      title: "Take vitamins",
+      repeat: "DAILY",
+      time: "09:00",
+      course: true,
+    });
   });
 
   it("13. an invalid time stays in the title", () => {

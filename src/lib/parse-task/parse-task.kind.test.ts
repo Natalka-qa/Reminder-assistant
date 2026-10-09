@@ -23,6 +23,11 @@ describe("task kind by words", () => {
     ["Пробіжка вранці щодня", "workout"],
     ["Зателефонувати мамі", "remote"],
     ["Написати листа директору", "remote"],
+    ["Приседать утром 5 дней", "workout"],
+    ["Приседания 50 раз", "workout"],
+    ["Squats every morning", "workout"],
+    ["Присідати щоранку", "workout"],
+    ["Присідання ввечері", "workout"],
   ])("%s → %s", (text, kind) => {
     expect(kindOf(text)).toBe(kind);
   });

@@ -36,13 +36,17 @@ describe("dates in digits (day/month)", () => {
     expect(parse("Old note 01/01/2025").date).toBe("2025-01-01");
   });
 
-  it('leaves a dotted day/month without a year a time ("9.30")', () => {
+  // 2026-10-09 decision 2 — a dotted day.month without a year is a date
+  // too; after "at"/"в" it's a time, as is one that can't be a date.
+  it('reads "03.10" as a date, "at 9.30" and "9.30" as a time', () => {
     const atNine = parse("Call Mom at 9.30");
     expect(atNine).toMatchObject({ title: "Call Mom", time: "09:30" });
     expect(atNine.date).toBeUndefined();
     const bare = parse("Standup 03.10");
-    expect(bare).toMatchObject({ title: "Standup", time: "03:10" });
-    expect(bare.date).toBeUndefined();
+    expect(bare).toMatchObject({ title: "Standup", date: "2026-10-03" });
+    expect(bare.time).toBeUndefined();
+    expect(parse("Standup 9.30")).toMatchObject({ time: "09:30" });
+    expect(parse("Standup at 03.10")).toMatchObject({ time: "03:10" });
   });
 
   it("leaves a day that doesn't exist in the title", () => {

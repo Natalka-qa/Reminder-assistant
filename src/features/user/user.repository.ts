@@ -23,6 +23,16 @@ export const userRepository = {
     return prisma.user.update({ where: { id }, data: { name } });
   },
 
+  // Settings → profile photo: an uploaded one's URL, or null for the
+  // initial letter. (Google's photo is set once, when the account is made.)
+  findImage(id: string) {
+    return prisma.user.findUnique({ where: { id }, select: { image: true } });
+  },
+
+  updateImage(id: string, image: string | null) {
+    return prisma.user.update({ where: { id }, data: { image } });
+  },
+
   // Only the first time: finishing again (another tab) keeps the date.
   markOnboarded(id: string, at: Date) {
     return prisma.user.updateMany({

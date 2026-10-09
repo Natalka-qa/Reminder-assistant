@@ -6,6 +6,8 @@ import { getCurrentUser } from "@/lib/auth/dal";
 import { onboardingNextPath } from "@/lib/validation/user";
 import { userService } from "@/features/user/user.service";
 import {
+  AvatarUploadError,
+  InvalidAvatarError,
   InvalidNameError,
   InvalidReminderPreferencesError,
   InvalidTelegramSummaryError,
@@ -301,6 +303,43 @@ export async function updateNameAction(
     }
     throw error;
   }
+  revalidatePath("/", "layout");
+  return { status: "success" };
+}
+
+// Settings → profile photo. FormData with one "photo" file, already shrunk
+// in the browser to a 256×256 JPEG — far under the 1 MB action body limit.
+export async function updateAvatarAction(
+  formData: FormData,
+): Promise<{ status: "success" | "error"; message?: string }> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { status: "error", message: "Not signed in." };
+  }
+  try {
+    await userService.setAvatar(user.id, formData.get("photo"));
+  } catch (error) {
+    if (
+      error instanceof InvalidAvatarError ||
+      error instanceof AvatarUploadError
+    ) {
+      return { status: "error", message: error.message };
+    }
+    throw error;
+  }
+  revalidatePath("/", "layout");
+  return { status: "success" };
+}
+
+export async function removeAvatarAction(): Promise<{
+  status: "success" | "error";
+  message?: string;
+}> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { status: "error", message: "Not signed in." };
+  }
+  await userService.removeAvatar(user.id);
   revalidatePath("/", "layout");
   return { status: "success" };
 }
