@@ -73,6 +73,20 @@ describe("splitCoursePhrase", () => {
     });
   });
 
+  it("counts a course in days or times too", () => {
+    expect(
+      doses("Pills twice a day for 10 days")?.map((d) => [d.title, d.time]),
+    ).toEqual([
+      ["Pills — morning", "09:00"],
+      ["Pills — evening", "20:00"],
+    ]);
+    expect(
+      splitCoursePhrase("Ліки двічі на день 5 днів", TODAY)?.map(
+        (d) => d.repeatCount,
+      ),
+    ).toEqual([5, 5]);
+  });
+
   it("is no course without a span or a step", () => {
     expect(splitCoursePhrase("Vitamins twice a day", TODAY)).toBeNull();
     expect(
@@ -125,12 +139,20 @@ describe("parseTaskText — one dose (backlog 2026-10-03 №2)", () => {
     ).toMatchObject({ title: "Ліки", time: "20:00" });
   });
 
-  it("leaves every evening and a lone evening as they were", () => {
-    const daily = parseTaskText("Pills every evening for a month", TODAY);
-    expect(daily).toMatchObject({ repeat: "DAILY", repeatUntil: "2026-10-25" });
-    expect(daily.time).toBeUndefined();
+  // 2026-10-09 decision 1 — before, both stayed without a time.
+  it("gives every evening and a lone evening their time too", () => {
     expect(
-      parseTaskText("Call mom in the evening", TODAY).time,
-    ).toBeUndefined();
+      parseTaskText("Pills every evening for a month", TODAY),
+    ).toMatchObject({
+      repeat: "DAILY",
+      repeatUntil: "2026-10-25",
+      time: "20:00",
+      course: true,
+    });
+    expect(parseTaskText("Call mom in the evening", TODAY)).toMatchObject({
+      title: "Call mom",
+      time: "20:00",
+      course: true,
+    });
   });
 });

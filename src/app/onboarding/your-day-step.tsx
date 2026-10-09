@@ -110,10 +110,7 @@ export function YourDayStep({
               value={String(reminder)}
               onValueChange={(value) => value !== null && setReminder(+value)}
             >
-              <SelectTrigger
-                aria-label="Default reminder"
-                className="h-auto w-fit gap-1 border-0 bg-transparent p-0 text-[15px]"
-              >
+              <SelectTrigger aria-label="Default reminder" variant="inline">
                 <SelectValue>
                   {(value: string) =>
                     REMINDER_CHOICES.find(
@@ -122,7 +119,7 @@ export function YourDayStep({
                   }
                 </SelectValue>
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent alignItemWithTrigger={false} align="end">
                 {REMINDER_CHOICES.map((choice) => (
                   <SelectItem key={choice.value} value={String(choice.value)}>
                     {choice.label}
@@ -138,9 +135,10 @@ export function YourDayStep({
         <p className="text-[15px] font-medium">Work hours</p>
         <WeekdayPicker selected={prefs.workDays} onToggle={toggleWorkDay} />
         {prefs.workDays.length > 0 && (
-          <div className="text-text-primary flex items-center gap-2 text-[15px]">
+          <div className="text-text-primary flex items-center gap-3 text-[15px]">
             <TimeSelect
               ariaLabel="Work starts"
+              align="start"
               value={prefs.workStartMinutes}
               options={HALF_HOURS.slice(0, -1)}
               onChange={(minutes) =>
@@ -151,6 +149,7 @@ export function YourDayStep({
             <span className="text-text-secondary">to</span>
             <TimeSelect
               ariaLabel="Work ends"
+              align="start"
               value={prefs.workEndMinutes}
               options={HALF_HOURS.slice(1)}
               onChange={(minutes) =>

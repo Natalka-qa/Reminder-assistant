@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { unstable_rethrow } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -68,7 +69,10 @@ export function TaskActions({
         if (result?.status === "error" && result.message) {
           toast.error(result.message);
         }
-      } catch {
+      } catch (error) {
+        // A successful delete redirects to /tasks, and the awaited action
+        // rejects with that redirect — let Next handle it, not the toast.
+        unstable_rethrow(error);
         toast.error("Something went wrong. Please try again.");
       }
     });

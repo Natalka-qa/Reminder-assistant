@@ -4,21 +4,28 @@ import {
   monthDayDate,
   NUMERIC_DATE,
   numericDateOf,
+  numberPattern,
   numericDateRule,
   rule,
+  setDailyDayPart,
   setDailyInterval,
+  setDayPart,
   setDaysAhead,
   setDue,
   setDuration,
   setMonthDay,
+  setMonthsAhead,
   setNextWeekday,
+  setNextWeeksDay,
   setPartOfDay,
-  setRepeatFor,
+  setRepeatCount,
   setRepeatUntil,
   setTime,
   setWeekly,
+  spanRule,
   startTimeSearch,
   words,
+  type DayPart,
   type Language,
 } from "@/lib/parse-task/engine";
 
@@ -65,8 +72,28 @@ const meridiemOf = (value: string | undefined) =>
 export const WEEKDAY_PATTERN = WEEKDAY;
 
 // sprint-20-tasks.md п.3 — the unit of "for a month" / "на 2 недели".
-const UNIT_MONTH = /^month/i;
-const UNIT_WEEK = /^week/i;
+const UNITS = { month: /^month/i, week: /^week/i };
+
+// A count in digits or words: "3", "three".
+const NUM = numberPattern([
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
+  "ten",
+]);
+
+// Not how long: "in 2 weeks" is a date, "every 3 days" a step.
+const NOT_A_SPAN =
+  "(?<!(?<![\\p{L}\\p{N}])(?:in|every|each|within|after|for|at|by) )";
+
+const dayPartOf = (word: string) =>
+  word.toLowerCase().replace(/s$/, "") as DayPart;
 
 export const en: Language = {
   id: "en",
@@ -103,8 +130,8 @@ export const en: Language = {
       rule("every (?:other|second) day", (_, { out }) =>
         setDailyInterval(out, 2),
       ),
-      rule("every (\\d{1,2}) days", (match, { out }) =>
-        setDailyInterval(out, Number(match[1])),
+      rule(`every (${NUM}) days`, (match, { out }) =>
+        setDailyInterval(out, countOf(match[1])),
       ),
       rule("(?:every|each|on) (?:weekdays?|workdays?)", (_, { out }) =>
         setWeekly(out, [1, 2, 3, 4, 5]),
@@ -122,8 +149,14 @@ export const en: Language = {
               .map(weekdayOf),
           ),
       ),
+      // 2026-10-09 decision 1 — "every morning", "in the evenings":
+      // daily, at that part of the day's time.
       rule(
-        "every ?day|daily|each day|every (?:morning|afternoon|evening|night)",
+        "(?:every|each) (morning|afternoon|evening)|(?:in the |on )?(mornings|afternoons|evenings)",
+        (match, ctx) => setDailyDayPart(ctx, dayPartOf(match[1] ?? match[2])),
+      ),
+      rule(
+        "every ?day|daily|each day|every night",
         (_, { out }) => void (out.repeat = "DAILY"),
       ),
       rule("every week|weekly", (_, { out }) => void (out.repeat = "WEEKLY")),
@@ -132,19 +165,31 @@ export const en: Language = {
         (_, { out }) => void (out.repeat = "MONTHLY"),
       ),
     ],
-    // sprint-20-tasks.md п.3 — how long a repeat runs: "for a month",
-    // "until Nov 3". Only after a repeat; else the words stay.
+    // The part of the day: its time unless the text gives one (engine).
     [
-      rule(`for (a|one|\\d{1,3}) (days?|weeks?|months?)`, (match, ctx) => {
-        const n = countOf(match[1]);
-        const unit = match[2].toLowerCase();
-        return setRepeatFor(
-          ctx,
-          UNIT_MONTH.test(unit)
-            ? { months: n }
-            : { days: UNIT_WEEK.test(unit) ? n * 7 : n },
-        );
-      }),
+      rule(
+        "in the (morning|afternoon|evening)|(?:every|each) (morning|afternoon|evening)|(?:in the |on )?(mornings|afternoons|evenings)",
+        (match, ctx) =>
+          setDayPart(ctx, dayPartOf(match[1] ?? match[2] ?? match[3])),
+      ),
+    ],
+    // sprint-20-tasks.md п.3 — how long a repeat runs: "for a month",
+    // "until Nov 3", "10 days in a row", "3 times". With no repeat of its
+    // own a span says "daily" (2026-10-09 decision 3).
+    [
+      rule(
+        `(?:for|during|over) (?:the next )?(an?|${NUM}) (days?|weeks?|months?)(?: in a row| straight)?`,
+        spanRule(UNITS),
+      ),
+      rule(
+        `${NOT_A_SPAN}(${NUM}) (days?|weeks?|months?)(?: in a row| straight)?(?! ago| later| before| after| from)`,
+        spanRule(UNITS),
+      ),
+      // "3 times" — not "3 times a day", the doses of a course (course.ts).
+      rule(
+        `(${NUM}) times(?! (?:a|per|each) (?:day|week|month))`,
+        (match, ctx) => setRepeatCount(ctx, countOf(match[1])),
+      ),
       rule(
         `(?:until|till|through) (?:the )?(${MONTH})\\.? (\\d{1,2})(?:st|nd|rd|th)?`,
         (match, ctx) =>
@@ -172,21 +217,29 @@ export const en: Language = {
       ),
       rule("tomorrow|tmrw", (_, ctx) => setDaysAhead(ctx, 1)),
       rule("today|tonight|this (morning|afternoon|evening)", (match, ctx) => {
-        // In a search, "tonight"/"this evening" also say when in the day.
-        if (/tonight/i.test(match[0])) setPartOfDay(ctx.out, "evening");
-        else if (match[1]) {
-          setPartOfDay(
-            ctx.out,
-            match[1].toLowerCase() as "morning" | "afternoon" | "evening",
-          );
+        // "tonight"/"this evening" also say when in the day: a search's
+        // part of the day, or the time (2026-10-09 decision 1).
+        const part = /tonight/i.test(match[0])
+          ? "evening"
+          : match[1] && dayPartOf(match[1]);
+        if (part) {
+          setPartOfDay(ctx.out, part);
+          setDayPart(ctx, part);
         }
         return setDaysAhead(ctx, 0);
       }),
-      rule("in (\\d{1,3}) days?", (match, ctx) =>
-        setDaysAhead(ctx, Number(match[1])),
+      rule(`in (an?|${NUM}) days?`, (match, ctx) =>
+        setDaysAhead(ctx, countOf(match[1])),
       ),
-      // sprint-20-tasks.md п.11 — "03/10" is October 3.
-      numericDateRule("on"),
+      rule(`in (an?|${NUM}) weeks?`, (match, ctx) =>
+        setDaysAhead(ctx, countOf(match[1]) * 7),
+      ),
+      rule(`in (an?|${NUM}) months?`, (match, ctx) =>
+        setMonthsAhead(ctx, countOf(match[1])),
+      ),
+      rule("next week", (_, ctx) => setNextWeeksDay(ctx, 1)),
+      // sprint-20-tasks.md п.11 — "03/10" is October 3; "at 20.10" a time.
+      numericDateRule("on", "at |by |@ ?"),
       rule(
         `(?:on )?(?:the )?(${MONTH})\\.? (\\d{1,2})(?:st|nd|rd|th)?`,
         (match, ctx) => setMonthDay(ctx, monthOf(match[1]), Number(match[2])),
@@ -195,9 +248,13 @@ export const en: Language = {
         `(?:on )?(?:the )?(\\d{1,2})(?:st|nd|rd|th)? (?:of )?(${MONTH})`,
         (match, ctx) => setMonthDay(ctx, monthOf(match[2]), Number(match[1])),
       ),
-      // "on fri" / "next tue" / "monday" — a bare abbreviation isn't
+      // "next sat" — next week's (engine's setNextWeeksDay).
+      rule(`(?:on )?next (${WEEKDAY})`, (match, ctx) =>
+        setNextWeeksDay(ctx, weekdayOf(match[1])),
+      ),
+      // "on fri" / "this tue" / "monday" — a bare abbreviation isn't
       // taken on its own ("I sat down", "the sun").
-      rule(`(?:on|this|next) (${WEEKDAY})`, (match, ctx) =>
+      rule(`(?:on|this) (${WEEKDAY})`, (match, ctx) =>
         setNextWeekday(ctx, weekdayOf(match[1])),
       ),
       rule(`(${FULL_WEEKDAY})`, (match, ctx) =>
@@ -269,7 +326,7 @@ export const en: Language = {
   searchFillers: /^(?:(?:to|for)\s+)?(?:(?:a|an|the|my)\s+)?/iu,
   kindWords: {
     workout: words(
-      "workout|work out|gym|run|running|jog|jogging|yoga|pilates|swim|swimming|training|exercise|fitness|cycling|crossfit|stretching",
+      "workout|work out|squats?|squatting|gym|run|running|jog|jogging|yoga|pilates|swim|swimming|training|exercise|fitness|cycling|crossfit|stretching",
     ),
     remote: words(
       "call|phone|ring|email|e-mail|message|text|reply|write|pay|order|book|renew|submit|zoom|online",

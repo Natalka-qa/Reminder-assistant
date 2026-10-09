@@ -32,3 +32,19 @@ export class InvalidReminderPreferencesError extends Error {
     this.name = "InvalidReminderPreferencesError";
   }
 }
+
+export class InvalidAvatarError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidAvatarError";
+  }
+}
+
+// No Blob store connected (BLOB_READ_WRITE_TOKEN unset), or the store
+// refused the upload — either way the photo isn't saved.
+export class AvatarUploadError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AvatarUploadError";
+  }
+}

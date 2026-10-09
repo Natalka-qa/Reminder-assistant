@@ -43,10 +43,10 @@ describe("how long a repeat runs", () => {
       repeatUntil: "2026-10-25",
     });
     expect(parse("Stretch daily for 2 weeks").repeatUntil).toBe("2026-10-09");
-    expect(parse("Drops every day tomorrow for 10 days")).toMatchObject({
-      date: "2026-09-27",
-      repeatUntil: "2026-10-06",
-    });
+    // Days of a daily repeat a day apart are a count (2026-10-09).
+    const drops = parse("Drops every day tomorrow for 10 days");
+    expect(drops).toMatchObject({ date: "2026-09-27", repeatCount: 10 });
+    expect(drops.repeatUntil).toBeUndefined();
   });
 
   it("reads until a date", () => {
@@ -81,10 +81,17 @@ describe("how long a repeat runs", () => {
     expect(parse("Ліки через день на 10 днів").repeatUntil).toBe("2026-10-05");
   });
 
-  it("leaves the words in the title without a repeat", () => {
-    const parsed = parse("Vacation for 2 weeks");
-    expect(parsed.title).toBe("Vacation for 2 weeks");
-    expect(parsed.repeatUntil).toBeUndefined();
-    expect(parse("Отпуск на 2 недели").title).toBe("Отпуск на 2 недели");
+  // 2026-10-09 decision 3 — before, the words stayed in the title.
+  it("reads a span without a repeat as daily", () => {
+    expect(parse("Vacation for 2 weeks")).toMatchObject({
+      title: "Vacation",
+      repeat: "DAILY",
+      repeatUntil: "2026-10-09",
+    });
+    expect(parse("Отпуск на 2 недели")).toMatchObject({
+      title: "Отпуск",
+      repeat: "DAILY",
+      repeatUntil: "2026-10-09",
+    });
   });
 });

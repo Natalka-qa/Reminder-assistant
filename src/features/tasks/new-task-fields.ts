@@ -73,7 +73,12 @@ export type ParsedTaskFields = {
   repeatInterval?: number;
   /** п.3 — "for a month", "until Nov 3": the series' last day. */
   repeatUntil?: string;
-  /** п.6 — a dose of a course: its time is a default, not a given one. */
+  /** "3 раза", "10 days in a row": the series ends after that many. */
+  repeatCount?: number;
+  /**
+   * п.6 — a dose of a course, or a part of the day alone ("утром"): its
+   * time is a default, not a given one.
+   */
   course?: boolean;
   /** п.7 — "by 12:00": a deadline, "HH:mm", for a task without a time. */
   due?: string;
@@ -577,7 +582,9 @@ export function resolveTaskFields(
       overrides.repeatEnd ??
       (parsed.repeatUntil
         ? { kind: "ON_DATE", until: parsed.repeatUntil }
-        : NEVER_ENDS),
+        : parsed.repeatCount
+          ? { kind: "AFTER_COUNT", count: parsed.repeatCount }
+          : NEVER_ENDS),
     due,
     reminder: fittingReminder(
       overrides.reminder ??

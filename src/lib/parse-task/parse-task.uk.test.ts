@@ -51,10 +51,14 @@ describe("Ukrainian", () => {
     expect(parse(text)).toMatchObject({ title: "Дзвінок", time });
   });
 
-  it("sets no time for 'вранці' — the spec says don't guess", () => {
-    const parsed = parse("Прогулянка вранці");
-    expect(parsed).toMatchObject({ title: "Прогулянка вранці", hits: [] });
-    expect(parsed.time).toBeUndefined();
+  // 2026-10-09 decision 1 — "вранці" is 09:00 (before, no time).
+  it("reads 'вранці' as 09:00, a default time", () => {
+    expect(parse("Прогулянка вранці")).toMatchObject({
+      title: "Прогулянка",
+      time: "09:00",
+      course: true,
+      hits: ["вранці"],
+    });
   });
 
   it.each([

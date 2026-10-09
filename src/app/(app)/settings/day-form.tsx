@@ -127,9 +127,10 @@ export function DayForm({ preferences }: { preferences: SchedulePreferences }) {
         <SectionLabel>Work hours</SectionLabel>
         <WeekdayPicker selected={prefs.workDays} onToggle={toggleWorkDay} />
         {prefs.workDays.length > 0 && (
-          <div className="text-text-primary flex items-center gap-2 text-[15px]">
+          <div className="text-text-primary flex items-center gap-3 text-[15px]">
             <TimeSelect
               ariaLabel="Work starts"
+              align="start"
               value={prefs.workStartMinutes}
               options={HALF_HOURS.slice(0, -1)}
               onChange={(minutes) =>
@@ -140,6 +141,7 @@ export function DayForm({ preferences }: { preferences: SchedulePreferences }) {
             <span className="text-text-secondary">to</span>
             <TimeSelect
               ariaLabel="Work ends"
+              align="start"
               value={prefs.workEndMinutes}
               options={HALF_HOURS.slice(1)}
               onChange={(minutes) =>

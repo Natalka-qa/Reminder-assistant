@@ -36,14 +36,16 @@ describe("NEW_TASK_V2_UPDATE.md § 11 examples without a time (sprint-18)", () =
     expect(input.time).toBeUndefined();
   });
 
-  it("5. Take vitamins every morning → every day, no time", () => {
-    const input = ready("Take vitamins every morning");
-    expect(input).toMatchObject({
+  // 2026-10-09 decision 1 — before, every day with no time.
+  it("5. Take vitamins every morning → every day at 09:00, Flexible", () => {
+    expect(ready("Take vitamins every morning")).toMatchObject({
       title: "Take vitamins",
       repeatFrequency: "DAILY",
+      time: "09:00",
       flexibility: "FLEXIBLE",
+      reminderKind: "OFFSET",
+      reminderOffsetMinutes: 0,
     });
-    expect(input.time).toBeUndefined();
   });
 
   it("2. a phrase with a time is still Fixed with the default reminder", () => {
@@ -190,6 +192,34 @@ describe("a course, one task per dose (sprint-20 п.5–6)", () => {
     expect(inputs[1]).toMatchObject({
       title: "Таблетки — вечер",
       time: "20:00",
+    });
+  });
+
+  it("saves a part of the day as its time, Flexible, reminded at start", () => {
+    expect(ready("Позвонить маме утром")).toMatchObject({
+      title: "Позвонить маме",
+      time: "09:00",
+      flexibility: "FLEXIBLE",
+      reminderKind: "OFFSET",
+      reminderOffsetMinutes: 0,
+      repeatFrequency: "NONE",
+    });
+  });
+
+  it("saves a count as After N times", () => {
+    expect(ready("приседать утром 5 дней")).toMatchObject({
+      title: "Приседать",
+      time: "09:00",
+      flexibility: "FLEXIBLE",
+      repeatFrequency: "DAILY",
+      repeatInterval: 1,
+      repeatEnd: "AFTER_COUNT",
+      repeatCount: 5,
+    });
+    expect(ready("Отжимания каждый день 3 раза")).toMatchObject({
+      title: "Отжимания",
+      repeatEnd: "AFTER_COUNT",
+      repeatCount: 3,
     });
   });
 

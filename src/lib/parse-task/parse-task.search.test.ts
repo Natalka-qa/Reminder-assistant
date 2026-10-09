@@ -105,20 +105,24 @@ describe("what isn't a time search", () => {
     expect(parsed.time).toBe("19:00");
   });
 
-  it("sets nothing for a part of the day without a search", () => {
-    expect(parse("Позвонить маме вечером")).toMatchObject({
-      title: "Позвонить маме вечером",
-      hits: [],
-    });
-    expect(parse("Прогулянка ввечері").hits).toEqual([]);
-    expect(parse("Call mom in the evening").title).toBe(
+  // 2026-10-09 decision 1 — without a search, a part of the day is its
+  // time (before, it set nothing).
+  it("reads a part of the day without a search as its time", () => {
+    for (const text of [
+      "Позвонить маме вечером",
+      "Прогулянка ввечері",
       "Call mom in the evening",
-    );
+    ]) {
+      const parsed = parse(text);
+      expect(parsed).toMatchObject({ time: "20:00", course: true });
+      expect(parsed.timeSearch).toBeUndefined();
+    }
   });
 
   it("still reads 'every morning' as a daily repeat", () => {
     expect(parse("Take vitamins every morning")).toMatchObject({
       repeat: "DAILY",
+      time: "09:00",
       title: "Take vitamins",
     });
     expect(parse("Take vitamins every morning").timeSearch).toBeUndefined();
