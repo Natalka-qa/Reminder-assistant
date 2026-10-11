@@ -118,6 +118,7 @@ export async function sendDueHabitReminders(now: Date): Promise<number> {
             [openAppButton("Mark them", env.AUTH_URL, "/dashboard")],
           ],
         },
+        { html: true },
       );
       sent += 1;
     } catch (error) {
