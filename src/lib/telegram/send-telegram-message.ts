@@ -73,3 +73,17 @@ export function editTelegramMessage(
     ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
   });
 }
+
+// 2026-10-13 — only the buttons: the summary's task menu and back, the
+// text (HTML) left as it is.
+export function editTelegramButtons(
+  chatId: string,
+  messageId: number,
+  replyMarkup: InlineKeyboard,
+): Promise<void> {
+  return telegramApi("editMessageReplyMarkup", {
+    chat_id: chatId,
+    message_id: messageId,
+    reply_markup: replyMarkup,
+  });
+}

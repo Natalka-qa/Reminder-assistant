@@ -7,6 +7,7 @@ import {
   habitsSection,
   openAppButton,
   summaryButtons,
+  summaryUndoRow,
   todayMessage,
 } from "@/lib/telegram/bot-messages";
 import { sendTelegramMessage } from "@/lib/telegram/send-telegram-message";
@@ -27,7 +28,12 @@ import { isSummaryDue } from "./summary-schedule";
  * sprint-21-tasks.md п.9 — today's habits below the tasks, with the day's
  * good news, and a button for each still to do (up to 4) under the tasks'.
  */
-export async function buildSummary(user: User, now: Date) {
+export async function buildSummary(
+  user: User,
+  now: Date,
+  /** 2026-10-13 — Undo on top, just after "Remove this one" from the menu. */
+  undoRemoved?: string,
+) {
   const [today, overdue, daily] = await Promise.all([
     dashboardService.getTodayTasks(user.id, user.timezone, now),
     dashboardService.getOverdueTasks(user.id, user.timezone, now),
@@ -42,7 +48,9 @@ export async function buildSummary(user: User, now: Date) {
     overdue.length,
   );
   const rows = [
-    ...(summaryButtons(openItems(today, user.timezone))?.inline_keyboard ?? []),
+    ...(undoRemoved ? [summaryUndoRow(undoRemoved)] : []),
+    ...(summaryButtons(openItems(today, user.timezone, now))?.inline_keyboard ??
+      []),
     ...habitButtons(daily.items),
   ];
   return {

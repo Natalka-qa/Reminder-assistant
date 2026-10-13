@@ -190,11 +190,17 @@ export function shiftedTaskInput(
   };
 }
 
-/** п.19 — the summary's buttons: the day's open tasks, in time order. */
+/**
+ * п.19 — the summary's buttons: the day's open tasks, in time order.
+ * 2026-10-13 — `later`: a task with a time still ahead (`now` is when the
+ * buttons are drawn), whose button opens a menu instead of marking it Done
+ * — at 08:00 there's nothing to mark about 19:30 Pilates yet.
+ */
 export function openItems(
   occurrences: BotOccurrence[],
   timezone: string,
-): { id: string; time: string | null; title: string }[] {
+  now: Date,
+): { id: string; time: string | null; title: string; later: boolean }[] {
   return timedFirst(occurrences)
     .filter((occurrence) => isActionableOccurrenceStatus(occurrence.status))
     .map((occurrence) => ({
@@ -203,5 +209,6 @@ export function openItems(
         ? formatTimeInZone(occurrence.scheduledStart, timezone)
         : null,
       title: occurrence.task.title,
+      later: timed(occurrence) && occurrence.scheduledStart > now,
     }));
 }

@@ -217,10 +217,27 @@ describe("openItems", () => {
           occurrence("Call", "2026-10-01T18:00:00Z"),
         ],
         zone,
+        new Date("2026-10-01T06:00:00Z"),
       ),
     ).toEqual([
-      { id: "Gym", time: "18:00", title: "Gym" },
-      { id: "Call", time: "20:00", title: "Call" },
+      { id: "Gym", time: "18:00", title: "Gym", later: true },
+      { id: "Call", time: "20:00", title: "Call", later: true },
+    ]);
+  });
+
+  it("marks a task later than now — its button opens a menu (2026-10-13)", () => {
+    expect(
+      openItems(
+        [
+          occurrence("Pills", "2026-10-01T05:30:00Z"),
+          occurrence("Gym", "2026-10-01T16:00:00Z"),
+        ],
+        zone,
+        new Date("2026-10-01T06:00:00Z"),
+      ).map((item) => [item.id, item.later]),
+    ).toEqual([
+      ["Pills", false],
+      ["Gym", true],
     ]);
   });
 });
@@ -265,10 +282,11 @@ describe("tasks without a time (sprint-18-tasks.md п.20)", () => {
       openItems(
         [untimed("Buy milk"), occurrence("Gym", "2026-10-01T16:00:00Z")],
         zone,
+        new Date("2026-10-01T17:00:00Z"),
       ),
     ).toEqual([
-      { id: "Gym", time: "18:00", title: "Gym" },
-      { id: "Buy milk", time: null, title: "Buy milk" },
+      { id: "Gym", time: "18:00", title: "Gym", later: false },
+      { id: "Buy milk", time: null, title: "Buy milk", later: false },
     ]);
   });
 });

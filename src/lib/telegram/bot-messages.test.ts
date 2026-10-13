@@ -7,6 +7,8 @@ import {
   occurrenceButtons,
   replyKeyboard,
   summaryButtons,
+  summaryTaskMenu,
+  summaryUndoRow,
   todayMessage,
   type DayItem,
   type InlineKeyboard,
@@ -293,8 +295,9 @@ describe("buttons", () => {
 describe("summaryButtons", () => {
   it("leaves the time out for a task without one (sprint-18 п.20)", () => {
     expect(
-      summaryButtons([{ id: "o1", time: null, title: "Buy milk" }])
-        ?.inline_keyboard[0][0].text,
+      summaryButtons([
+        { id: "o1", time: null, title: "Buy milk", later: false },
+      ])?.inline_keyboard[0][0].text,
     ).toBe("✓ Buy milk");
   });
 
@@ -302,6 +305,7 @@ describe("summaryButtons", () => {
     id: `cmu8a559u0027bo9cfuks9p${String(n).padStart(2, "0")}`,
     time: "18:00",
     title: `Task ${n}`,
+    later: false,
   });
 
   it("puts one ✓ button per open task, each on its own row", () => {
@@ -327,6 +331,51 @@ describe("summaryButtons", () => {
     const many = Array.from({ length: 11 }, (_, n) => item(n));
     expect(summaryButtons(many)?.inline_keyboard).toHaveLength(8);
     expect(summaryButtons([])).toBeUndefined();
+  });
+
+  it("gives a later task a plain menu button, not Done (2026-10-13)", () => {
+    expect(
+      summaryButtons([{ ...item(1), time: "19:30", later: true }])
+        ?.inline_keyboard,
+    ).toEqual([
+      [{ text: "19:30 Task 1 ›", callback_data: `smenu:${item(1).id}` }],
+    ]);
+  });
+});
+
+describe("summaryTaskMenu (2026-10-13)", () => {
+  const id = "cmu8a559u0027bo9cfuks9p01";
+  const texts = (keyboard: InlineKeyboard) =>
+    keyboard.inline_keyboard.map((row) => row.map((button) => button.text));
+
+  it("offers Tomorrow to a one-off task", () => {
+    expect(texts(summaryTaskMenu({ id, recurring: false }))).toEqual([
+      ["Skip today", "Tomorrow"],
+      ["✓ Done", "‹ Back"],
+    ]);
+  });
+
+  it("offers Remove this one to a repeating task, not Tomorrow", () => {
+    expect(texts(summaryTaskMenu({ id, recurring: true }))).toEqual([
+      ["Skip today"],
+      ["Remove this one"],
+      ["✓ Done", "‹ Back"],
+    ]);
+  });
+
+  it("sends only actions the bot knows, within Telegram's limit", () => {
+    const buttons = [
+      ...summaryTaskMenu({ id, recurring: true }).inline_keyboard.flat(),
+      ...summaryTaskMenu({ id, recurring: false }).inline_keyboard.flat(),
+      ...summaryUndoRow(id),
+    ];
+    for (const button of buttons) {
+      const data = "callback_data" in button ? button.callback_data : "";
+      expect(parseButtonData(data)).not.toBeNull();
+      expect(new TextEncoder().encode(data).length).toBeLessThanOrEqual(
+        CALLBACK_DATA_MAX_BYTES,
+      );
+    }
   });
 });
 
