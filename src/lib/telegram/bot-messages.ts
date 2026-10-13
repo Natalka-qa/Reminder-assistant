@@ -216,6 +216,8 @@ export function linkedMessage(): string {
 export const EMPTY_PHRASE_MESSAGE =
   "Write what to add, the way you'd say it — “Call mom tomorrow at 18”.";
 
+export const MOVED_TO_TOMORROW_MESSAGE = "Moved to tomorrow";
+
 export const BUTTON_FAILED_MESSAGE = "Something went wrong — try again.";
 
 /**
@@ -437,21 +439,85 @@ export const SUMMARY_BUTTONS_MAX = 8;
  * п.19 — under the morning summary: "✓ 18:00 Gym", one row per task still
  * open, up to 8 (the text above lists the whole day). Done from here
  * redraws the summary rather than adding a line, as a reminder does.
+ * 2026-10-13 — a task later than now is "19:30 Pilates ›" instead, plain:
+ * it opens summaryTaskMenu, since in the morning it's Skip or Tomorrow
+ * that's wanted, not Done.
  */
 export function summaryButtons(
-  open: { id: string; time: string | null; title: string }[],
+  open: { id: string; time: string | null; title: string; later: boolean }[],
 ): InlineKeyboard | undefined {
   if (open.length === 0) return undefined;
   return {
     inline_keyboard: open.slice(0, SUMMARY_BUTTONS_MAX).map((item) => [
-      {
-        // "✓ Buy groceries" for a task without a time (sprint-18 п.20).
-        text: item.time ? `✓ ${item.time} ${item.title}` : `✓ ${item.title}`,
-        callback_data: buttonData("sdone", item.id),
-        style: "success",
-      },
+      item.later
+        ? {
+            text: `${item.time} ${item.title} ›`,
+            callback_data: buttonData("smenu", item.id),
+          }
+        : {
+            // "✓ Buy groceries" for a task without a time (sprint-18 п.20).
+            text: item.time
+              ? `✓ ${item.time} ${item.title}`
+              : `✓ ${item.title}`,
+            callback_data: buttonData("sdone", item.id),
+            style: "success",
+          },
     ]),
   };
+}
+
+/**
+ * 2026-10-13 — what "19:30 Pilates ›" turns the summary's buttons into:
+ * Skip today · Tomorrow (one-off; a repeating task's day is fixed), then
+ * Remove this one (repeating), then Done (plain — done early) · Back.
+ * No Delete: Skip already means "not today", and the app deletes.
+ */
+export function summaryTaskMenu(occurrence: {
+  id: string;
+  recurring: boolean;
+}): InlineKeyboard {
+  const { id, recurring } = occurrence;
+  const first: InlineButton[] = [
+    { text: "Skip today", callback_data: buttonData("sskip", id) },
+  ];
+  if (!recurring) {
+    first.push({ text: "Tomorrow", callback_data: buttonData("smove", id) });
+  }
+  return {
+    inline_keyboard: [
+      first,
+      ...(recurring
+        ? [
+            [
+              {
+                text: "Remove this one",
+                callback_data: buttonData("sremove", id),
+                style: "danger" as const,
+              },
+            ],
+          ]
+        : []),
+      [
+        { text: "✓ Done", callback_data: buttonData("sdone", id) },
+        { text: "‹ Back", callback_data: buttonData("sback", id) },
+      ],
+    ],
+  };
+}
+
+/**
+ * 2026-10-13 — on top of the redrawn summary after "Remove this one" from
+ * its menu: Undo, as under a reminder (removedButtons), until the next
+ * redraw.
+ */
+export function summaryUndoRow(occurrenceId: string): InlineButton[] {
+  return [
+    {
+      text: "Undo",
+      callback_data: buttonData("srestore", occurrenceId),
+      style: "primary",
+    },
+  ];
 }
 
 /**

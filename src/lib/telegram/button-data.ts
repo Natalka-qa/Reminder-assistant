@@ -8,6 +8,10 @@
 // "restore" is Undo under "Removed this one" (sprint-19-tasks.md п.8), an
 // occurrence id. "hdone" / "hplus" mark a habit from the morning summary
 // (sprint-21-tasks.md п.9): done, or one more step — a habit id.
+// 2026-10-13 — a summary task later than the summary opens its own menu
+// ("smenu"): Skip today, Tomorrow (one-off), Remove this one (repeating,
+// "srestore" takes it back), Done, Back — all occurrence ids, all redraw
+// the summary.
 export const BUTTON_ACTIONS = [
   "done",
   "snooze15",
@@ -20,6 +24,12 @@ export const BUTTON_ACTIONS = [
   "restore",
   "hdone",
   "hplus",
+  "smenu",
+  "sskip",
+  "smove",
+  "sremove",
+  "srestore",
+  "sback",
 ] as const;
 
 export type ButtonAction = (typeof BUTTON_ACTIONS)[number];

@@ -20,8 +20,10 @@ import {
   notLinkedMessage,
   occurrenceButtons,
   openAppButton,
+  MOVED_TO_TOMORROW_MESSAGE,
   removedButtons,
   replyKeyboard,
+  summaryTaskMenu,
   todayMessage,
   TOO_LATE_TO_CHANGE_MESSAGE,
   TOO_LATE_TO_UNDO_MESSAGE,
@@ -30,6 +32,7 @@ import {
 import type { ParsedUpdate } from "@/lib/telegram/parse-update";
 import {
   answerTelegramButton,
+  editTelegramButtons,
   editTelegramMessage,
   sendTelegramMessage,
 } from "@/lib/telegram/send-telegram-message";
@@ -68,6 +71,7 @@ import {
   shiftedTaskInput,
 } from "./bot-view";
 import { buildSummary } from "./telegram-summary.service";
+import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-status";
 import { pickCurrentOccurrence } from "@/features/scheduling/occurrence-selection";
 import { editTaskValues } from "@/features/tasks/edit-task-fields";
 import type { CreateTaskInput } from "@/lib/validation/task";
@@ -344,6 +348,21 @@ function repeatLabel(
   return `${repeatHint(repeat, saved.date, today, time) ?? "Every month"}${until}`;
 }
 
+// What the summary's buttons redraw it as: the day as it now stands.
+async function redrawSummary(
+  user: User,
+  now: Date,
+  chatId: string,
+  messageId: number,
+  undoRemoved?: string,
+) {
+  const summary = await buildSummary(user, now, undoRemoved);
+  if (!summary) return;
+  await editTelegramMessage(chatId, messageId, summary.text, summary.buttons, {
+    html: true,
+  });
+}
+
 async function pressButton(user: User, press: Button, now: Date) {
   const { chatId, callbackId, messageId, messageText, action, id } = press;
   try {
@@ -433,25 +452,122 @@ async function pressButton(user: User, press: Button, now: Date) {
         );
         break;
       }
-      case "sdone": {
+      case "sdone":
+      case "sskip":
+      case "sremove": {
         // п.19 — Done from the morning summary: mark it, then redraw the
         // summary as it now stands (✓ in the list, no button for it).
-        const occurrence = await occurrenceService.completeOccurrence(
-          user.id,
-          id,
-        );
+        // 2026-10-13 — Skip today and Remove this one from a later task's
+        // menu the same way; a removed day gets Undo on top.
+        const occurrence = await (action === "sdone"
+          ? occurrenceService.completeOccurrence(user.id, id)
+          : action === "sskip"
+            ? occurrenceService.skipOccurrence(user.id, id)
+            : occurrenceService.removeOccurrence(user.id, id));
         revalidateAfterChange(occurrence.taskId);
-        const summary = await buildSummary(user, now);
-        if (summary) {
-          await editTelegramMessage(
-            chatId,
-            messageId,
-            summary.text,
-            summary.buttons,
-            { html: true },
-          );
-        }
+        await redrawSummary(
+          user,
+          now,
+          chatId,
+          messageId,
+          action === "sremove" ? occurrence.id : undefined,
+        );
         break;
+      }
+      case "srestore": {
+        // Undo above the summary — as "restore" under a reminder.
+        const occurrence = await occurrenceService.getOccurrence(user.id, id);
+        if (!occurrence) throw new OccurrenceNotFoundError(id);
+        if (!canUndoRemoval(occurrence.updatedAt, now)) {
+          await answerTelegramButton(callbackId, TOO_LATE_TO_UNDO_MESSAGE);
+          return;
+        }
+        try {
+          await occurrenceService.restoreOccurrence(
+            user.id,
+            id,
+            user.timezone,
+            now,
+          );
+        } catch (error) {
+          if (error instanceof OccurrenceNotRestorableError) {
+            await answerTelegramButton(callbackId, error.message);
+            return;
+          }
+          throw error;
+        }
+        revalidateAfterChange(occurrence.taskId);
+        await redrawSummary(user, now, chatId, messageId);
+        break;
+      }
+      case "smenu": {
+        // 2026-10-13 — "19:30 Pilates ›": its menu in place of the
+        // summary's buttons, the task's name as a toast.
+        const occurrence = await occurrenceService.getOccurrence(user.id, id);
+        if (!occurrence) throw new OccurrenceNotFoundError(id);
+        if (!isActionableOccurrenceStatus(occurrence.status)) {
+          await answerTelegramButton(callbackId, ALREADY_CLOSED_MESSAGE);
+          // Unchanged since it was drawn is fine — Telegram refuses that.
+          await redrawSummary(user, now, chatId, messageId).catch(() => {});
+          return;
+        }
+        await editTelegramButtons(
+          chatId,
+          messageId,
+          summaryTaskMenu({
+            id,
+            recurring: occurrence.task.recurrenceRule !== null,
+          }),
+        );
+        await answerTelegramButton(
+          callbackId,
+          `${formatTimeInZone(occurrence.scheduledStart, user.timezone)} ${occurrence.task.title}`,
+        );
+        return;
+      }
+      case "sback":
+        await redrawSummary(user, now, chatId, messageId);
+        break;
+      case "smove": {
+        // Tomorrow from the menu: a one-off task's day moved, as "Tomorrow"
+        // under a new task does — without its 10-minute window.
+        const occurrence = await occurrenceService.getOccurrence(user.id, id);
+        if (!occurrence) throw new OccurrenceNotFoundError(id);
+        const task = await taskService.getTask(user.id, occurrence.taskId);
+        if (!task) throw new TaskNotFoundError(occurrence.taskId);
+        const input = isActionableOccurrenceStatus(occurrence.status)
+          ? shiftedTaskInput(
+              editTaskValues(task, {
+                date: formatDateInZone(
+                  occurrence.scheduledStart,
+                  user.timezone,
+                  "yyyy-LL-dd",
+                ),
+                time: formatTimeInZone(
+                  occurrence.scheduledStart,
+                  user.timezone,
+                ),
+              }),
+              "tomorrow",
+            )
+          : null;
+        if (!input) {
+          await answerTelegramButton(callbackId, ALREADY_CLOSED_MESSAGE);
+          return;
+        }
+        try {
+          await taskService.updateTask(user.id, task.id, user.timezone, input);
+        } catch (error) {
+          if (error instanceof TaskValidationError) {
+            await answerTelegramButton(callbackId, error.message);
+            return;
+          }
+          throw error;
+        }
+        revalidateAfterChange(task.id);
+        await redrawSummary(user, now, chatId, messageId);
+        await answerTelegramButton(callbackId, MOVED_TO_TOMORROW_MESSAGE);
+        return;
       }
       case "hdone":
       case "hplus": {
@@ -466,16 +582,7 @@ async function pressButton(user: User, press: Button, now: Date) {
         );
         revalidatePath("/dashboard");
         revalidatePath("/progress");
-        const summary = await buildSummary(user, now);
-        if (summary) {
-          await editTelegramMessage(
-            chatId,
-            messageId,
-            summary.text,
-            summary.buttons,
-            { html: true },
-          );
-        }
+        await redrawSummary(user, now, chatId, messageId);
         break;
       }
       case "later1h":
