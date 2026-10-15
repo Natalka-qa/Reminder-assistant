@@ -186,6 +186,7 @@
   --color-calendar-critical-bg: var(--calendar-critical-bg);
   --color-calendar-google-busy: var(--calendar-google-busy);
   --color-calendar-google-busy-hatch: var(--calendar-google-busy-hatch);
+  --color-calendar-google-busy-strip: var(--calendar-google-busy-strip);
   --shadow-calendar-block: var(--calendar-block-shadow);
   --color-newtask-quiet-text: var(--newtask-quiet-text);
   --color-newtask-hairline: var(--newtask-hairline);
@@ -571,6 +572,9 @@
      the plain --calendar-google-busy, where --text-secondary is 4.65:1. */
   --calendar-google-busy: var(--border-soft);
   --calendar-google-busy-hatch: #e2ddd6;
+  /* backlog п.5 (2026-10-04) — the same busy time as a strip at the
+     column's right edge, over the tasks, so a task doesn't hide it. */
+  --calendar-google-busy-strip: #a39a90;
 
   /* --- New task v2 tokens -------------------------------------------------
      NEW_TASK_V2_UPDATE.md. #743447/#5C2837/#E4E1DC/#F3EEEF/#315766/#6F5758
@@ -716,6 +720,7 @@
   --calendar-accent-fixed: #907360;
   --calendar-block-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
   --calendar-google-busy-hatch: #3a352f;
+  --calendar-google-busy-strip: #968779;
   --newtask-hairline: #2c2823;
   --newtask-input-rule: #3c3834;
   --newtask-control-hover: #2a221c;

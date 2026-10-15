@@ -21,6 +21,7 @@ import {
   GoogleAllDayLine,
   GoogleBusyBlocks,
   GoogleBusyNote,
+  GoogleBusyStrips,
 } from "@/components/calendar/google-busy";
 import {
   AnyTimeBlock,
@@ -317,6 +318,14 @@ function DesktopWeek({
                       justDragged={justDragged}
                     />
                   ))}
+                  <Suspense fallback={null}>
+                    <GoogleBusyStrips
+                      busy={busy}
+                      date={day.date}
+                      range={range}
+                      hourHeight={DESKTOP.hourHeight}
+                    />
+                  </Suspense>
                   {showNow && day.date === clock.date && (
                     <NowLine top={nowTop(clock, range, DESKTOP.hourHeight)} />
                   )}
@@ -483,6 +492,14 @@ function MobileWeek({
               justDragged={justDragged}
             />
           ))}
+          <Suspense fallback={null}>
+            <GoogleBusyStrips
+              busy={busy}
+              date={selectedDay.date}
+              range={range}
+              hourHeight={MOBILE.hourHeight}
+            />
+          </Suspense>
           {showNow && <NowLine top={nowTop(clock, range, MOBILE.hourHeight)} />}
           {open && !open.has(selectedDay.date) && <PastShade />}
           {drag?.date === selectedDay.date && (
