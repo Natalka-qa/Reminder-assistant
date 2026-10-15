@@ -52,3 +52,30 @@ _Решено 2026-10-03: все четыре — в Sprint 20, [sprint-20-tasks
    - Наступившие и без времени — зелёная «✓», как было. При перерисовке после 17:00 «Spanish lesson» сама становится зелёной ✓.
    - Delete для разовой задачи не добавлен (решение 2026-10-13): Skip значит «не сегодня», удаление — в приложении.
    - Проверено: типы, все тесты (+5), Prettier. **Не проверено:** нажатия в настоящем Telegram — проверить завтра утром на сводке после деплоя.
+   - Значок сводки и `/today`: 📅 на iPhone всегда рисуется с датой «JUL 17» — сбивает рядом с «Tue, Oct 13». Заменён на 🗓️ (спиральный календарь, без даты; с VS16, чтобы был цветным эмодзи).
+
+## 2026-10-15
+
+10. **Telegram: `/habits` and adding a habit from the chat** (отложено 2026-10-15; из «Не входит» Sprint 21).
+
+    **Goal.** See and mark today's habits from the chat at any time, not only in the morning summary, and add a habit without opening the app.
+
+    **Scope**
+    - `/habits` command (also in `/help` and on the reply keyboard next to Today · Next): today's habits as in the summary (`habitsSection` — "🌱 Daily · 1/3", progress bars, praise), their buttons (`habitButtons`: "✓ Sleep 8 h", "Water +250 ml"), and a "+ Add habit" button. No habits yet — a short invite plus "+ Add habit".
+    - Habit buttons under `/habits` redraw only the habits message, not the morning summary: separate callback actions (e.g. `hhdone` / `hhplus`), same `habitService.markFromChat`.
+    - "+ Add habit" → preset buttons (Sleep 8 h · Walk 7,000 steps · Water 1.5 L · Morning workout 10 min · Reading 1 h · No phone 1 h) and "Custom → open in app" (`/habits/new`). A preset is created with `habitService.create` (every day, preset goal/step/tap behaviour); reply "Added Water 1.5 L · every day" with Undo (10 min) and Open.
+    - Move the presets out of `components/habits/habit-form.tsx` into a shared module used by the form and the bot.
+    - Bot command list: register `/habits` (BotFather manually, or `setMyCommands` from code).
+
+    **Open decisions**
+    - A. Optional `/habit <name> [goal unit]` text command ("/habit Read 30 min", "/habit Stretching" → check habit) — or presets only. Free-text phrases are out: plain text stays a task.
+    - B. A habit with the same name already exists (not archived): refuse with a hint (proposed) or add anyway.
+
+    **Out of scope:** weekdays / per-day goals / editing from the chat (in the app), per-habit reminders, archiving or deleting from the chat.
+
+    **Acceptance criteria**
+    - `/habits` shows the same habit lines and progress as the summary; buttons update the value and redraw that message only.
+    - Adding a preset creates the habit, shows it on Home and in the next summary; Undo within 10 min removes it.
+    - Callback data stays within Telegram's 64 bytes; HTML escaped; tests for message, buttons and parsing.
+
+    **Estimate:** ~3–4 h (+ ~1 h for `/habit …`). No migrations.

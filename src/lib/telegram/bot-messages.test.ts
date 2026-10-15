@@ -41,7 +41,7 @@ describe("todayMessage", () => {
       ),
     ).toBe(
       [
-        "📅 <b>Today · Wed, Sep 30</b>",
+        "🗓️ <b>Today · Wed, Sep 30</b>",
         "⚠️ <i>2 overdue tasks</i>",
         "",
         "✅ <s>08:30 · Pills</s>",
@@ -53,7 +53,7 @@ describe("todayMessage", () => {
 
   it("says so when the day is empty", () => {
     expect(todayMessage("Wed, Sep 30", [], 0)).toBe(
-      "📅 <b>Today · Wed, Sep 30</b>\n\n<i>Nothing planned for today.</i>",
+      "🗓️ <b>Today · Wed, Sep 30</b>\n\n<i>Nothing planned for today.</i>",
     );
     expect(todayMessage("Wed, Sep 30", [], 1)).toContain(
       "<i>1 overdue task</i>\n",
