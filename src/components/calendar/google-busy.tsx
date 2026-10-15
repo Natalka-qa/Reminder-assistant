@@ -17,6 +17,9 @@ import {
 
 type Range = { startHour: number; endHour: number };
 
+/** The column's right edge kept free of tasks for GoogleBusyStrips. */
+export const BUSY_GUTTER_PX = 6;
+
 export const HATCH =
   "repeating-linear-gradient(135deg, var(--calendar-google-busy-hatch) 0 2px, transparent 2px 7px)";
 
@@ -55,6 +58,42 @@ export function GoogleBusyBlocks({
         </span>
       )}
     </div>
+  ));
+}
+
+/**
+ * Backlog п.5 (2026-10-04) — the same blocks as a strip in the column's
+ * right gutter (BUSY_GUTTER_PX), drawn after the tasks: where a task
+ * covers the backdrop, the strip still shows Google's busy time.
+ */
+export function GoogleBusyStrips({
+  busy,
+  date,
+  range,
+  hourHeight,
+}: {
+  busy: Promise<CalendarBusy>;
+  date: string;
+  range: Range;
+  hourHeight: number;
+}) {
+  const result = use(busy);
+  if (result.status !== "ok") return null;
+  const { blocks } = busyInRange(result.byDay[date] ?? [], range);
+  return layoutBusyBlocks(blocks, {
+    hourHeight,
+    startHour: range.startHour,
+  }).map((block) => (
+    <div
+      key={block.startMinutes}
+      aria-hidden
+      className="bg-calendar-google-busy-strip pointer-events-none absolute right-[1px] rounded-[2px]"
+      style={{
+        top: block.top,
+        height: block.height,
+        width: BUSY_GUTTER_PX - 2,
+      }}
+    />
   ));
 }
 

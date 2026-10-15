@@ -2,6 +2,7 @@
 
 import { useOptimistic, useRef, useTransition } from "react";
 import { useArrival } from "@/components/calendar/block-motion";
+import { BUSY_GUTTER_PX } from "@/components/calendar/google-busy";
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { toast } from "sonner";
@@ -124,8 +125,9 @@ export function WeekEventBlock({
       style={{
         top: event.top,
         height: event.height,
-        left: `calc(${(event.column / event.columns) * 100}% + 2px)`,
-        width: `calc(${100 / event.columns}% - 4px)`,
+        // The right BUSY_GUTTER_PX stay free for Google's busy strip.
+        left: `calc((100% - ${BUSY_GUTTER_PX}px) * ${event.column / event.columns} + 2px)`,
+        width: `calc((100% - ${BUSY_GUTTER_PX}px) / ${event.columns} - 4px)`,
         padding: `${fit.paddingY}px ${mobile ? 10 : size === "roomy" ? 7 : 5}px`,
       }}
     >
