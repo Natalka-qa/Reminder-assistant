@@ -92,13 +92,13 @@ function overdueLine(count: number): string {
   return `⚠️ <i>${count === 1 ? "1 overdue task" : `${count} overdue tasks`}</i>`;
 }
 
-/** `/today` — "📅 Today · Wed, Sep 30", then one line per task. HTML. */
+/** `/today` — "🗓️ Today · Wed, Sep 30", then one line per task. HTML. */
 export function todayMessage(
   dateLabel: string,
   items: DayItem[],
   overdueCount: number,
 ): string {
-  const lines = [`📅 <b>Today · ${escapeHtml(dateLabel)}</b>`];
+  const lines = [`🗓️ <b>Today · ${escapeHtml(dateLabel)}</b>`];
   if (overdueCount > 0) lines.push(overdueLine(overdueCount));
   lines.push("");
   lines.push(
