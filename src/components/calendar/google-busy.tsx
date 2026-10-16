@@ -23,8 +23,15 @@ import {
 
 type Range = { startHour: number; endHour: number };
 
-/** The column's right edge kept free of tasks for GoogleBusyStrips. */
-export const BUSY_GUTTER_PX = 6;
+/**
+ * The column's right edge kept free of tasks for GoogleBusyStrips. Wider
+ * on the phone (2026-10-16): the gutter is also what a finger taps, and
+ * one day's column has the width to spare.
+ */
+export const BUSY_GUTTER_PX = { desktop: 6, mobile: 16 } as const;
+
+/** A finger-sized target even for a 10-minute busy block. */
+const MOBILE_MIN_TAP_PX = 32;
 
 export const HATCH =
   "repeating-linear-gradient(135deg, var(--calendar-google-busy-hatch) 0 2px, transparent 2px 7px)";
@@ -119,7 +126,7 @@ export function GoogleBusyBlocks({
           trigger={
             <button
               type="button"
-              className="bg-calendar-google-busy text-text-secondary hover:text-text-primary pointer-events-auto absolute top-1 right-2 cursor-pointer rounded-[4px] px-1 text-[10px]/[1.4] font-medium"
+              className="bg-calendar-google-busy text-text-secondary hover:text-text-primary pointer-events-auto absolute top-1 right-2 cursor-pointer rounded-[4px] px-1 text-[10px]/[1.4] font-medium after:absolute after:-inset-2"
             >
               Busy
             </button>
@@ -140,38 +147,52 @@ export function GoogleBusyStrips({
   date,
   range,
   hourHeight,
+  variant,
 }: {
   busy: Promise<CalendarBusy>;
   date: string;
   range: Range;
   hourHeight: number;
+  variant: "desktop" | "mobile";
 }) {
   const result = use(busy);
   if (result.status !== "ok") return null;
   const { blocks } = busyInRange(result.byDay[date] ?? [], range);
+  const mobile = variant === "mobile";
+  const gutter = BUSY_GUTTER_PX[variant];
   return layoutBusyBlocks(blocks, {
     hourHeight,
     startHour: range.startHour,
-  }).map((block) => (
-    <BusyDetails
-      key={block.startMinutes}
-      segment={block.actual}
-      date={date}
-      trigger={
-        <button
-          type="button"
-          // A 4px strip with a wider hit area, reaching into the task's
-          // right padding — the strip itself is too thin to tap.
-          className="bg-calendar-google-busy-strip hover:bg-text-secondary absolute right-[1px] cursor-pointer rounded-[2px] after:absolute after:inset-y-0 after:-right-px after:-left-2.5"
-          style={{
-            top: block.top,
-            height: block.height,
-            width: BUSY_GUTTER_PX - 2,
-          }}
-        />
-      }
-    />
-  ));
+  }).map((block) => {
+    // The button is the tap target — the whole gutter (on the phone also
+    // a little of the task's right padding, and at least 32px tall); the
+    // 4px strip is drawn inside it, at the column's edge.
+    const extra = mobile ? Math.max(0, MOBILE_MIN_TAP_PX - block.height) : 0;
+    return (
+      <BusyDetails
+        key={block.startMinutes}
+        segment={block.actual}
+        date={date}
+        trigger={
+          <button
+            type="button"
+            className="group absolute right-0 cursor-pointer"
+            style={{
+              top: block.top - extra / 2,
+              height: block.height + extra,
+              width: mobile ? gutter + 8 : gutter + 4,
+            }}
+          >
+            <span
+              aria-hidden
+              className="bg-calendar-google-busy-strip group-hover:bg-text-secondary absolute right-[1px] w-1 rounded-[2px]"
+              style={{ top: extra / 2, height: block.height }}
+            />
+          </button>
+        }
+      />
+    );
+  });
 }
 
 export function allDayDates(
