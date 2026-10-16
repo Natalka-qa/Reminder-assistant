@@ -325,6 +325,7 @@ function DesktopWeek({
                       date={day.date}
                       range={range}
                       hourHeight={DESKTOP.hourHeight}
+                      variant="desktop"
                     />
                   </Suspense>
                   {showNow && day.date === clock.date && (
@@ -500,6 +501,7 @@ function MobileWeek({
               date={selectedDay.date}
               range={range}
               hourHeight={MOBILE.hourHeight}
+              variant="mobile"
             />
           </Suspense>
           {showNow && <NowLine top={nowTop(clock, range, MOBILE.hourHeight)} />}
