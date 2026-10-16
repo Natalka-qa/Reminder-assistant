@@ -83,3 +83,7 @@ _Решено 2026-10-03: все четыре — в Sprint 20, [sprint-20-tasks
     - Callback data stays within Telegram's 64 bytes; HTML escaped; tests for message, buttons and parsing.
 
     **Estimate:** ~3–4 h (+ ~1 h for `/habit …`). No migrations.
+
+## 2026-10-16
+
+11. **«Отмена» на экране Google → «Server error»** (исправлено 2026-10-16, ветка `google-cancel-fix`). При отмене входа через Google или подключения Google Calendar Google возвращает `/api/auth/callback/<provider>?error=access_denied` без параметра `iss`; Auth.js (oauth4webapi) требует `iss` от Google и падает раньше, чем читает ошибку (`OperationProcessingError: response parameter "iss" (issuer) missing` → `error=Configuration` → «There is a problem with the server configuration»). Теперь `GET` в `api/auth/[...nextauth]/route.ts` сначала смотрит `providerErrorRedirect` (`lib/auth/provider-error.ts`): ошибка от провайдера → обратно, откуда начали — `/settings` для календаря, `/login` для входа; остальное — как было, в Auth.js. Тесты — 3. Проверено локально: воспроизведено до исправления (вход через Google, отмена → `error=Configuration`, причина в логе), после — `google` → `/login`, `google-calendar` → `/settings`, `/api/auth/session` и `/providers` — 200. Успешный вход через Google не проверялся (нужен аккаунт) — код этого пути не менялся.
