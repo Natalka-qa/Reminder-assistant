@@ -5,8 +5,10 @@ import {
   blockTone,
   busyAriaLabel,
   busyInRange,
+  busyLabelCovered,
   busyLevel,
   formatMinutes,
+  googleCalendarDayUrl,
   layoutBusyBlocks,
   layoutDayEvents,
   timelineRange,
@@ -144,6 +146,29 @@ describe("busyAriaLabel", () => {
     expect(busyAriaLabel({ startMinutes: 1310, endMinutes: 1440 })).toBe(
       "Busy 21:50–24:00, Google Calendar",
     );
+  });
+});
+
+describe("googleCalendarDayUrl (2026-10-16)", () => {
+  it("opens that day in Google Calendar", () => {
+    expect(googleCalendarDayUrl("2026-10-06")).toBe(
+      "https://calendar.google.com/calendar/r/day/2026/10/6",
+    );
+  });
+});
+
+describe("busyLabelCovered (2026-10-16)", () => {
+  const busy = { startMinutes: 19 * 60 + 30, endMinutes: 20 * 60 + 30 };
+
+  it("is covered by a task starting over the label", () => {
+    expect(busyLabelCovered(busy, [at("Pilates", 19, 30)])).toBe(true);
+    expect(busyLabelCovered(busy, [at("Before", 19, 0, 45)])).toBe(true);
+  });
+
+  it("isn't by one later in the block, or ending before it", () => {
+    expect(busyLabelCovered(busy, [at("Later", 20, 0)])).toBe(false);
+    expect(busyLabelCovered(busy, [at("Before", 18, 30)])).toBe(false);
+    expect(busyLabelCovered(busy, [])).toBe(false);
   });
 });
 

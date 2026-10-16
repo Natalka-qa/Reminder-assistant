@@ -1,11 +1,17 @@
 "use client";
 
-import { use } from "react";
+import { use, type ReactElement } from "react";
 import Link from "next/link";
+import { Popover } from "@base-ui/react/popover";
+import { ExternalLink } from "lucide-react";
 import {
   busyAriaLabel,
   busyInRange,
+  busyLabelCovered,
+  busyRangeLabel,
+  googleCalendarDayUrl,
   layoutBusyBlocks,
+  type BusySegment,
   type CalendarBusy,
 } from "@/features/scheduling/calendar-layout";
 
@@ -23,17 +29,74 @@ export const BUSY_GUTTER_PX = 6;
 export const HATCH =
   "repeating-linear-gradient(135deg, var(--calendar-google-busy-hatch) 0 2px, transparent 2px 7px)";
 
-/** п.2 — a day's busy blocks, under that day's tasks on the timeline. */
+/**
+ * 2026-10-16 — what a busy block opens: its time and a link to that day
+ * in Google Calendar. We only read busy intervals (calendar.freebusy), so
+ * the event's name is there, not here. `data-calendar-busy` keeps a tap
+ * on it (and in the popup, a portal React still bubbles through) from
+ * asking to add a task at that time.
+ */
+function BusyDetails({
+  segment,
+  date,
+  trigger,
+}: {
+  segment: BusySegment;
+  date: string;
+  trigger: ReactElement;
+}) {
+  return (
+    <Popover.Root>
+      <Popover.Trigger
+        data-calendar-busy
+        aria-label={busyAriaLabel(segment)}
+        render={trigger}
+      />
+      <Popover.Portal>
+        <Popover.Positioner side="left" sideOffset={6} className="z-50">
+          <Popover.Popup
+            data-calendar-busy
+            className="bg-surface border-border shadow-calendar-block w-56 rounded-[10px] border p-3 outline-none"
+          >
+            <Popover.Title className="text-text-primary text-[14px] font-semibold">
+              Busy · {busyRangeLabel(segment)}
+            </Popover.Title>
+            <Popover.Description className="text-text-secondary mt-0.5 text-[12px]">
+              From your Google Calendar. Only the time is shared with us.
+            </Popover.Description>
+            <a
+              href={googleCalendarDayUrl(date)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent-text mt-2 inline-flex items-center gap-1 text-[13px] font-semibold underline-offset-2 hover:underline"
+            >
+              Open in Google Calendar
+              <ExternalLink aria-hidden className="size-3.5" />
+            </a>
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+}
+
+/**
+ * п.2 — a day's busy blocks, under that day's tasks on the timeline.
+ * 2026-10-16 — the "Busy" label opens BusyDetails; it's left out where a
+ * task starts over it (busyLabelCovered).
+ */
 export function GoogleBusyBlocks({
   busy,
   date,
   range,
   hourHeight,
+  events,
 }: {
   busy: Promise<CalendarBusy>;
   date: string;
   range: Range;
   hourHeight: number;
+  events: { startMinutes: number; durationMinutes: number }[];
 }) {
   const result = use(busy);
   if (result.status !== "ok") return null;
@@ -49,13 +112,19 @@ export function GoogleBusyBlocks({
       className="bg-calendar-google-busy pointer-events-none absolute inset-x-0"
       style={{ top: block.top, height: block.height, backgroundImage: HATCH }}
     >
-      {block.showLabel && (
-        <span
-          aria-hidden
-          className="bg-calendar-google-busy text-text-secondary absolute top-1 right-1 rounded-[4px] px-1 text-[10px]/[1.4] font-medium"
-        >
-          Busy
-        </span>
+      {block.showLabel && !busyLabelCovered(block, events) && (
+        <BusyDetails
+          segment={block.actual}
+          date={date}
+          trigger={
+            <button
+              type="button"
+              className="bg-calendar-google-busy text-text-secondary hover:text-text-primary pointer-events-auto absolute top-1 right-2 cursor-pointer rounded-[4px] px-1 text-[10px]/[1.4] font-medium"
+            >
+              Busy
+            </button>
+          }
+        />
       )}
     </div>
   ));
@@ -84,15 +153,23 @@ export function GoogleBusyStrips({
     hourHeight,
     startHour: range.startHour,
   }).map((block) => (
-    <div
+    <BusyDetails
       key={block.startMinutes}
-      aria-hidden
-      className="bg-calendar-google-busy-strip pointer-events-none absolute right-[1px] rounded-[2px]"
-      style={{
-        top: block.top,
-        height: block.height,
-        width: BUSY_GUTTER_PX - 2,
-      }}
+      segment={block.actual}
+      date={date}
+      trigger={
+        <button
+          type="button"
+          // A 4px strip with a wider hit area, reaching into the task's
+          // right padding — the strip itself is too thin to tap.
+          className="bg-calendar-google-busy-strip hover:bg-text-secondary absolute right-[1px] cursor-pointer rounded-[2px] after:absolute after:inset-y-0 after:-right-px after:-left-2.5"
+          style={{
+            top: block.top,
+            height: block.height,
+            width: BUSY_GUTTER_PX - 2,
+          }}
+        />
+      }
     />
   ));
 }

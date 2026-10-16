@@ -72,13 +72,46 @@ export type CalendarBusy =
   | { status: "unavailable" }
   | { status: "needs-reconnect" };
 
-/** п.8 — "Busy 14:00–15:00, Google Calendar"; a segment to midnight ends at 24:00. */
-export function busyAriaLabel({
+/** "14:00–15:00"; a segment to midnight ends at 24:00. */
+export function busyRangeLabel({
   startMinutes,
   endMinutes,
 }: BusySegment): string {
   const end = endMinutes >= 24 * 60 ? "24:00" : formatMinutes(endMinutes);
-  return `Busy ${formatMinutes(startMinutes)}–${end}, Google Calendar`;
+  return `${formatMinutes(startMinutes)}–${end}`;
+}
+
+/** п.8 — "Busy 14:00–15:00, Google Calendar". */
+export function busyAriaLabel(segment: BusySegment): string {
+  return `Busy ${busyRangeLabel(segment)}, Google Calendar`;
+}
+
+/**
+ * 2026-10-16 — Google Calendar's day view for a date ("2026-10-16" →
+ * …/r/day/2026/10/16): we only read busy intervals (calendar.freebusy),
+ * so what the event is, is one tap away there.
+ */
+export function googleCalendarDayUrl(date: string): string {
+  const [year, month, day] = date.split("-").map(Number);
+  return `https://calendar.google.com/calendar/r/day/${year}/${month}/${day}`;
+}
+
+/**
+ * 2026-10-16 — the "Busy" label sits at the top of its block; a task there
+ * covers it — or, a closed one being half see-through, lets it show
+ * through the task's text. No label then.
+ */
+export function busyLabelCovered(
+  block: BusySegment,
+  events: { startMinutes: number; durationMinutes: number }[],
+): boolean {
+  const labelEnd = block.startMinutes + BUSY_LABEL_MIN_MINUTES;
+  return events.some(
+    (event) =>
+      event.startMinutes < labelEnd &&
+      event.startMinutes + Math.max(event.durationMinutes, 1) >
+        block.startMinutes,
+  );
 }
 
 /** A busy segment cut to the timeline, with the uncut one for its label. */
