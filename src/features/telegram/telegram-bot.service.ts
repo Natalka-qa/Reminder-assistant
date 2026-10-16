@@ -65,7 +65,6 @@ import {
   canFixCreatedTask,
   canUndoRemoval,
   dayItem,
-  dayItems,
   localNow,
   pickNext,
   shiftedTaskInput,
@@ -171,18 +170,22 @@ export const telegramBotService = {
   },
 };
 
+// 2026-10-15 — Today is the morning summary as of now: the same text,
+// habits and buttons (✓ for what's started, a menu for what's ahead), so
+// its buttons redraw it as they redraw the summary. A day with nothing at
+// all still answers "Nothing planned for today".
 async function showToday(user: User, chatId: string, now: Date) {
-  const [today, overdue] = await Promise.all([
-    dashboardService.getTodayTasks(user.id, user.timezone, now),
-    dashboardService.getOverdueTasks(user.id, user.timezone, now),
-  ]);
+  const summary = await buildSummary(user, now);
+  if (summary) {
+    await sendTelegramMessage(chatId, summary.text, summary.buttons, {
+      html: true,
+    });
+    return;
+  }
   const dateLabel = formatDateInZone(now, user.timezone, "ccc, LLL d");
-  await sendTelegramMessage(
-    chatId,
-    todayMessage(dateLabel, dayItems(today, user.timezone), overdue.length),
-    undefined,
-    { html: true },
-  );
+  await sendTelegramMessage(chatId, todayMessage(dateLabel, [], 0), undefined, {
+    html: true,
+  });
 }
 
 async function showNext(user: User, chatId: string, now: Date) {
