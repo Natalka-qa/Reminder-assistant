@@ -65,6 +65,7 @@ export function WeekEventBlock({
   const tone = blockTone({ ...event, status });
   const fixed = event.flexibility === "FIXED";
   const mobile = variant === "mobile";
+  const gutter = BUSY_GUTTER_PX[variant];
   const single = event.columns === 1;
   const size: BlockTextSize = mobile
     ? "mobile"
@@ -126,8 +127,8 @@ export function WeekEventBlock({
         top: event.top,
         height: event.height,
         // The right BUSY_GUTTER_PX stay free for Google's busy strip.
-        left: `calc((100% - ${BUSY_GUTTER_PX}px) * ${event.column / event.columns} + 2px)`,
-        width: `calc((100% - ${BUSY_GUTTER_PX}px) / ${event.columns} - 4px)`,
+        left: `calc((100% - ${gutter}px) * ${event.column / event.columns} + 2px)`,
+        width: `calc((100% - ${gutter}px) / ${event.columns} - 4px)`,
         padding: `${fit.paddingY}px ${mobile ? 10 : size === "roomy" ? 7 : 5}px`,
       }}
     >
