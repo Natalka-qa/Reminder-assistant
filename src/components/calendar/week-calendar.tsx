@@ -303,6 +303,7 @@ function DesktopWeek({
                       date={day.date}
                       range={range}
                       hourHeight={DESKTOP.hourHeight}
+                      events={day.events}
                     />
                   </Suspense>
                   {laidOut[index].map((event) => (
@@ -478,6 +479,7 @@ function MobileWeek({
               date={selectedDay.date}
               range={range}
               hourHeight={MOBILE.hourHeight}
+              events={selectedDay.events}
             />
           </Suspense>
           {events.map((event) => (
@@ -676,7 +678,11 @@ function useEmptySlots({
   );
 
   function slotAt(event: React.MouseEvent<HTMLDivElement>, date: string) {
-    if ((event.target as HTMLElement).closest("[data-calendar-block]")) {
+    if (
+      (event.target as HTMLElement).closest(
+        "[data-calendar-block], [data-calendar-busy]",
+      )
+    ) {
       return null;
     }
     const top = event.currentTarget.getBoundingClientRect().top;
