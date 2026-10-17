@@ -83,6 +83,7 @@ model User {
   occurrences   TaskOccurrence[]
   notifications Notification[]
   habits        Habit[]
+  taskDrafts    TaskDraft[]
 }
 
 model Account {
@@ -278,6 +279,33 @@ model HabitLog {
   updatedAt DateTime @updatedAt
 
   @@unique([habitId, date])
+}
+
+// sprint-24-tasks.md решение 12 — a task read from a picture in Telegram,
+// waiting for Add, Edit or Cancel. Only what was read, never the picture
+// (решение 11). Gone after Add / Save / Cancel, or after 24 hours (the
+// daily cron).
+model TaskDraft {
+  id              String  @id @default(cuid())
+  userId          String
+  title           String
+  // The user's local "YYYY-MM-DD" and "HH:mm" (ADR-002); null time — a day
+  // without one.
+  date            String
+  time            String?
+  durationMinutes Int?
+  // Address, seat, booking code (решение 5) — the task's note.
+  notes           String?
+  // решение 4 — the readings to choose from: [{ date, time,
+  // durationMinutes }]; empty once chosen or with one reading.
+  options         Json    @default("[]")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
 }
 
 enum Theme {

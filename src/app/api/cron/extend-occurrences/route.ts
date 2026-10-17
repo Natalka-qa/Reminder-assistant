@@ -1,5 +1,6 @@
 import { occurrenceService } from "@/features/scheduling/occurrence.service";
 import { taskService } from "@/features/tasks/task.service";
+import { taskDraftService } from "@/features/task-drafts/task-draft.service";
 import { env } from "@/lib/env";
 
 // Vercel Cron (vercel.json) hits this daily; a manual/local call needs the
@@ -18,7 +19,9 @@ export async function GET(request: Request) {
     const ended = await taskService.endFinishedSeries(now);
     const extended =
       await occurrenceService.extendOccurrencesForAllActiveTasks(now);
-    return Response.json({ ended, extended });
+    // sprint-24-tasks.md решение 12 — picture drafts left unanswered.
+    const draftsDeleted = await taskDraftService.deleteExpired(now);
+    return Response.json({ ended, extended, draftsDeleted });
   } catch (error) {
     console.error("extend-occurrences cron failed:", error);
     return Response.json(
