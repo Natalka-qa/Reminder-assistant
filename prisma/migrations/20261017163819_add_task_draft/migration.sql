@@ -1,4 +1,3 @@
-◇ injected env (15) from .env.local // tip: ⌘ enable debugging { debug: true }
 -- CreateTable
 CREATE TABLE "TaskDraft" (
     "id" TEXT NOT NULL,
