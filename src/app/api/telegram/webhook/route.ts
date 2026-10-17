@@ -12,7 +12,7 @@ import { telegramBotService } from "@/features/telegram/telegram-bot.service";
 // cron routes use.
 // sprint-24-tasks.md решение 13 — reading a picture takes seconds; it runs
 // after the response (below), within this limit.
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 export async function POST(request: Request) {
   if (!isTelegramEnabled()) {

@@ -9,12 +9,37 @@ import { createWorker } from "tesseract.js";
 // needs it and is cached in /tmp (the only writable place on Vercel).
 const LANGUAGES = ["eng", "spa", "rus", "ukr"];
 
+/**
+ * Within this, or it throws: a worker that dies (or a slow first start)
+ * must end in "I couldn't read this picture", not a "Reading the
+ * picture…" that never changes. Under the webhook's maxDuration.
+ */
+export const PICTURE_READ_TIMEOUT_MS = 90_000;
+
 export async function readPictureText(picture: Buffer): Promise<string> {
-  const worker = await createWorker(LANGUAGES, 1, { cachePath: tmpdir() });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error("Reading the picture timed out")),
+      PICTURE_READ_TIMEOUT_MS,
+    );
+  });
+  let worker: Awaited<ReturnType<typeof createWorker>> | undefined;
   try {
-    const { data } = await worker.recognize(picture);
-    return data.text;
+    return await Promise.race([
+      (async () => {
+        worker = await createWorker(LANGUAGES, 1, {
+          cachePath: tmpdir(),
+          errorHandler: (error: unknown) =>
+            console.error("tesseract worker error:", error),
+        });
+        const { data } = await worker.recognize(picture);
+        return data.text;
+      })(),
+      timeout,
+    ]);
   } finally {
-    await worker.terminate();
+    clearTimeout(timer);
+    await worker?.terminate().catch(() => {});
   }
 }
