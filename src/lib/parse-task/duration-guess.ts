@@ -145,6 +145,11 @@ const GUESSES: Guess[] = [
       "пігулк",
       "вітамін",
       "краплі",
+      // sprint-24-tasks.md решение 1 — Spanish.
+      "pastilla",
+      "medicina",
+      "medicamento",
+      "vitamina",
     ],
   },
   // A doctor's visit — 30 min.
@@ -167,12 +172,28 @@ const GUESSES: Guess[] = [
       "лікаря",
       "поліклінік",
       "клінік",
+      "médico",
+      "medico",
+      "dentista",
+      "clínica",
+      "clinica",
     ],
   },
   // A film — 2 hours.
   {
     minutes: 120,
-    stems: ["movie", "cinema", "film", "кино", "фильм", "кіно", "фільм"],
+    stems: [
+      "movie",
+      "cinema",
+      "film",
+      "кино",
+      "фильм",
+      "кіно",
+      "фільм",
+      "cine",
+      "película",
+      "pelicula",
+    ],
   },
   // Dance, a workout, massage, a lesson, the pool — 1 hour.
   {
@@ -209,6 +230,14 @@ const GUESSES: Guess[] = [
       "плаванн",
       "пілатес",
       "фітнес",
+      "masaje",
+      "baile",
+      "clase",
+      "gimnasio",
+      "entrenamiento",
+      "piscina",
+      "natación",
+      "natacion",
     ],
   },
 ];
