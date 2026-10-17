@@ -46,18 +46,26 @@ function afterTransition(el: HTMLElement, then: () => void) {
 }
 
 /**
- * The touch handlers for `area`, the part that follows the finger. `onStep(±1)` changes the day and returns whether it changed
- * in place (false: another week is loading, so the area stays out of view
- * until the page replaces it). `blocked()` — a block is being dragged.
+ * The touch handlers for `area`, the part that follows the finger.
+ * `onStep(±1)` changes the day and returns whether it changed in place
+ * (false: another week is loading — the area comes back, and the page
+ * dims it until the week arrives). `blocked()` — a block is being dragged.
+ *
+ * `carousel` (2026-10-17, the week strip): `area` is a track with the
+ * neighbours already drawn beside it, so nothing fades — it glides on to
+ * the neighbour and stays there until the page replaces it, instead of
+ * leaving a blank while the week loads.
  */
 export function useDaySwipe({
   area,
   onStep,
   blocked,
+  carousel = false,
 }: {
   area: RefObject<HTMLElement | null>;
   onStep: (delta: number) => boolean;
   blocked: () => boolean;
+  carousel?: boolean;
 }) {
   const gesture = useRef<{
     x: number;
@@ -93,7 +101,11 @@ export function useDaySwipe({
     }
     if (start.axis !== "x") return;
     const width = el.offsetWidth || 1;
-    setSlide(el, dx, 1 - Math.min(Math.abs(dx) / width, 1) * 0.6);
+    setSlide(
+      el,
+      dx,
+      carousel ? 1 : 1 - Math.min(Math.abs(dx) / width, 1) * 0.6,
+    );
   }
 
   function onTouchEnd(event: TouchEvent) {
@@ -114,14 +126,19 @@ export function useDaySwipe({
     }
     const delta = dx < 0 ? 1 : -1;
     if (reducedMotion()) {
-      setSlide(el, 0, 1);
+      if (!carousel) setSlide(el, 0, 1);
       onStep(delta);
       return;
     }
-    // Out the way it was going…
+    if (carousel) {
+      setSlide(el, -delta * width, 1, "transform var(--dur-3) var(--ease-out)");
+      afterTransition(el, () => onStep(delta));
+      return;
+    }
+    // Out the way it was going, a little further and fading…
     setSlide(
       el,
-      -delta * width,
+      -delta * Math.max(Math.abs(dx), width * 0.35),
       0,
       "transform var(--dur-2) var(--ease-in), opacity var(--dur-2) var(--ease-in)",
     );
@@ -130,9 +147,9 @@ export function useDaySwipe({
       flushSync(() => {
         inPlace = onStep(delta);
       });
-      if (!inPlace) return;
-      // …and the next day in from the other side.
-      setSlide(el, delta * width * 0.3, 0);
+      // …and the next day in from the other side (or, while another week
+      // loads, this one back where it was, for the page to dim).
+      setSlide(el, inPlace ? delta * width * 0.15 : 0, 0);
       void el.offsetWidth;
       setSlide(
         el,

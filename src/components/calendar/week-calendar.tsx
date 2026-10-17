@@ -1,6 +1,13 @@
 "use client";
 
-import { Suspense, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useZonedClock, type ZonedClock } from "@/lib/date/zoned-clock";
@@ -99,6 +106,12 @@ export function WeekCalendar({
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState(initialSelected);
+  // Another week loading after a swipe: the day under the strip dims
+  // until it arrives, rather than going blank.
+  const [navigating, startNavigation] = useTransition();
+  function go(date: string) {
+    startNavigation(() => router.push(`/calendar?date=${date}`));
+  }
   const clock = useZonedClock(timezone, { date: today, minutes: nowMinutes });
   // One range for the whole week, so swiping between days on mobile
   // doesn't make the hours jump.
@@ -126,14 +139,14 @@ export function WeekCalendar({
       select(next);
       return true;
     }
-    router.push(`/calendar?date=${next}`);
+    go(next);
     return false;
   }
 
   // 2026-10-17 — swiping the phone's day strip moves a week, like the
   // header's arrows; the selected day moves with it.
   function shiftWeek(delta: number): boolean {
-    router.push(`/calendar?date=${shiftDate(selected, 7 * delta)}`);
+    go(shiftDate(selected, 7 * delta));
     return false;
   }
 
@@ -178,6 +191,7 @@ export function WeekCalendar({
           onSelect={select}
           onSwipe={shiftDay}
           onSwipeWeek={shiftWeek}
+          navigating={navigating}
           clock={clock}
           range={range}
           busy={busy}
@@ -371,6 +385,7 @@ function MobileWeek({
   onSelect,
   onSwipe,
   onSwipeWeek,
+  navigating,
   clock,
   range,
   busy,
@@ -380,6 +395,7 @@ function MobileWeek({
   onSelect: (date: string) => void;
   onSwipe: (delta: number) => boolean;
   onSwipeWeek: (delta: number) => boolean;
+  navigating: boolean;
   clock: ZonedClock;
   range: Range;
   busy: Promise<CalendarBusy>;
@@ -430,35 +446,53 @@ function MobileWeek({
     onStep: onSwipe,
     blocked: () => drag !== null || justDragged.current,
   });
-  const stripArea = useRef<HTMLDivElement>(null);
+  const stripTrack = useRef<HTMLDivElement>(null);
   const stripSwipe = useDaySwipe({
-    area: stripArea,
+    area: stripTrack,
     onStep: onSwipeWeek,
     blocked: () => drag !== null,
+    carousel: true,
   });
   // § 3 — the now line only on the selected day, when that's today.
   const showNow = selectedDay.date === clock.date && nowInRange(clock, range);
 
   return (
     <div className="flex flex-col gap-3.5">
+      {/* The week between its neighbours, drawn ahead so a swipe glides
+          onto real dates (their busy lines come with the page). */}
       <div
-        ref={stripArea}
         onTouchStart={stripSwipe.onTouchStart}
         onTouchMove={stripSwipe.onTouchMove}
         onTouchEnd={stripSwipe.onTouchEnd}
         onTouchCancel={stripSwipe.onTouchCancel}
-        className="-mx-2 grid touch-pan-y grid-cols-7 gap-0.5"
+        className="-mx-2 touch-pan-y overflow-hidden"
       >
-        {days.map((day) => (
-          <DayCell
-            key={day.date}
-            day={day}
-            variant="mobile"
-            selected={day.date === selectedDay.date}
-            today={day.date === clock.date}
-            onSelect={onSelect}
+        <div ref={stripTrack} className="relative">
+          <NeighbourWeek
+            side="previous"
+            weekStart={shiftDate(days[0].date, -7)}
+            selected={shiftDate(selectedDay.date, -7)}
+            today={clock.date}
           />
-        ))}
+          <div className="grid grid-cols-7 gap-0.5">
+            {days.map((day) => (
+              <DayCell
+                key={day.date}
+                day={day}
+                variant="mobile"
+                selected={day.date === selectedDay.date}
+                today={day.date === clock.date}
+                onSelect={onSelect}
+              />
+            ))}
+          </div>
+          <NeighbourWeek
+            side="next"
+            weekStart={shiftDate(days[0].date, 7)}
+            selected={shiftDate(selectedDay.date, 7)}
+            today={clock.date}
+          />
+        </div>
       </div>
 
       <div
@@ -468,7 +502,10 @@ function MobileWeek({
         onTouchEnd={swipe.onTouchEnd}
         onTouchCancel={swipe.onTouchCancel}
         // Vertical panning stays the browser's; sideways is the swipe's.
-        className="flex touch-pan-y flex-col gap-3.5 will-change-transform"
+        className={cn(
+          "flex touch-pan-y flex-col gap-3.5 transition-opacity duration-(--dur-3) will-change-transform",
+          navigating && "opacity-40",
+        )}
       >
         <div className="flex flex-col gap-1">
           <p className="text-text-primary text-[12px] font-semibold tracking-[0.12em] uppercase">
@@ -544,6 +581,55 @@ function MobileWeek({
       </div>
       {dialog}
       {slots.dialog}
+    </div>
+  );
+}
+
+/** A week beside the strip's, for a swipe to land on; not interactive. */
+function NeighbourWeek({
+  side,
+  weekStart,
+  selected,
+  today,
+}: {
+  side: "previous" | "next";
+  weekStart: string;
+  selected: string;
+  today: string;
+}) {
+  return (
+    <div
+      aria-hidden
+      inert
+      className={cn(
+        "absolute inset-y-0 grid w-full grid-cols-7 gap-0.5",
+        side === "previous" ? "right-full" : "left-full",
+      )}
+    >
+      {Array.from({ length: 7 }, (_, index) => {
+        const date = shiftDate(weekStart, index);
+        return (
+          <DayCell
+            key={date}
+            day={{
+              date,
+              weekdayShort: formatCalendarDate(date, { weekday: "short" }),
+              dayNumber: Number(date.slice(8)),
+              isToday: date === today,
+              isPast: date < today,
+              busyLevel: 0,
+              label: "",
+              countsLabel: "",
+              events: [],
+              anyTime: [],
+            }}
+            variant="mobile"
+            selected={date === selected}
+            today={date === today}
+            onSelect={() => {}}
+          />
+        );
+      })}
     </div>
   );
 }
