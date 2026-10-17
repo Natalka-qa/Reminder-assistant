@@ -337,6 +337,19 @@ export const NUMBER_WORDS: Record<string, number> = {
   "дев'яти": 9,
   десять: 10,
   десяти: 10,
+  // sprint-24-tasks.md решение 1 — Spanish.
+  un: 1,
+  una: 1,
+  uno: 1,
+  dos: 2,
+  tres: 3,
+  cuatro: 4,
+  cinco: 5,
+  seis: 6,
+  siete: 7,
+  ocho: 8,
+  nueve: 9,
+  diez: 10,
 };
 
 // The apostrophe in п'ять comes typed several ways.
@@ -386,7 +399,7 @@ export function numericDateRule(prefix: string, notAfter: string): Rule {
 // What can follow "20.10" when it's a time or an amount: "9.30 утра",
 // "1.25 hours", "2.10 ч".
 const TIME_OR_AMOUNT_AFTER =
-  "(?! ?(?:h|hrs?|hours?|m|mins?|minutes?|am|pm|a\\.m|p\\.m|ч|час\\p{L}*|мин\\p{L}*|утра|дня|вечера|ночи|год\\p{L}*|хв\\p{L}*|ранку|вечора|ночі)(?!\\p{L}))";
+  "(?! ?(?:h|hrs?|hours?|m|mins?|minutes?|am|pm|a\\.m|p\\.m|ч|час\\p{L}*|мин\\p{L}*|утра|дня|вечера|ночи|год\\p{L}*|хв\\p{L}*|ранку|вечора|ночі|horas?|minutos?)(?!\\p{L}))";
 
 /**
  * A date in digits, six groups: day, then month and year after "/", or

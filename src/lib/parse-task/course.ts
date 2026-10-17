@@ -73,6 +73,7 @@ const PART_NAMES: Record<ParsedTask["language"], [string, string, string]> = {
   en: ["morning", "afternoon", "evening"],
   ru: ["утро", "день", "вечер"],
   uk: ["ранок", "день", "вечір"],
+  es: ["mañana", "tarde", "noche"],
 };
 
 // "a day" says daily: added when the text names no repeat of its own.
@@ -80,6 +81,7 @@ const DAILY: Record<ParsedTask["language"], string> = {
   en: "every day",
   ru: "каждый день",
   uk: "щодня",
+  es: "cada día",
 };
 
 function countIn(match: RegExpMatchArray): number {
