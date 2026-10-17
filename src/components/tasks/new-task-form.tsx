@@ -126,6 +126,7 @@ export function NewTaskForm({
   defaultReminderMinutes,
   initialText = "",
   slot = null,
+  draft = null,
 }: {
   timezone: string;
   today: string;
@@ -141,6 +142,18 @@ export function NewTaskForm({
    * after saving, back to Calendar on that day.
    */
   slot?: { date: string; time: string } | null;
+  /**
+   * sprint-24-tasks.md решение 3 — a draft read from a picture in Telegram:
+   * its day, time, length and note start as if set by hand (the title is
+   * `initialText`). Saving deletes the draft.
+   */
+  draft?: {
+    id: string;
+    date: string;
+    time: string | null;
+    durationMinutes: number | null;
+    notes: string | null;
+  } | null;
 }) {
   const [state, formAction, pendingOne] = useActionState(
     createTaskAction,
@@ -158,9 +171,19 @@ export function NewTaskForm({
     reminderOffsetMinutes: defaultReminderMinutes,
   };
   const [text, setText] = useState(initialText);
-  const [overrides, setOverrides] = useState<TaskFieldOverrides>({});
-  const [noteOpen, setNoteOpen] = useState(false);
-  const [note, setNote] = useState("");
+  const [overrides, setOverrides] = useState<TaskFieldOverrides>(() =>
+    draft
+      ? {
+          date: draft.date,
+          time: draft.time,
+          ...(draft.durationMinutes !== null
+            ? { durationMinutes: draft.durationMinutes }
+            : {}),
+        }
+      : {},
+  );
+  const [noteOpen, setNoteOpen] = useState(Boolean(draft?.notes));
+  const [note, setNote] = useState(draft?.notes ?? "");
   const ids = {
     input: useId(),
     status: useId(),
@@ -443,6 +466,7 @@ export function NewTaskForm({
           value={`/calendar?date=${slot.date}`}
         />
       )}
+      {draft && <input type="hidden" name="draftId" value={draft.id} />}
       {/* What gets saved: the same fields createTaskAction always took. */}
       <input type="hidden" name="title" value={input.title} />
       <input type="hidden" name="date" value={input.date} />
@@ -567,9 +591,12 @@ export function NewTaskForm({
                 >
                   {hits.length > 0
                     ? `Picked up: ${hits.join(" · ")}`
-                    : title
-                      ? "No date or time found — set them below, or leave it for today."
-                      : "Add what the task is, not only when."}
+                    : draft && title
+                      ? // sprint-24-tasks.md решение 3 — the when is the picture's.
+                        "From your picture — check the date and time below."
+                      : title
+                        ? "No date or time found — set them below, or leave it for today."
+                        : "Add what the task is, not only when."}
                 </p>
               )}
             </>

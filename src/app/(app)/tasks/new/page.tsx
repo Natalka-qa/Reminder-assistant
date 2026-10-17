@@ -3,6 +3,7 @@ import { zonedNow } from "@/lib/date";
 import { NewTaskForm } from "@/components/tasks/new-task-form";
 import { userService } from "@/features/user/user.service";
 import { DEFAULT_REMINDER_MINUTES } from "@/features/tasks/new-task-fields";
+import { taskDraftService } from "@/features/task-drafts/task-draft.service";
 
 /**
  * sprint-22-tasks.md п.1 — `?date=&time=&from=calendar` from a tap on
@@ -34,13 +35,17 @@ export default async function NewTaskPage({
   const user = await getCurrentUser();
   const now = zonedNow(user?.timezone ?? "UTC");
   // An example sentence to start from (/onboarding, the empty Home).
-  const { text, date, time, from } = await searchParams;
-  const [preferences, reminders] = user
+  const { text, date, time, from, draft: draftId } = await searchParams;
+  const [preferences, reminders, draft] = user
     ? await Promise.all([
         userService.getSchedulePreferences(user.id),
         userService.getReminderPreferences(user.id),
+        // sprint-24-tasks.md решение 3 — ✎ Edit under a picture's draft.
+        typeof draftId === "string"
+          ? taskDraftService.get(user.id, draftId)
+          : null,
       ])
-    : [null, null];
+    : [null, null, null];
 
   return (
     <NewTaskForm
@@ -51,8 +56,21 @@ export default async function NewTaskPage({
       defaultReminderMinutes={
         reminders?.defaultReminderMinutes ?? DEFAULT_REMINDER_MINUTES
       }
-      initialText={typeof text === "string" ? text.slice(0, 500) : ""}
-      slot={calendarSlot(date, time, from, now.toISODate()!)}
+      initialText={
+        draft ? draft.title : typeof text === "string" ? text.slice(0, 500) : ""
+      }
+      slot={draft ? null : calendarSlot(date, time, from, now.toISODate()!)}
+      draft={
+        draft
+          ? {
+              id: draft.id,
+              date: draft.date,
+              time: draft.time,
+              durationMinutes: draft.durationMinutes,
+              notes: draft.notes,
+            }
+          : null
+      }
     />
   );
 }

@@ -11,6 +11,8 @@ import {
   connectedMessage,
   createdButtons,
   createdMessage,
+  DRAFT_CANCELLED_MESSAGE,
+  DRAFT_GONE_MESSAGE,
   EMPTY_PHRASE_MESSAGE,
   helpMessage,
   INVALID_CODE_MESSAGE,
@@ -20,6 +22,8 @@ import {
   notLinkedMessage,
   occurrenceButtons,
   openAppButton,
+  PDF_NOT_READ_MESSAGE,
+  PICK_A_TIME_FIRST_MESSAGE,
   MOVED_TO_TOMORROW_MESSAGE,
   removedButtons,
   replyKeyboard,
@@ -70,6 +74,9 @@ import {
   shiftedTaskInput,
 } from "./bot-view";
 import { buildSummary } from "./telegram-summary.service";
+import { draftReply, readPictureTask } from "./telegram-picture.service";
+import { taskDraftService } from "@/features/task-drafts/task-draft.service";
+import { draftTaskInput } from "@/features/task-drafts/task-draft-view";
 import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-status";
 import { pickCurrentOccurrence } from "@/features/scheduling/occurrence-selection";
 import { editTaskValues } from "@/features/tasks/edit-task-fields";
@@ -147,6 +154,10 @@ export const telegramBotService = {
         return answerTelegramButton(update.callbackId, ALREADY_CLOSED_MESSAGE);
       case "text":
         return addTask(user, update.chatId, update.text, now);
+      case "picture":
+        return readPictureTask(user, update.chatId, update.fileId, now);
+      case "pdf":
+        return sendTelegramMessage(update.chatId, PDF_NOT_READ_MESSAGE);
       case "button":
         return pressButton(user, update, now);
       case "command":
@@ -572,6 +583,69 @@ async function pressButton(user: User, press: Button, now: Date) {
         await answerTelegramButton(callbackId, MOVED_TO_TOMORROW_MESSAGE);
         return;
       }
+      case "dadd": {
+        // sprint-24-tasks.md решение 2 — the draft becomes a task, as one
+        // typed in the chat would: "Added: …" with Undo, +1 h, Tomorrow.
+        const draft = await taskDraftService.get(user.id, id);
+        if (!draft) {
+          await answerTelegramButton(callbackId, DRAFT_GONE_MESSAGE);
+          return;
+        }
+        if (draft.options.length > 0) {
+          await answerTelegramButton(callbackId, PICK_A_TIME_FIRST_MESSAGE);
+          return;
+        }
+        const { today } = localNow(now, user.timezone);
+        const input = draftTaskInput(draft, {
+          today,
+          defaultReminderMinutes: user.defaultReminderMinutes,
+        });
+        let taskId: string;
+        try {
+          ({
+            task: { id: taskId },
+          } = await taskService.createTask(user.id, user.timezone, input));
+        } catch (error) {
+          if (error instanceof TaskValidationError) {
+            await answerTelegramButton(callbackId, error.message);
+            return;
+          }
+          throw error;
+        }
+        await taskDraftService.delete(user.id, id);
+        revalidateAfterChange(taskId);
+        const reply = await createdReply(user, taskId, input, now);
+        await editTelegramMessage(chatId, messageId, reply.text, reply.buttons);
+        break;
+      }
+      case "dpick": {
+        // решение 4 — "<draft id>-<reading>": that reading, then Add.
+        const split = id.lastIndexOf("-");
+        const draft = await taskDraftService.choose(
+          user.id,
+          id.slice(0, split),
+          Number(id.slice(split + 1)),
+        );
+        if (!draft) {
+          await answerTelegramButton(callbackId, DRAFT_GONE_MESSAGE);
+          return;
+        }
+        const reply = draftReply(draft, localNow(now, user.timezone).today);
+        await editTelegramMessage(
+          chatId,
+          messageId,
+          reply.text,
+          reply.buttons,
+          {
+            html: true,
+          },
+        );
+        break;
+      }
+      case "dcancel":
+        await taskDraftService.delete(user.id, id);
+        await editTelegramMessage(chatId, messageId, DRAFT_CANCELLED_MESSAGE);
+        break;
       case "hdone":
       case "hplus": {
         // sprint-21-tasks.md п.9 — a habit from the morning summary: mark

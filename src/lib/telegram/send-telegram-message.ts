@@ -11,6 +11,14 @@ async function telegramApi(
   method: string,
   body: Record<string, unknown>,
 ): Promise<void> {
+  await telegramResult(method, body);
+}
+
+/** The call's `result` — the sent message, the file to download. */
+async function telegramResult(
+  method: string,
+  body: Record<string, unknown>,
+): Promise<unknown> {
   const res = await fetch(
     `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${method}`,
     {
@@ -22,6 +30,8 @@ async function telegramApi(
   if (!res.ok) {
     throw new Error(`Telegram error (${res.status}): ${await res.text()}`);
   }
+  const json = (await res.json()) as { result?: unknown };
+  return json.result;
 }
 
 type Options = { html?: boolean };
@@ -86,4 +96,35 @@ export function editTelegramButtons(
     message_id: messageId,
     reply_markup: replyMarkup,
   });
+}
+
+// sprint-24-tasks.md — "Reading the picture…", later edited into the draft:
+// the same as sendTelegramMessage, with the sent message's id.
+export async function sendTelegramMessageForId(
+  chatId: string,
+  text: string,
+  options?: Options,
+): Promise<number> {
+  const result = (await telegramResult("sendMessage", {
+    chat_id: chatId,
+    text,
+    ...format(options),
+  })) as { message_id: number };
+  return result.message_id;
+}
+
+/**
+ * sprint-24-tasks.md решение 11 — a picture the user sent, into memory
+ * only: getFile, then the file itself. Never written anywhere.
+ */
+export async function downloadTelegramFile(fileId: string): Promise<Buffer> {
+  const file = (await telegramResult("getFile", { file_id: fileId })) as {
+    file_path?: string;
+  };
+  if (!file.file_path) throw new Error("Telegram file has no path");
+  const res = await fetch(
+    `https://api.telegram.org/file/bot${env.TELEGRAM_BOT_TOKEN}/${file.file_path}`,
+  );
+  if (!res.ok) throw new Error(`Telegram file error (${res.status})`);
+  return Buffer.from(await res.arrayBuffer());
 }

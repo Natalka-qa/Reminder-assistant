@@ -38,6 +38,14 @@ export default function PrivacyPage() {
             chat with our bot, so reminders can be sent there.
           </li>
           <li>
+            <strong>Pictures you send the bot</strong> — a ticket or a booking
+            screenshot is read on our own server to suggest a task, then
+            discarded: the picture and its full text are never stored or sent to
+            anyone else. We keep only the suggested task (its title, date, time,
+            place, seat and booking code) until you add, edit or cancel it, and
+            for 24 hours at most.
+          </li>
+          <li>
             <strong>Google Calendar</strong>, only if you connect it — the
             access tokens Google gives us for that connection. See below for
             what they allow.

@@ -6,6 +6,10 @@ export type TelegramUpdate = {
   message?: {
     text?: string;
     chat?: { id: number };
+    // sprint-24-tasks.md — a picture: sizes of one photo, smallest first;
+    // or a file sent "as a document" (an uncompressed screenshot, a PDF).
+    photo?: { file_id: string; file_size?: number }[];
+    document?: { file_id: string; mime_type?: string; file_size?: number };
   };
   callback_query?: {
     id: string;
@@ -23,6 +27,10 @@ export type ParsedUpdate =
   | { kind: "command"; chatId: string; name: BotCommand; args: string }
   | { kind: "unknown-command"; chatId: string }
   | { kind: "text"; chatId: string; text: string }
+  /** sprint-24-tasks.md — a picture to read a task from (S24-03). */
+  | { kind: "picture"; chatId: string; fileId: string }
+  /** A PDF — read as a screenshot only («Не входит»). */
+  | { kind: "pdf"; chatId: string }
   | {
       kind: "button";
       chatId: string;
@@ -51,7 +59,8 @@ const COMMAND = /^\/([A-Za-z0-9_]+)(?:@[A-Za-z0-9_]+)?(?:\s+([\s\S]*))?$/;
 
 // Pure — no I/O, so it's unit-testable without a real Telegram payload.
 // sprint-15-tasks.md S15-01. Anything this bot has nothing to say to — no
-// message, a photo or sticker (no text), blank text, no chat — is null,
+// message, a sticker (no text), blank text, no chat — is null; a photo is
+// a picture to read (sprint-24-tasks.md),
 // not an error: the webhook route responds 200 either way (Telegram
 // retries on non-2xx).
 export function parseUpdate(update: TelegramUpdate): ParsedUpdate | null {
@@ -77,9 +86,13 @@ export function parseUpdate(update: TelegramUpdate): ParsedUpdate | null {
     };
   }
 
-  const text = update.message?.text?.trim();
   const id = update.message?.chat?.id;
-  if (!text || id === undefined) return null;
+  if (id === undefined) return null;
+  const picture = pictureOf(update.message!);
+  if (picture) return { ...picture, chatId: String(id) };
+
+  const text = update.message?.text?.trim();
+  if (!text) return null;
   const chatId = String(id);
 
   const keyboard = KEYBOARD_COMMANDS[text.toLowerCase()];
@@ -100,4 +113,26 @@ export function parseUpdate(update: TelegramUpdate): ParsedUpdate | null {
   return known
     ? { kind: "command", chatId, name: known, args }
     : { kind: "unknown-command", chatId };
+}
+
+/** Telegram's own cap on what a bot may download (getFile) is 20 MB. */
+export const PICTURE_MAX_BYTES = 20 * 1024 * 1024;
+
+function pictureOf(
+  message: NonNullable<TelegramUpdate["message"]>,
+): { kind: "picture"; fileId: string } | { kind: "pdf" } | null {
+  const largest = message.photo?.at(-1);
+  if (largest && (largest.file_size ?? 0) <= PICTURE_MAX_BYTES) {
+    return { kind: "picture", fileId: largest.file_id };
+  }
+  const document = message.document;
+  if (!document) return null;
+  if (document.mime_type === "application/pdf") return { kind: "pdf" };
+  if (
+    document.mime_type?.startsWith("image/") &&
+    (document.file_size ?? 0) <= PICTURE_MAX_BYTES
+  ) {
+    return { kind: "picture", fileId: document.file_id };
+  }
+  return null;
 }

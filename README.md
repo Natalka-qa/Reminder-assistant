@@ -113,6 +113,8 @@ Skip this entirely if you don't want the Telegram notification channel — the t
 
 If `/start` gets no answer, check `getWebhookInfo` first (`curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/getWebhookInfo"`): an empty `url` means step 4 hasn't been run for this bot.
 
+**A task from a picture** (sprint-24-tasks.md): a photo or an image file sent to the bot — a ticket, a booking confirmation, a chat screenshot — is downloaded into memory, read with [tesseract.js](https://github.com/naptha/tesseract.js) on the server (English, Spanish, Russian, Ukrainian; no API keys; the language data is fetched from tesseract.js's CDN on a function's first run and cached in `/tmp`), and turned into a draft by rules (`features/telegram/picture-task.ts`). The bot answers "Reading the picture…" at once and edits it into the draft: ✓ Add, a button per reading when it can't tell which date and time is meant, ✎ Edit (New task in the Mini App, filled in) and ✕ Cancel. The picture is never stored; drafts live in `TaskDraft` until Add, Save or Cancel, and the daily cron deletes those older than 24 hours. A PDF gets "send a screenshot" — PDFs aren't read.
+
 The webhook only reaches a public URL, so a local `next dev` never gets updates from Telegram; to try the bot locally, POST updates to `/api/telegram/webhook` yourself with the `x-telegram-bot-api-secret-token` header.
 
 ### Google Calendar setup

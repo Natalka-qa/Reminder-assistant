@@ -141,3 +141,57 @@ describe("button data", () => {
     expect(parseButtonData("done")).toBeNull();
   });
 });
+
+describe("pictures (sprint-24-tasks.md)", () => {
+  it("reads the largest size of a photo", () => {
+    expect(
+      parseUpdate({
+        message: {
+          chat: { id: 42 },
+          photo: [
+            { file_id: "small", file_size: 1_000 },
+            { file_id: "large", file_size: 200_000 },
+          ],
+        },
+      }),
+    ).toEqual({ kind: "picture", chatId: "42", fileId: "large" });
+  });
+
+  it("reads a screenshot sent as a file, and tells a PDF apart", () => {
+    expect(
+      parseUpdate({
+        message: {
+          chat: { id: 42 },
+          document: { file_id: "shot", mime_type: "image/png" },
+        },
+      }),
+    ).toEqual({ kind: "picture", chatId: "42", fileId: "shot" });
+    expect(
+      parseUpdate({
+        message: {
+          chat: { id: 42 },
+          document: { file_id: "ticket", mime_type: "application/pdf" },
+        },
+      }),
+    ).toEqual({ kind: "pdf", chatId: "42" });
+  });
+
+  it("ignores other files and anything too big", () => {
+    expect(
+      parseUpdate({
+        message: {
+          chat: { id: 42 },
+          document: { file_id: "zip", mime_type: "application/zip" },
+        },
+      }),
+    ).toBeNull();
+    expect(
+      parseUpdate({
+        message: {
+          chat: { id: 42 },
+          photo: [{ file_id: "huge", file_size: 30 * 1024 * 1024 }],
+        },
+      }),
+    ).toBeNull();
+  });
+});

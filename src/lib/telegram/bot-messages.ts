@@ -187,6 +187,8 @@ export function helpMessage(): string {
     "/next — the next task",
     "/help — this message",
     "",
+    "Send a screenshot of a ticket or a booking and I'll suggest a task — you confirm it first.",
+    "",
     "Reminders come with Done, Snooze 15 min and Skip buttons.",
     "Today and Next are also on the keyboard below.",
   ].join("\n");
@@ -529,5 +531,93 @@ export function replyKeyboard(): ReplyKeyboard {
     keyboard: [[{ text: "Today" }, { text: "Next" }]],
     resize_keyboard: true,
     is_persistent: true,
+  };
+}
+
+// --- sprint-24-tasks.md — a task from a picture ------------------------------
+
+export const READING_PICTURE_MESSAGE = "🔎 Reading the picture…";
+
+/** решение 14 — nothing that looks like a date or a time. */
+export const NOTHING_IN_PICTURE_MESSAGE =
+  "I couldn't find a date or time in this picture. Write the task as text, or try a clearer screenshot.";
+
+export const PICTURE_FAILED_MESSAGE =
+  "I couldn't read this picture. Try again, or write the task as text.";
+
+/** «Не входит» — a PDF ticket is sent as a screenshot. */
+export const PDF_NOT_READ_MESSAGE =
+  "I can read pictures, not PDFs yet — send a screenshot of the ticket.";
+
+export const DRAFT_GONE_MESSAGE =
+  "This draft is gone — send the picture again.";
+
+export const PICK_A_TIME_FIRST_MESSAGE = "Pick the date and time first.";
+
+export const DRAFT_CANCELLED_MESSAGE = "Cancelled — nothing saved.";
+
+/**
+ * решение 2 — "📷 From your picture", the task as it would be saved, its
+ * notes in italics; or, with readings to choose from (решение 4), the
+ * question. Labels arrive formatted; everything read is escaped (HTML).
+ */
+export function pictureDraftMessage(draft: {
+  title: string;
+  /** "Fri, Oct 30 · 10:45 · 2 h"; null while the reading isn't chosen. */
+  whenLabel: string | null;
+  notes: string | null;
+  choosing: boolean;
+}): string {
+  const lines = [
+    "📷 <b>From your picture</b>",
+    "",
+    `<b>${escapeHtml(draft.title)}</b>`,
+  ];
+  if (draft.whenLabel) lines.push(escapeHtml(draft.whenLabel));
+  if (draft.notes) lines.push("", `<i>${escapeHtml(draft.notes)}</i>`);
+  lines.push(
+    "",
+    draft.choosing ? "Which date and time is it?" : "Add it as a task?",
+  );
+  return lines.join("\n");
+}
+
+/**
+ * Under a draft: a button per reading while choosing, else ✓ Add (green);
+ * then ✎ Edit (New task in the app, filled in) and ✕ Cancel.
+ */
+export function pictureDraftButtons(draft: {
+  id: string;
+  /** AUTH_URL — where the app is (openAppButton). */
+  appUrl: string;
+  /** Formatted readings to choose from; empty — the draft has one. */
+  optionLabels: string[];
+}): InlineKeyboard {
+  const first: InlineButton[][] =
+    draft.optionLabels.length > 0
+      ? draft.optionLabels.map((label, index) => [
+          {
+            text: label,
+            callback_data: buttonData("dpick", `${draft.id}-${index}`),
+            style: "primary",
+          },
+        ])
+      : [
+          [
+            {
+              text: "✓ Add",
+              callback_data: buttonData("dadd", draft.id),
+              style: "success",
+            },
+          ],
+        ];
+  return {
+    inline_keyboard: [
+      ...first,
+      [
+        openAppButton("✎ Edit", draft.appUrl, `/tasks/new?draft=${draft.id}`),
+        { text: "✕ Cancel", callback_data: buttonData("dcancel", draft.id) },
+      ],
+    ],
   };
 }
