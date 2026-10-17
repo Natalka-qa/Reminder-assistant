@@ -75,6 +75,7 @@ export function WhenGroup({
           }
           onChange={onDateChange}
           disabled={dateReadOnly}
+          today={today}
         >
           {formatWhenDate(date, today)}
         </PickerField>

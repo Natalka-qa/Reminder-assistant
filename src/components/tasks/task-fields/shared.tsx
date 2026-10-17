@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
+import { DatePopover } from "@/components/ui/date-calendar";
 import { cn } from "@/lib/utils";
 
 // sprint-14-tasks.md S14-03 — the pieces New task (NEW_TASK_V2_UPDATE.md)
@@ -29,12 +30,17 @@ export function Chevron() {
 // supported or the picker is already open, the field still takes typing.
 // Hover and focus show on the text underneath. `disabled` (a recurring
 // task's start date, S14-04) leaves the text only.
+// 2026-10-17 — with a mouse a date opens DateCalendar instead, the app's
+// own month grid: Chrome's popup didn't look like the app. On a phone it
+// stays native (the wheel and the Android calendar fit there); CSS picks
+// by pointer, so nothing differs between the server and the client.
 export function PickerField({
   type,
   value,
   ariaLabel,
   onChange,
   disabled,
+  today,
   className,
   children,
 }: {
@@ -43,15 +49,18 @@ export function PickerField({
   ariaLabel: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  /** A date's calendar rings it and quiets the days before. */
+  today?: string;
   className?: string;
   children: ReactNode;
 }) {
+  const ownCalendar = type === "date" && !disabled;
   return (
     <div className="group relative">
       <span
         aria-hidden
         className={cn(
-          "text-text-primary group-hover:bg-newtask-control-hover group-has-[input:focus-visible]:ring-ring block min-h-11 rounded-[10px] px-3 py-2.5 text-[19px] whitespace-nowrap transition-colors group-has-[input:focus-visible]:ring-2",
+          "text-text-primary group-hover:bg-newtask-control-hover group-has-[input:focus-visible]:ring-ring group-has-[button:focus-visible]:ring-ring group-has-[[data-popup-open]]:bg-newtask-control-hover block min-h-11 rounded-[10px] px-3 py-2.5 text-[19px] whitespace-nowrap transition-colors group-has-[button:focus-visible]:ring-2 group-has-[input:focus-visible]:ring-2",
           disabled && "text-newtask-quiet-text group-hover:bg-transparent",
           className,
         )}
@@ -79,8 +88,17 @@ export function PickerField({
         className={cn(
           "absolute inset-0 size-full cursor-pointer appearance-none text-[19px] opacity-0",
           disabled && "cursor-default",
+          ownCalendar && "pointer-fine:hidden",
         )}
       />
+      {ownCalendar && (
+        <DatePopover
+          value={value}
+          today={today}
+          ariaLabel={ariaLabel}
+          onChange={onChange}
+        />
+      )}
     </div>
   );
 }
