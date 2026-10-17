@@ -130,6 +130,13 @@ export function WeekCalendar({
     return false;
   }
 
+  // 2026-10-17 — swiping the phone's day strip moves a week, like the
+  // header's arrows; the selected day moves with it.
+  function shiftWeek(delta: number): boolean {
+    router.push(`/calendar?date=${shiftDate(selected, 7 * delta)}`);
+    return false;
+  }
+
   const root = useRef<HTMLDivElement>(null);
   useWheelDays(root, shiftDay);
 
@@ -170,6 +177,7 @@ export function WeekCalendar({
           selectedDay={selectedDay}
           onSelect={select}
           onSwipe={shiftDay}
+          onSwipeWeek={shiftWeek}
           clock={clock}
           range={range}
           busy={busy}
@@ -362,6 +370,7 @@ function MobileWeek({
   selectedDay,
   onSelect,
   onSwipe,
+  onSwipeWeek,
   clock,
   range,
   busy,
@@ -370,6 +379,7 @@ function MobileWeek({
   selectedDay: CalendarDay;
   onSelect: (date: string) => void;
   onSwipe: (delta: number) => boolean;
+  onSwipeWeek: (delta: number) => boolean;
   clock: ZonedClock;
   range: Range;
   busy: Promise<CalendarBusy>;
@@ -420,12 +430,25 @@ function MobileWeek({
     onStep: onSwipe,
     blocked: () => drag !== null || justDragged.current,
   });
+  const stripArea = useRef<HTMLDivElement>(null);
+  const stripSwipe = useDaySwipe({
+    area: stripArea,
+    onStep: onSwipeWeek,
+    blocked: () => drag !== null,
+  });
   // § 3 — the now line only on the selected day, when that's today.
   const showNow = selectedDay.date === clock.date && nowInRange(clock, range);
 
   return (
     <div className="flex flex-col gap-3.5">
-      <div className="-mx-2 grid grid-cols-7 gap-0.5">
+      <div
+        ref={stripArea}
+        onTouchStart={stripSwipe.onTouchStart}
+        onTouchMove={stripSwipe.onTouchMove}
+        onTouchEnd={stripSwipe.onTouchEnd}
+        onTouchCancel={stripSwipe.onTouchCancel}
+        className="-mx-2 grid touch-pan-y grid-cols-7 gap-0.5"
+      >
         {days.map((day) => (
           <DayCell
             key={day.date}
