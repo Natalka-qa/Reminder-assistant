@@ -50,6 +50,7 @@ import {
   useCalendarDrag,
   type Geometry,
 } from "@/components/calendar/use-calendar-drag";
+import { useDaySwipe, useWheelDays } from "@/components/calendar/use-day-swipe";
 
 // CALENDAR_V2_UPDATE.md § 2 (desktop) and § 3 (mobile) — Week mode. A
 // client component because selecting a day re-lays the grid (desktop: the
@@ -66,8 +67,6 @@ const DESKTOP = { hourHeight: 52, minHeight: 40 };
 const MOBILE = { hourHeight: 64, minHeight: 46 };
 // § 2.4 — an hour label this close to now would collide with the now label.
 const NOW_LABEL_CLEARANCE_MINUTES = 20;
-// § 3 — a horizontal swipe longer than this changes the day.
-const SWIPE_MIN_PX = 50;
 
 type Range = { startHour: number; endHour: number };
 
@@ -119,20 +118,25 @@ export function WeekCalendar({
   }
 
   // § 3 — swiping past either end of the week moves to the next/previous
-  // week, which is a new page from the server.
-  function shiftDay(delta: number) {
+  // week, which is a new page from the server. True when the day changed
+  // here, without one.
+  function shiftDay(delta: number): boolean {
     const next = shiftDate(selected, delta);
     if (days.some((day) => day.date === next)) {
       select(next);
-    } else {
-      router.push(`/calendar?date=${next}`);
+      return true;
     }
+    router.push(`/calendar?date=${next}`);
+    return false;
   }
+
+  const root = useRef<HTMLDivElement>(null);
+  useWheelDays(root, shiftDay);
 
   const selectedDay = days.find((day) => day.date === selected) ?? days[0];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div ref={root} className="flex flex-col gap-6">
       <CalendarHeader
         title={title}
         subtitle={subtitle}
@@ -365,12 +369,11 @@ function MobileWeek({
   days: CalendarDay[];
   selectedDay: CalendarDay;
   onSelect: (date: string) => void;
-  onSwipe: (delta: number) => void;
+  onSwipe: (delta: number) => boolean;
   clock: ZonedClock;
   range: Range;
   busy: Promise<CalendarBusy>;
 }) {
-  const touchStart = useRef<{ x: number; y: number } | null>(null);
   const events = useMemo(
     () =>
       layoutDayEvents(selectedDay.events, {
@@ -409,6 +412,14 @@ function MobileWeek({
   });
   const slots = useEmptySlots({ now, geometry, drag, justDragged });
   const open = drag ? new Set(droppableDates(weekDates, now)) : null;
+  // § 3 — the day under the strip follows the finger; a held block moved
+  // by its finger isn't a swipe (п.4).
+  const swipeArea = useRef<HTMLDivElement>(null);
+  const swipe = useDaySwipe({
+    area: swipeArea,
+    onStep: onSwipe,
+    blocked: () => drag !== null || justDragged.current,
+  });
   // § 3 — the now line only on the selected day, when that's today.
   const showNow = selectedDay.date === clock.date && nowInRange(clock, range);
 
@@ -427,88 +438,85 @@ function MobileWeek({
         ))}
       </div>
 
-      <div className="flex flex-col gap-1">
-        <p className="text-text-primary text-[12px] font-semibold tracking-[0.12em] uppercase">
-          {selectedDay.label}
-        </p>
-        <p className="text-calendar-quiet-text text-[12px]">
-          {selectedDay.countsLabel}
-        </p>
-        <Suspense fallback={null}>
-          <GoogleAllDayLine busy={busy} date={selectedDay.date} range={range} />
-        </Suspense>
-      </div>
-
-      <AnyTimeBlock day={selectedDay} />
-
       <div
-        className="flex pt-2"
-        onTouchStart={(event) => {
-          const touch = event.touches[0];
-          touchStart.current = { x: touch.clientX, y: touch.clientY };
-        }}
-        onTouchEnd={(event) => {
-          const start = touchStart.current;
-          touchStart.current = null;
-          // A held block moved by its finger isn't a swipe (п.4).
-          if (!start || drag || justDragged.current) return;
-          const touch = event.changedTouches[0];
-          const dx = touch.clientX - start.x;
-          const dy = touch.clientY - start.y;
-          // Mostly-vertical movement is scrolling the page, not a swipe.
-          if (Math.abs(dx) > SWIPE_MIN_PX && Math.abs(dx) > Math.abs(dy)) {
-            onSwipe(dx < 0 ? 1 : -1);
-          }
-        }}
+        ref={swipeArea}
+        onTouchStart={swipe.onTouchStart}
+        onTouchMove={swipe.onTouchMove}
+        onTouchEnd={swipe.onTouchEnd}
+        onTouchCancel={swipe.onTouchCancel}
+        // Vertical panning stays the browser's; sideways is the swipe's.
+        className="flex touch-pan-y flex-col gap-3.5 will-change-transform"
       >
-        <HourGutter
-          range={range}
-          hourHeight={MOBILE.hourHeight}
-          height={height}
-          now={showNow ? clock.minutes : null}
-        />
-        <div
-          ref={column}
-          {...slots.handlers(selectedDay.date)}
-          className="border-calendar-column-rule relative min-w-0 flex-1 border-l"
-          style={{ height }}
-        >
-          <HourLines range={range} hourHeight={MOBILE.hourHeight} />
+        <div className="flex flex-col gap-1">
+          <p className="text-text-primary text-[12px] font-semibold tracking-[0.12em] uppercase">
+            {selectedDay.label}
+          </p>
+          <p className="text-calendar-quiet-text text-[12px]">
+            {selectedDay.countsLabel}
+          </p>
           <Suspense fallback={null}>
-            <GoogleBusyBlocks
+            <GoogleAllDayLine
               busy={busy}
               date={selectedDay.date}
               range={range}
-              hourHeight={MOBILE.hourHeight}
-              events={selectedDay.events}
             />
           </Suspense>
-          {events.map((event) => (
-            <WeekEventBlock
-              key={event.occurrenceId}
-              event={event}
-              variant="mobile"
-              onDragStart={(pointer) =>
-                onBlockPointerDown(pointer, event, selectedDay.date)
-              }
-              dragging={drag?.event.occurrenceId === event.occurrenceId}
-              justDragged={justDragged}
-            />
-          ))}
-          <Suspense fallback={null}>
-            <GoogleBusyStrips
-              busy={busy}
-              date={selectedDay.date}
-              range={range}
-              hourHeight={MOBILE.hourHeight}
-              variant="mobile"
-            />
-          </Suspense>
-          {showNow && <NowLine top={nowTop(clock, range, MOBILE.hourHeight)} />}
-          {open && !open.has(selectedDay.date) && <PastShade />}
-          {drag?.date === selectedDay.date && (
-            <DropGhost drag={drag} geometry={geometry} />
-          )}
+        </div>
+
+        <AnyTimeBlock day={selectedDay} />
+
+        <div className="flex pt-2">
+          <HourGutter
+            range={range}
+            hourHeight={MOBILE.hourHeight}
+            height={height}
+            now={showNow ? clock.minutes : null}
+          />
+          <div
+            ref={column}
+            {...slots.handlers(selectedDay.date)}
+            className="border-calendar-column-rule relative min-w-0 flex-1 border-l"
+            style={{ height }}
+          >
+            <HourLines range={range} hourHeight={MOBILE.hourHeight} />
+            <Suspense fallback={null}>
+              <GoogleBusyBlocks
+                busy={busy}
+                date={selectedDay.date}
+                range={range}
+                hourHeight={MOBILE.hourHeight}
+                events={selectedDay.events}
+              />
+            </Suspense>
+            {events.map((event) => (
+              <WeekEventBlock
+                key={event.occurrenceId}
+                event={event}
+                variant="mobile"
+                onDragStart={(pointer) =>
+                  onBlockPointerDown(pointer, event, selectedDay.date)
+                }
+                dragging={drag?.event.occurrenceId === event.occurrenceId}
+                justDragged={justDragged}
+              />
+            ))}
+            <Suspense fallback={null}>
+              <GoogleBusyStrips
+                busy={busy}
+                date={selectedDay.date}
+                range={range}
+                hourHeight={MOBILE.hourHeight}
+                variant="mobile"
+              />
+            </Suspense>
+            {showNow && (
+              <NowLine top={nowTop(clock, range, MOBILE.hourHeight)} />
+            )}
+            {open && !open.has(selectedDay.date) && <PastShade />}
+            {drag?.date === selectedDay.date && (
+              <DropGhost drag={drag} geometry={geometry} />
+            )}
+          </div>
         </div>
       </div>
       {dialog}
