@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { env } from "@/lib/env";
 import { isTelegramEnabled } from "@/lib/telegram/telegram.config";
 import { parseUpdate, type TelegramUpdate } from "@/lib/telegram/parse-update";
@@ -9,6 +10,10 @@ import { telegramBotService } from "@/features/telegram/telegram-bot.service";
 // exact purpose: the shared secret set at registration comes back on every
 // call in this header, instead of the Authorization-bearer pattern the
 // cron routes use.
+// sprint-24-tasks.md решение 13 — reading a picture takes seconds; it runs
+// after the response (below), within this limit.
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   if (!isTelegramEnabled()) {
     return new Response("Not configured", { status: 404 });
@@ -35,10 +40,20 @@ export async function POST(request: Request) {
     return Response.json({ ok: true });
   }
 
-  try {
-    await telegramBotService.handleUpdate(parsed);
-  } catch (error) {
-    console.error("telegram webhook failed:", error);
+  const handle = async () => {
+    try {
+      await telegramBotService.handleUpdate(parsed);
+    } catch (error) {
+      console.error("telegram webhook failed:", error);
+    }
+  };
+
+  // A picture is read after Telegram has its 200 — a slow OCR must not
+  // make Telegram send the update again.
+  if (parsed.kind === "picture") {
+    after(handle);
+  } else {
+    await handle();
   }
 
   return Response.json({ ok: true });

@@ -12,6 +12,8 @@
 // ("smenu"): Skip today, Tomorrow (one-off), Remove this one (repeating,
 // "srestore" takes it back), Done, Back — all occurrence ids, all redraw
 // the summary.
+// sprint-24-tasks.md — a draft from a picture: "dadd" / "dcancel" a draft
+// id, "dpick" "<draft id>-<reading>" (решение 4).
 export const BUTTON_ACTIONS = [
   "done",
   "snooze15",
@@ -30,6 +32,9 @@ export const BUTTON_ACTIONS = [
   "sremove",
   "srestore",
   "sback",
+  "dadd",
+  "dpick",
+  "dcancel",
 ] as const;
 
 export type ButtonAction = (typeof BUTTON_ACTIONS)[number];

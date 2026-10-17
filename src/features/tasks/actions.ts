@@ -13,6 +13,7 @@ import {
   repeatShapeFields,
   timeStringSchema,
 } from "@/lib/validation/task";
+import { taskDraftService } from "@/features/task-drafts/task-draft.service";
 import { taskService } from "@/features/tasks/task.service";
 import {
   TaskNotFoundError,
@@ -152,6 +153,12 @@ export async function createTaskAction(
       return { status: "error", message: error.message };
     }
     throw error;
+  }
+
+  // sprint-24-tasks.md решение 3 — saved from a picture's draft: done with.
+  const draftId = formData.get("draftId");
+  if (typeof draftId === "string" && draftId) {
+    await taskDraftService.delete(user.id, draftId);
   }
 
   revalidateTaskPaths(taskId);
