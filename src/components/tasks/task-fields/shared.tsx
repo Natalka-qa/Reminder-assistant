@@ -30,10 +30,9 @@ export function Chevron() {
 // supported or the picker is already open, the field still takes typing.
 // Hover and focus show on the text underneath. `disabled` (a recurring
 // task's start date, S14-04) leaves the text only.
-// 2026-10-17 — with a mouse a date opens DateCalendar instead, the app's
-// own month grid: Chrome's popup didn't look like the app. On a phone it
-// stays native (the wheel and the Android calendar fit there); CSS picks
-// by pointer, so nothing differs between the server and the client.
+// 2026-10-17 — a date opens DateCalendar instead, the app's own month
+// grid: neither Chrome's popup nor iOS's (in the Telegram app too) looked
+// like the app. Times stay native.
 export function PickerField({
   type,
   value,
@@ -67,36 +66,36 @@ export function PickerField({
       >
         {children}
       </span>
-      <input
-        type={type}
-        value={value}
-        aria-label={ariaLabel}
-        disabled={disabled}
-        // A cleared picker leaves the field as it was: the task needs both.
-        onChange={(event) => {
-          if (event.target.value) onChange(event.target.value);
-        }}
-        onClick={(event) => {
-          if (!window.matchMedia("(pointer: fine)").matches) return;
-          try {
-            event.currentTarget.showPicker();
-          } catch {
-            // Already open, or not supported — typing still works.
-          }
-        }}
-        // 19px like the text: mobile Safari zooms into a field under 16px.
-        className={cn(
-          "absolute inset-0 size-full cursor-pointer appearance-none text-[19px] opacity-0",
-          disabled && "cursor-default",
-          ownCalendar && "pointer-fine:hidden",
-        )}
-      />
-      {ownCalendar && (
+      {ownCalendar ? (
         <DatePopover
           value={value}
           today={today}
           ariaLabel={ariaLabel}
           onChange={onChange}
+        />
+      ) : (
+        <input
+          type={type}
+          value={value}
+          aria-label={ariaLabel}
+          disabled={disabled}
+          // A cleared picker leaves the field as it was: the task needs both.
+          onChange={(event) => {
+            if (event.target.value) onChange(event.target.value);
+          }}
+          onClick={(event) => {
+            if (!window.matchMedia("(pointer: fine)").matches) return;
+            try {
+              event.currentTarget.showPicker();
+            } catch {
+              // Already open, or not supported — typing still works.
+            }
+          }}
+          // 19px like the text: mobile Safari zooms into a field under 16px.
+          className={cn(
+            "absolute inset-0 size-full cursor-pointer appearance-none text-[19px] opacity-0",
+            disabled && "cursor-default",
+          )}
         />
       )}
     </div>

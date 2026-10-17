@@ -105,7 +105,7 @@ export function DateCalendar({
   }
 
   return (
-    <div data-date-calendar className="flex w-[280px] flex-col gap-3">
+    <div data-date-calendar className="flex w-[280px] flex-col gap-3 pointer-coarse:w-[308px]">
       <div className="flex items-center justify-between">
         <p
           aria-live="polite"
@@ -196,7 +196,7 @@ function DayButton({
       aria-pressed={chosen}
       aria-label={`${isToday ? "Today · " : ""}${formatCalendarDate(date, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}`}
       onClick={onPick}
-      className="group flex h-9 items-center justify-center outline-none"
+      className="group flex h-9 items-center justify-center outline-none pointer-coarse:h-11"
     >
       <span
         className={cn(
@@ -254,7 +254,7 @@ export function DatePopover({
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger
         aria-label={ariaLabel}
-        className="absolute inset-0 hidden size-full cursor-pointer rounded-[10px] outline-none pointer-fine:block"
+        className="absolute inset-0 size-full cursor-pointer rounded-[10px] outline-none"
       />
       <Popover.Portal>
         <Popover.Positioner
