@@ -41,11 +41,20 @@ export const notificationRepository = {
     return db.notification.update({ where: { id }, data: { sendAt } });
   },
 
-  findDueForSending(now: Date, db: Db = prisma) {
+  // Due, but not older than `staleBefore` — those are cancelled by
+  // cancelStale first and never sent.
+  findDueForSending(now: Date, staleBefore: Date, db: Db = prisma) {
     return db.notification.findMany({
-      where: { status: "PENDING", sendAt: { lte: now } },
+      where: { status: "PENDING", sendAt: { gte: staleBefore, lte: now } },
       orderBy: { sendAt: "asc" },
       include: { occurrence: { include: { task: true } }, user: true },
+    });
+  },
+
+  cancelStale(staleBefore: Date, db: Db = prisma) {
+    return db.notification.updateMany({
+      where: { status: "PENDING", sendAt: { lt: staleBefore } },
+      data: { status: "CANCELLED" },
     });
   },
 
