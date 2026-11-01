@@ -17,6 +17,7 @@ import { sendTelegramMessage } from "@/lib/telegram/send-telegram-message";
 import { occurrenceButtons } from "@/lib/telegram/bot-messages";
 import { buildReminderTelegramMessage } from "@/lib/telegram/reminder-telegram-message";
 import { notificationRepository } from "@/features/notifications/notification.repository";
+import { staleNotificationCutoff } from "@/features/notifications/notification.constants";
 import { occurrenceRepository } from "@/features/scheduling/occurrence.repository";
 import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-status";
 import { dueLabel, isAhead } from "@/features/scheduling/untimed";
@@ -198,7 +199,14 @@ export const notificationService = {
     userId?: string,
     db?: Db,
   ): Promise<DueNotificationResult[]> {
-    const allDue = await notificationRepository.findDueForSending(now, db);
+    // After an outage, don't flood the user with day-old reminders.
+    const staleBefore = staleNotificationCutoff(now);
+    await notificationRepository.cancelStale(staleBefore, db);
+    const allDue = await notificationRepository.findDueForSending(
+      now,
+      staleBefore,
+      db,
+    );
     const due = userId
       ? allDue.filter((notification) => notification.userId === userId)
       : allDue;
