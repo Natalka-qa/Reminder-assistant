@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { PriorityChip, PRIORITY_LABELS } from "@/components/ui/priority-chip";
 import { GroupedRows, GroupedRow } from "@/components/ui/grouped-rows";
 import { NoteText } from "@/components/tasks/note-text";
+import { isLongNote } from "@/features/tasks/note-links";
 import { checklistService } from "@/features/checklists/checklist.service";
 import { progressLabel } from "@/features/checklists/checklist-items";
 import { ChecklistEditor } from "@/components/checklists/checklist-editor";
@@ -155,6 +156,8 @@ export default async function TaskDetailPage({
       ? describeRecurrenceRule(rule)
       : undefined;
 
+  const longNote = task.description ? isLongNote(task.description) : false;
+
   return (
     <div className="flex flex-col gap-6">
       <CalendarCheckToast unavailable={calendarCheck === "unavailable"} />
@@ -235,13 +238,22 @@ export default async function TaskDetailPage({
           label="Reminder"
           value={formatReminder(task.reminderKind, task.reminderOffsetMinutes)}
         />
-        {task.description && (
+        {task.description && !longNote && (
           <GroupedRow
             label="Notes"
             value={<NoteText note={task.description} />}
           />
         )}
       </GroupedRows>
+
+      {task.description && longNote && (
+        <div className="flex flex-col gap-2">
+          <SectionLabel>Notes</SectionLabel>
+          <div className="bg-surface border-border text-text-primary rounded-[18px] border px-5 py-4 text-[15px] leading-[1.5]">
+            <NoteText note={task.description} align="start" />
+          </div>
+        </div>
+      )}
 
       {list && (
         <section className="flex flex-col gap-2" aria-label={list.title}>

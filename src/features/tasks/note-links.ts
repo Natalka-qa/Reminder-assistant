@@ -161,6 +161,13 @@ export function noteLines(note: string): NoteSegment[][] {
   return note.split(/\r?\n/).map(lineSegments);
 }
 
+// 2026-11-05 — a recipe or a list in the note doesn't fit the right-aligned
+// "Notes" row: past 2 lines (or a long single paragraph) the task page shows
+// it as its own left-aligned block instead.
+export function isLongNote(note: string): boolean {
+  return note.trim().split(/\r?\n/).length > 2 || note.trim().length > 120;
+}
+
 /** How a link reads in the note: no scheme, no "www.", not too long. */
 export function shortUrl(url: string, max = 36): string {
   const bare = url.replace(/^https?:\/\//i, "").replace(/^www\./i, "");

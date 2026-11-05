@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { looksLikeAddress, mapsHref, noteLines, shortUrl } from "./note-links";
+import {
+  isLongNote,
+  looksLikeAddress,
+  mapsHref,
+  noteLines,
+  shortUrl,
+} from "./note-links";
 
 describe("noteLines", () => {
   it("makes links tappable, the sentence's punctuation left out", () => {
@@ -92,5 +98,18 @@ describe("shortUrl", () => {
     expect(shortUrl("https://maps.app.goo.gl/AbCdEfGhIjKlMnOpQrStUv1234")).toBe(
       "maps.app.goo.gl/AbCdEfGhIjKlMnOpQrS…",
     );
+  });
+});
+
+describe("isLongNote", () => {
+  it("keeps a short note in the row", () => {
+    expect(isLongNote("ул. Ленина, 5")).toBe(false);
+    expect(isLongNote("Bring the passport\nhttps://example.com")).toBe(false);
+    expect(isLongNote("Two lines\n\n")).toBe(false);
+  });
+
+  it("moves a recipe or a long paragraph to its own block", () => {
+    expect(isLongNote("Pasta\n200 g spaghetti\n2 eggs")).toBe(true);
+    expect(isLongNote("a".repeat(121))).toBe(true);
   });
 });
