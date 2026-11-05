@@ -97,6 +97,13 @@ export default async function SettingsPage() {
       <GroupedRows>
         {/* sprint-21-tasks.md п.4 — Inbox's place in the nav went to
             Progress; the history of sent reminders lives here now. */}
+        {/* sprint-25-tasks.md решение 2 — Progress left the phone's bottom
+            nav for Lists; it's here and on Home now. */}
+        <GroupedRow
+          label="Progress"
+          hint="Your habits, and how your days go"
+          href="/progress"
+        />
         <GroupedRow
           label="Sent reminders"
           hint="What reached you, and when"

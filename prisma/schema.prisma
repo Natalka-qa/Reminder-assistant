@@ -84,6 +84,7 @@ model User {
   notifications Notification[]
   habits        Habit[]
   taskDrafts    TaskDraft[]
+  checklists    Checklist[]
 }
 
 model Account {
@@ -164,8 +165,13 @@ model Task {
   // stays in "Any time". Null — no deadline; always null with a time.
   dueMinutes Int?
 
+  // sprint-25-tasks.md решение 1 — the list this task opens ("Groceries ·
+  // 3/8"). Deleting the list unlinks the task, never deletes it.
+  checklistId String?
+
   user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   occurrences TaskOccurrence[]
+  checklist   Checklist?       @relation(fields: [checklistId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -356,4 +362,50 @@ enum NotificationStatus {
   SENT
   FAILED
   CANCELLED
+}
+
+// sprint-25-tasks.md — a list with check-offs: groceries, packing, a
+// workout. Not a task: no time, no reminders of its own; a task can link
+// to one (Task.checklistId).
+model Checklist {
+  id     String @id @default(cuid())
+  userId String
+
+  title      String
+  // An emoji from the template ("🛒"); "📝" for an empty list.
+  icon       String    @default("📝")
+  // решение 3 — shown as a row on Home.
+  pinned     Boolean   @default(false)
+  // Order on the Lists screen and in Telegram, lowest first.
+  sortOrder  Int       @default(0)
+  // Hidden from Lists, Home and Telegram; items kept; null — active.
+  archivedAt DateTime?
+
+  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items ChecklistItem[]
+  tasks Task[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model ChecklistItem {
+  id          String  @id @default(cuid())
+  checklistId String
+  text        String
+  // решение 5 — "2 l", "3×12".
+  note        String?
+  checked     Boolean @default(false)
+  // Order within the list, lowest first; checked items are shown below
+  // unchecked ones whatever their order.
+  sortOrder   Int     @default(0)
+
+  checklist Checklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([checklistId])
 }

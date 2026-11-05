@@ -14,6 +14,10 @@
 // the summary.
 // sprint-24-tasks.md — a draft from a picture: "dadd" / "dcancel" a draft
 // id, "dpick" "<draft id>-<reading>" (решение 4).
+// sprint-25-tasks.md S25-06 — lists: "lopen" shows a list in the message
+// pressed, "lshow" sends it as a new one (under a reminder), "lback" is
+// back to /lists ("all"), "ltog" ticks or unticks an item, "ladd" asks
+// for items — list ids, an item id for "ltog".
 export const BUTTON_ACTIONS = [
   "done",
   "snooze15",
@@ -35,6 +39,11 @@ export const BUTTON_ACTIONS = [
   "dadd",
   "dpick",
   "dcancel",
+  "lopen",
+  "lshow",
+  "lback",
+  "ltog",
+  "ladd",
 ] as const;
 
 export type ButtonAction = (typeof BUTTON_ACTIONS)[number];

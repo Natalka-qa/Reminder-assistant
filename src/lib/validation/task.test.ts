@@ -70,3 +70,20 @@ describe("createTaskSchema", () => {
     ).toBe(true);
   });
 });
+
+// sprint-25-tasks.md S25-05 — the linked list.
+describe("createTaskSchema checklistId", () => {
+  it("reads an empty field as no list, and keeps an id", () => {
+    expect(
+      createTaskSchema.parse({ ...validInput, checklistId: "" }).checklistId,
+    ).toBeNull();
+    expect(
+      createTaskSchema.parse({ ...validInput, checklistId: "cl123" })
+        .checklistId,
+    ).toBe("cl123");
+  });
+
+  it("leaves it out when the form didn't send it", () => {
+    expect(createTaskSchema.parse(validInput).checklistId).toBeUndefined();
+  });
+});

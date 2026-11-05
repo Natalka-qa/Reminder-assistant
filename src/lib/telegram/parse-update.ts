@@ -1,4 +1,5 @@
 import { parseButtonData, type ButtonAction } from "./button-data";
+import { listIdFromUrl } from "./checklist-messages";
 
 // Minimal shape of a Telegram Bot API Update — only the fields parseUpdate
 // actually reads, not the full API surface.
@@ -10,6 +11,12 @@ export type TelegramUpdate = {
     // or a file sent "as a document" (an uncompressed screenshot, a PDF).
     photo?: { file_id: string; file_size?: number }[];
     document?: { file_id: string; mime_type?: string; file_size?: number };
+    // sprint-25-tasks.md Q1 — an answer to "Send items for Groceries": the
+    // list's name there is a link to it.
+    reply_to_message?: {
+      from?: { is_bot?: boolean };
+      entities?: { type: string; url?: string }[];
+    };
   };
   callback_query?: {
     id: string;
@@ -18,15 +25,23 @@ export type TelegramUpdate = {
   };
 };
 
-export type BotCommand = "today" | "next" | "help" | "add";
+export type BotCommand = "today" | "next" | "help" | "add" | "lists";
 
-const COMMANDS: readonly BotCommand[] = ["today", "next", "help", "add"];
+const COMMANDS: readonly BotCommand[] = [
+  "today",
+  "next",
+  "help",
+  "add",
+  "lists",
+];
 
 export type ParsedUpdate =
   | { kind: "start"; chatId: string; code?: string }
   | { kind: "command"; chatId: string; name: BotCommand; args: string }
   | { kind: "unknown-command"; chatId: string }
   | { kind: "text"; chatId: string; text: string }
+  /** sprint-25-tasks.md Q1 — items sent in reply to "+ Add items". */
+  | { kind: "list-items"; chatId: string; checklistId: string; text: string }
   /** sprint-24-tasks.md — a picture to read a task from (S24-03). */
   | { kind: "picture"; chatId: string; fileId: string }
   /** A PDF — read as a screenshot only («Не входит»). */
@@ -52,6 +67,7 @@ export type ParsedUpdate =
 const KEYBOARD_COMMANDS: Record<string, BotCommand> = {
   today: "today",
   next: "next",
+  lists: "lists",
 };
 
 // "/today", "/today@Remindyme_bot", "/add call mom tomorrow".
@@ -95,6 +111,9 @@ export function parseUpdate(update: TelegramUpdate): ParsedUpdate | null {
   if (!text) return null;
   const chatId = String(id);
 
+  const checklistId = replyListId(update.message!);
+  if (checklistId) return { kind: "list-items", chatId, checklistId, text };
+
   const keyboard = KEYBOARD_COMMANDS[text.toLowerCase()];
   if (keyboard) return { kind: "command", chatId, name: keyboard, args: "" };
 
@@ -113,6 +132,24 @@ export function parseUpdate(update: TelegramUpdate): ParsedUpdate | null {
   return known
     ? { kind: "command", chatId, name: known, args }
     : { kind: "unknown-command", chatId };
+}
+
+/**
+ * The list a message answers: a reply to the bot's "Send items for …",
+ * whose link to the list (checklist-messages.ts addItemsPrompt) carries
+ * its id. Any other reply is an ordinary message.
+ */
+function replyListId(
+  message: NonNullable<TelegramUpdate["message"]>,
+): string | null {
+  const reply = message.reply_to_message;
+  if (!reply?.from?.is_bot) return null;
+  for (const entity of reply.entities ?? []) {
+    if (entity.type !== "text_link" || !entity.url) continue;
+    const id = listIdFromUrl(entity.url);
+    if (id) return id;
+  }
+  return null;
 }
 
 /** Telegram's own cap on what a bot may download (getFile) is 20 MB. */

@@ -67,6 +67,10 @@ function readTaskForm(formData: FormData) {
   return {
     title: formData.get("title"),
     description: formData.get("description") || undefined,
+    // sprint-25-tasks.md S25-05 — absent from a form without the field.
+    checklistId: formData.has("checklistId")
+      ? formData.get("checklistId")
+      : undefined,
     date: formData.get("date"),
     time: formData.get("time"),
     durationMinutes: formData.get("durationMinutes"),
