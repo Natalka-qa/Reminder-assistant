@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { PriorityChip, PRIORITY_LABELS } from "@/components/ui/priority-chip";
 import { GroupedRows, GroupedRow } from "@/components/ui/grouped-rows";
 import { NoteText } from "@/components/tasks/note-text";
+import { isLongNote } from "@/features/tasks/note-links";
 import { SectionLabel } from "@/components/ui/section-label";
 import { TaskDetailActions } from "@/components/tasks/task-detail-actions";
 import { RemoveOccurrenceButton } from "@/components/tasks/remove-occurrence-button";
@@ -147,6 +148,8 @@ export default async function TaskDetailPage({
       ? describeRecurrenceRule(rule)
       : undefined;
 
+  const longNote = task.description ? isLongNote(task.description) : false;
+
   return (
     <div className="flex flex-col gap-6">
       <CalendarCheckToast unavailable={calendarCheck === "unavailable"} />
@@ -227,13 +230,22 @@ export default async function TaskDetailPage({
           label="Reminder"
           value={formatReminder(task.reminderKind, task.reminderOffsetMinutes)}
         />
-        {task.description && (
+        {task.description && !longNote && (
           <GroupedRow
             label="Notes"
             value={<NoteText note={task.description} />}
           />
         )}
       </GroupedRows>
+
+      {task.description && longNote && (
+        <div className="flex flex-col gap-2">
+          <SectionLabel>Notes</SectionLabel>
+          <div className="bg-surface border-border text-text-primary rounded-[18px] border px-5 py-4 text-[15px] leading-[1.5]">
+            <NoteText note={task.description} align="start" />
+          </div>
+        </div>
+      )}
 
       {nextOccurrences.length > 0 && (
         <div className="flex flex-col gap-2">
