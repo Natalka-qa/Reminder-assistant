@@ -17,6 +17,9 @@ import { TaskExamples } from "@/components/dashboard/task-examples";
 import { exampleLanguage, taskExamples } from "@/features/onboarding/examples";
 import { DueNotificationsToast } from "@/components/notifications/due-notifications-toast";
 import { habitService } from "@/features/habits/habit.service";
+import { checklistService } from "@/features/checklists/checklist.service";
+import { PinnedLists } from "@/components/checklists/pinned-lists";
+import { GroupedRows, GroupedRow } from "@/components/ui/grouped-rows";
 import { DailyStrip } from "@/components/habits/daily-strip";
 import { HabitInviteCard } from "@/components/habits/habit-invite-card";
 import {
@@ -78,15 +81,27 @@ export default async function DashboardPage() {
   // "A small suggestion" may move one. S13-05 — so do the last 30 days'
   // patterns, one narrow query, for the insight card's last sentence.
   // sprint-21-tasks.md п.7 — and today's habits, for the strip.
-  const [todayTasks, overdueTasks, preferences, patterns, daily] = user
+  // sprint-25-tasks.md решение 2–3 — the pinned lists and the week's
+  // percent for the Progress card.
+  const [
+    todayTasks,
+    overdueTasks,
+    preferences,
+    patterns,
+    daily,
+    pinnedLists,
+    week,
+  ] = user
     ? await Promise.all([
         dashboardService.getTodayTasks(user.id, timezone),
         dashboardService.getOverdueTasks(user.id, timezone),
         userService.getSchedulePreferences(user.id),
         analyticsService.getBehaviorPatterns(user.id, timezone),
         habitService.getDaily(user.id, timezone, new Date()),
+        checklistService.getPinned(user.id),
+        analyticsService.getRecentActivity(user.id, timezone),
       ])
-    : [[], [], null, null, null];
+    : [[], [], null, null, null, [], null];
 
   const snoozedIds = [...todayTasks, ...overdueTasks]
     .filter((occurrence) => occurrence.status === "SNOOZED")
@@ -200,6 +215,8 @@ export default async function DashboardPage() {
         />
       )}
 
+      <PinnedLists lists={pinnedLists} />
+
       {isEmpty ? (
         <>
           <EmptyState
@@ -222,6 +239,24 @@ export default async function DashboardPage() {
         </Suspense>
       ) : (
         <HomeDay {...dayProps} busy={null} />
+      )}
+
+      {/* sprint-25-tasks.md решение 2 — on the phone Progress left the
+          bottom nav for Lists; this row leads there. The desktop sidebar
+          still has it. */}
+      {user && (
+        <div className="md:hidden">
+          <GroupedRows>
+            <GroupedRow
+              label="Progress"
+              hint="Habits and the last 7 days"
+              value={
+                week?.percent == null ? undefined : `${week.percent}% done`
+              }
+              href="/progress"
+            />
+          </GroupedRows>
+        </div>
       )}
     </div>
   );

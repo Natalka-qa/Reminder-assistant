@@ -7,6 +7,7 @@ import {
   ChartNoAxesColumn,
   Home,
   ListChecks,
+  ListTodo,
   Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,8 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Home", icon: Home },
   { href: "/tasks", label: "Tasks", icon: ListChecks },
+  // sprint-25-tasks.md решение 2 — on the desktop Progress stays too.
+  { href: "/lists", label: "Lists", icon: ListTodo },
   { href: "/calendar", label: "Calendar", icon: Calendar },
   { href: "/progress", label: "Progress", icon: ChartNoAxesColumn },
   { href: "/settings", label: "Settings", icon: Settings },

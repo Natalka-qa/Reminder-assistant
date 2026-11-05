@@ -283,9 +283,9 @@ describe("buttons", () => {
     expect(labels(null, true)).toEqual(["Undo", "Open"]);
   });
 
-  it("keeps Today and Next under the input", () => {
+  it("keeps Today, Next and Lists under the input", () => {
     expect(replyKeyboard()).toEqual({
-      keyboard: [[{ text: "Today" }, { text: "Next" }]],
+      keyboard: [[{ text: "Today" }, { text: "Next" }, { text: "Lists" }]],
       resize_keyboard: true,
       is_persistent: true,
     });
@@ -470,5 +470,20 @@ describe("habits in the morning summary (sprint-21-tasks.md п.9)", () => {
     expect(
       Buffer.byteLength(`hplus:${water.id}`) <= CALLBACK_DATA_MAX_BYTES,
     ).toBe(true);
+  });
+});
+
+describe("occurrenceButtons with a list (sprint-25-tasks.md S25-06)", () => {
+  it("adds the list's button under the reminder", () => {
+    const rows = occurrenceButtons({
+      id: "occ1",
+      taskId: "task1",
+      appUrl: "http://localhost:3000",
+      recurring: false,
+      checklist: { id: "cl1", label: "🛒 Groceries · 1/3" },
+    }).inline_keyboard;
+    expect(rows.at(-1)).toEqual([
+      { text: "🛒 Groceries · 1/3", callback_data: "lshow:cl1" },
+    ]);
   });
 });

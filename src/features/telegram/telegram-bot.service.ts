@@ -81,6 +81,21 @@ import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-s
 import { pickCurrentOccurrence } from "@/features/scheduling/occurrence-selection";
 import { editTaskValues } from "@/features/tasks/edit-task-fields";
 import type { CreateTaskInput } from "@/lib/validation/task";
+import { checklistService } from "@/features/checklists/checklist.service";
+import {
+  ChecklistFullError,
+  ChecklistNotFoundError,
+} from "@/features/checklists/checklist.errors";
+import {
+  addedItemsMessage,
+  addItemsPrompt,
+  LIST_GONE_MESSAGE,
+  listButtons,
+  listMessage,
+  listsButtons,
+  listsMessage,
+  type ChatList,
+} from "@/lib/telegram/checklist-messages";
 
 type Button = Extract<ParsedUpdate, { kind: "button" }>;
 
@@ -154,6 +169,13 @@ export const telegramBotService = {
         return answerTelegramButton(update.callbackId, ALREADY_CLOSED_MESSAGE);
       case "text":
         return addTask(user, update.chatId, update.text, now);
+      case "list-items":
+        return addListItems(
+          user,
+          update.chatId,
+          update.checklistId,
+          update.text,
+        );
       case "picture":
         return readPictureTask(user, update.chatId, update.fileId, now);
       case "pdf":
@@ -172,6 +194,8 @@ export const telegramBotService = {
             return showToday(user, update.chatId, now);
           case "next":
             return showNext(user, update.chatId, now);
+          case "lists":
+            return showLists(user, update.chatId);
           case "add":
             return update.args
               ? addTask(user, update.chatId, update.args, now)
@@ -197,6 +221,84 @@ async function showToday(user: User, chatId: string, now: Date) {
   await sendTelegramMessage(chatId, todayMessage(dateLabel, [], 0), undefined, {
     html: true,
   });
+}
+
+// --- sprint-25-tasks.md S25-06 — lists -------------------------------------
+
+function revalidateLists(checklistId: string) {
+  revalidatePath("/lists");
+  revalidatePath(`/lists/${checklistId}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/tasks/[id]", "page");
+}
+
+function chatList(list: {
+  id: string;
+  title: string;
+  icon: string;
+  progress: { done: number; total: number };
+}): ChatList {
+  return { id: list.id, title: list.title, icon: list.icon, ...list.progress };
+}
+
+/** /lists — a new message, or `messageId` redrawn ("‹ Lists"). */
+async function showLists(user: User, chatId: string, messageId?: number) {
+  const lists = (await checklistService.getAll(user.id)).map(chatList);
+  const text = listsMessage(lists);
+  const buttons = listsButtons(lists, env.AUTH_URL);
+  await (messageId === undefined
+    ? sendTelegramMessage(chatId, text, buttons, { html: true })
+    : editTelegramMessage(chatId, messageId, text, buttons, { html: true }));
+}
+
+/** One list with its items as buttons — new, or `messageId` redrawn. */
+async function showList(
+  user: User,
+  chatId: string,
+  checklistId: string,
+  messageId?: number,
+) {
+  const list = await checklistService.getOne(user.id, checklistId);
+  if (!list || list.archivedAt) throw new ChecklistNotFoundError();
+  const view = chatList(list);
+  const text = listMessage(view);
+  const buttons = listButtons(view, list.items, env.AUTH_URL, { back: true });
+  await (messageId === undefined
+    ? sendTelegramMessage(chatId, text, buttons, { html: true })
+    : editTelegramMessage(chatId, messageId, text, buttons, { html: true }));
+}
+
+/** Q1 — the reply to "Send items for …": add them, show the list again. */
+async function addListItems(
+  user: User,
+  chatId: string,
+  checklistId: string,
+  text: string,
+) {
+  let added: number;
+  try {
+    added = await checklistService.addItems(user.id, checklistId, text);
+  } catch (error) {
+    if (error instanceof ChecklistNotFoundError) {
+      await sendTelegramMessage(chatId, LIST_GONE_MESSAGE);
+      return;
+    }
+    if (error instanceof ChecklistFullError) {
+      await sendTelegramMessage(chatId, error.message);
+      return;
+    }
+    throw error;
+  }
+  revalidateLists(checklistId);
+  const list = await checklistService.getOne(user.id, checklistId);
+  if (!list) return;
+  await sendTelegramMessage(
+    chatId,
+    addedItemsMessage(added, chatList(list)),
+    undefined,
+    { html: true },
+  );
+  if (added > 0) await showList(user, chatId, checklistId);
 }
 
 async function showNext(user: User, chatId: string, now: Date) {
@@ -642,6 +744,35 @@ async function pressButton(user: User, press: Button, now: Date) {
         );
         break;
       }
+      case "lopen":
+      case "lshow":
+        await showList(
+          user,
+          chatId,
+          id,
+          action === "lopen" ? messageId : undefined,
+        );
+        break;
+      case "lback":
+        await showLists(user, chatId, messageId);
+        break;
+      case "ltog": {
+        const { checklistId } = await checklistService.toggleItem(user.id, id);
+        revalidateLists(checklistId);
+        await showList(user, chatId, checklistId, messageId);
+        break;
+      }
+      case "ladd": {
+        const list = await checklistService.getOne(user.id, id);
+        if (!list) throw new ChecklistNotFoundError();
+        await sendTelegramMessage(
+          chatId,
+          addItemsPrompt(chatList(list), env.AUTH_URL),
+          { force_reply: true, input_field_placeholder: "Milk, bread, eggs" },
+          { html: true },
+        );
+        break;
+      }
       case "dcancel":
         await taskDraftService.delete(user.id, id);
         await editTelegramMessage(chatId, messageId, DRAFT_CANCELLED_MESSAGE);
@@ -701,6 +832,10 @@ async function pressButton(user: User, press: Button, now: Date) {
       }
     }
   } catch (error) {
+    if (error instanceof ChecklistNotFoundError) {
+      await answerTelegramButton(callbackId, LIST_GONE_MESSAGE);
+      return;
+    }
     if (isClosedError(error)) {
       await answerTelegramButton(callbackId, ALREADY_CLOSED_MESSAGE);
       return;

@@ -47,6 +47,10 @@ import {
   TaskDetailsFields,
 } from "@/components/tasks/task-fields/details-fields";
 import { NoteField } from "@/components/tasks/task-fields/note-field";
+import {
+  ChecklistField,
+  type ChecklistOption,
+} from "@/components/tasks/task-fields/checklist-field";
 import { RepeatShapeInputs } from "@/components/tasks/task-fields/repeat-shape-fields";
 import {
   FormActions,
@@ -75,9 +79,14 @@ export function EditTaskForm({
   today,
   nowMinutes,
   hasWorkHours,
+  checklistId: savedChecklistId = null,
+  lists = [],
 }: {
   taskId: string;
   values: EditTaskValues;
+  /** sprint-25-tasks.md S25-05 — the linked list, and the ones to pick. */
+  checklistId?: string | null;
+  lists?: ChecklistOption[];
   timezone: string;
   today: string;
   nowMinutes: number;
@@ -90,6 +99,8 @@ export function EditTaskForm({
   const clock = useZonedClock(timezone, { date: today, minutes: nowMinutes });
   const [fields, setFields] = useState(values);
   const [noteOpen, setNoteOpen] = useState(values.description.length > 0);
+  const [checklistId, setChecklistId] = useState(savedChecklistId ?? "");
+  const [checklistOpen, setChecklistOpen] = useState(savedChecklistId !== null);
   const ids = {
     title: useId(),
     when: useId(),
@@ -98,6 +109,7 @@ export function EditTaskForm({
     reminder: useId(),
     repeat: useId(),
     note: useId(),
+    checklist: useId(),
   };
   const title = fields.title.trim();
   const canSave = title.length > 0;
@@ -278,6 +290,7 @@ export function EditTaskForm({
         name="description"
         value={noteOpen ? fields.description : ""}
       />
+      <input type="hidden" name="checklistId" value={checklistId} />
       <input type="hidden" name="confirmConflicts" value="true" />
 
       <FormHeader label="Edit task" cancelHref={`/tasks/${taskId}`} />
@@ -389,6 +402,15 @@ export function EditTaskForm({
         onOpen={() => setNoteOpen(true)}
         value={fields.description}
         onChange={(value) => setField("description", value)}
+      />
+
+      <ChecklistField
+        id={ids.checklist}
+        lists={lists}
+        open={checklistOpen}
+        onOpen={() => setChecklistOpen(true)}
+        value={checklistId}
+        onChange={setChecklistId}
       />
 
       <FormActions
