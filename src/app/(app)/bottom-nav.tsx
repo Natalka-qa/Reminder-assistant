@@ -2,13 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Calendar,
-  ChartNoAxesColumn,
-  Home,
-  Plus,
-  Settings,
-} from "lucide-react";
+import { Calendar, Home, ListTodo, Plus, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type NavItem = { href: string; label: string; icon: typeof Home };
@@ -19,7 +13,9 @@ const BEFORE_CREATE: NavItem[] = [
 ];
 
 const AFTER_CREATE: NavItem[] = [
-  { href: "/progress", label: "Progress", icon: ChartNoAxesColumn },
+  // sprint-25-tasks.md решение 2 — Lists took Progress' place; Progress
+  // is a card on Home and a row in Profile.
+  { href: "/lists", label: "Lists", icon: ListTodo },
   { href: "/settings", label: "Profile", icon: Settings },
 ];
 
@@ -33,10 +29,12 @@ export function BottomNav() {
 
   function renderItem({ href, label, icon: Icon }: NavItem) {
     // sprint-21-tasks.md п.4 — /inbox ("Sent reminders") is reached from
-    // Profile, so Profile stays lit.
+    // Profile, so Profile stays lit. sprint-25-tasks.md решение 2 —
+    // Progress is reached from Home's card, so Home does.
     const active =
       pathname.startsWith(href) ||
-      (href === "/settings" && pathname.startsWith("/inbox"));
+      (href === "/settings" && pathname.startsWith("/inbox")) ||
+      (href === "/dashboard" && pathname.startsWith("/progress"));
     return (
       <Link
         key={href}

@@ -25,6 +25,12 @@ export type ReplyKeyboard = {
   is_persistent: true;
 };
 
+/** sprint-25-tasks.md Q1 — "Send items for …": the answer is a reply. */
+export type ForceReply = {
+  force_reply: true;
+  input_field_placeholder?: string;
+};
+
 export type DayItemStatus = "open" | "done" | "partial" | "skipped";
 
 export type DayItem = {
@@ -185,12 +191,13 @@ export function helpMessage(): string {
     "",
     "/today — what's planned for today",
     "/next — the next task",
+    "/lists — your lists: tick items off, add new ones",
     "/help — this message",
     "",
     "Send a screenshot of a ticket or a booking and I'll suggest a task — you confirm it first.",
     "",
     "Reminders come with Done, Snooze 15 min and Skip buttons.",
-    "Today and Next are also on the keyboard below.",
+    "Today, Next and Lists are also on the keyboard below.",
   ].join("\n");
 }
 
@@ -252,8 +259,13 @@ export function occurrenceButtons(occurrence: {
   /** `AUTH_URL` — where the app is (openAppButton). */
   appUrl: string;
   recurring: boolean;
+  /**
+   * sprint-25-tasks.md S25-06 — the task's list: "🛒 Groceries · 3/8"
+   * sends it into the chat, to tick off there.
+   */
+  checklist?: { id: string; label: string } | null;
 }): InlineKeyboard {
-  const { id, taskId, appUrl, recurring } = occurrence;
+  const { id, taskId, appUrl, recurring, checklist } = occurrence;
   const second: InlineButton[] = recurring
     ? [
         {
@@ -276,6 +288,16 @@ export function occurrenceButtons(occurrence: {
         { text: "Skip", callback_data: buttonData("skip", id) },
       ],
       second,
+      ...(checklist
+        ? [
+            [
+              {
+                text: checklist.label,
+                callback_data: buttonData("lshow", checklist.id),
+              },
+            ],
+          ]
+        : []),
     ],
   };
 }
@@ -528,7 +550,7 @@ export function summaryUndoRow(occurrenceId: string): InlineButton[] {
  */
 export function replyKeyboard(): ReplyKeyboard {
   return {
-    keyboard: [[{ text: "Today" }, { text: "Next" }]],
+    keyboard: [[{ text: "Today" }, { text: "Next" }, { text: "Lists" }]],
     resize_keyboard: true,
     is_persistent: true,
   };

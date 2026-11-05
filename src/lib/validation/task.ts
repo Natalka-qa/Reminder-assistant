@@ -58,6 +58,12 @@ const taskFormFields = {
   priority: prioritySchema,
   flexibility: flexibilitySchema,
   repeatFrequency: repeatFrequencySchema.optional().default("NONE"),
+  // sprint-25-tasks.md S25-05 — the list this task opens. The forms send
+  // "" for none (→ null); left out (the bot's buttons) — kept as it is.
+  checklistId: z.preprocess(
+    (value) => (value === "" ? null : value),
+    z.string().max(40).nullable().optional(),
+  ),
   repeatDaysOfWeek: z
     .array(z.coerce.number().int().min(1).max(7))
     .optional()

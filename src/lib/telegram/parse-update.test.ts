@@ -195,3 +195,59 @@ describe("pictures (sprint-24-tasks.md)", () => {
     ).toBeNull();
   });
 });
+
+describe("parseUpdate — lists (sprint-25-tasks.md S25-06)", () => {
+  const chat = { id: 42 };
+
+  it("reads /lists and the Lists key", () => {
+    expect(parseUpdate({ message: { text: "/lists", chat } })).toEqual({
+      kind: "command",
+      chatId: "42",
+      name: "lists",
+      args: "",
+    });
+    expect(parseUpdate({ message: { text: "Lists", chat } })).toMatchObject({
+      kind: "command",
+      name: "lists",
+    });
+  });
+
+  it("reads a reply to the bot's “Send items for …” as items for that list", () => {
+    expect(
+      parseUpdate({
+        message: {
+          text: "milk, bread",
+          chat,
+          reply_to_message: {
+            from: { is_bot: true },
+            entities: [
+              { type: "text_link", url: "https://app.example.com/lists/cl1" },
+            ],
+          },
+        },
+      }),
+    ).toEqual({
+      kind: "list-items",
+      chatId: "42",
+      checklistId: "cl1",
+      text: "milk, bread",
+    });
+  });
+
+  it("keeps any other reply a task", () => {
+    expect(
+      parseUpdate({
+        message: {
+          text: "call mom",
+          chat,
+          reply_to_message: {
+            from: { is_bot: false },
+            entities: [
+              { type: "text_link", url: "https://app.example.com/lists/cl1" },
+            ],
+          },
+        },
+      }),
+    ).toMatchObject({ kind: "text" });
+  });
+});

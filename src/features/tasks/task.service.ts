@@ -39,6 +39,7 @@ import {
 } from "@/features/notifications/reminder-rule";
 import { ScheduleConflictError } from "@/features/scheduling/conflict.errors";
 import { createTaskSchema, updateTaskSchema } from "@/lib/validation/task";
+import { checklistRepository } from "@/features/checklists/checklist.repository";
 import {
   finishedSeriesEndedAt,
   resumedRecurrenceRule,
@@ -88,6 +89,18 @@ function dueMinutesOf(data: {
   if (data.time !== undefined || data.dueTime === undefined) return null;
   const [hours, minutes] = data.dueTime.split(":").map(Number);
   return hours * 60 + minutes;
+}
+
+// sprint-25-tasks.md S25-05 — a linked list must be the user's own; any
+// other id links nothing. Undefined stays undefined (keep as it is).
+async function ownChecklistId(
+  userId: string,
+  checklistId: string | null | undefined,
+): Promise<string | null | undefined> {
+  if (!checklistId) return checklistId;
+  return (await checklistRepository.findOwned(userId, checklistId))
+    ? checklistId
+    : null;
 }
 
 function parseOrThrow<T>(schema: z.ZodType<T>, input: unknown): T {
@@ -341,6 +354,7 @@ export const taskService = {
           userId,
           title: data.title,
           description: data.description,
+          checklistId: (await ownChecklistId(userId, data.checklistId)) ?? null,
           priority: data.priority,
           // sprint-18-tasks.md п.8 — without a time, always Flexible.
           flexibility: time === null ? "FLEXIBLE" : data.flexibility,
@@ -387,6 +401,16 @@ export const taskService = {
     rawInput: unknown,
   ) {
     const data = parseOrThrow(updateTaskSchema, rawInput);
+    // sprint-25-tasks.md S25-05 — only when the form sent the field.
+    const checklistId = await ownChecklistId(userId, data.checklistId);
+    const checklistLink =
+      checklistId === undefined
+        ? {}
+        : {
+            checklist: checklistId
+              ? { connect: { id: checklistId } }
+              : { disconnect: true },
+          };
     const time = data.time ?? null;
     const [{ scheduledStart, scheduledEnd }] = buildCandidateIntervals(
       [data.date],
@@ -463,6 +487,7 @@ export const taskService = {
             // The edit form sends the whole task: no note means none, so a
             // cleared note is cleared (S14-04), not kept as it was.
             description: data.description ?? null,
+            ...checklistLink,
             priority: data.priority,
             flexibility,
             durationMinutes: data.durationMinutes,
@@ -554,6 +579,7 @@ export const taskService = {
         {
           title: data.title,
           description: data.description ?? null,
+          ...checklistLink,
           priority: data.priority,
           flexibility,
           durationMinutes: data.durationMinutes,

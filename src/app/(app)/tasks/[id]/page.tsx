@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { notFound } from "next/navigation";
 import { verifySession, getCurrentUser } from "@/lib/auth/dal";
 import { taskService } from "@/features/tasks/task.service";
@@ -20,6 +21,9 @@ import { Button } from "@/components/ui/button";
 import { PriorityChip, PRIORITY_LABELS } from "@/components/ui/priority-chip";
 import { GroupedRows, GroupedRow } from "@/components/ui/grouped-rows";
 import { NoteText } from "@/components/tasks/note-text";
+import { checklistService } from "@/features/checklists/checklist.service";
+import { progressLabel } from "@/features/checklists/checklist-items";
+import { ChecklistEditor } from "@/components/checklists/checklist-editor";
 import { SectionLabel } from "@/components/ui/section-label";
 import { TaskDetailActions } from "@/components/tasks/task-detail-actions";
 import { RemoveOccurrenceButton } from "@/components/tasks/remove-occurrence-button";
@@ -66,6 +70,10 @@ export default async function TaskDetailPage({
   const { id } = await params;
   const { calendarCheck, occurrence: focusId } = await searchParams;
   const task = await taskService.getTask(user.id, id);
+  // sprint-25-tasks.md S25-05 — the linked list, ticked off right here.
+  const list = task?.checklistId
+    ? await checklistService.getOne(user.id, task.checklistId)
+    : null;
   if (!task) {
     notFound();
   }
@@ -234,6 +242,39 @@ export default async function TaskDetailPage({
           />
         )}
       </GroupedRows>
+
+      {list && (
+        <section className="flex flex-col gap-2" aria-label={list.title}>
+          <Link
+            href={`/lists/${list.id}`}
+            className="hover:text-accent-text flex min-h-11 items-center gap-2 self-start text-[17px] font-medium transition-colors"
+          >
+            <span aria-hidden>{list.icon}</span>
+            {list.title}
+            <span className="text-tasks-meta text-[15px] font-normal tabular-nums">
+              · {progressLabel(list.progress)}
+            </span>
+            <ChevronRight aria-hidden className="size-4" strokeWidth={1.6} />
+          </Link>
+          <ChecklistEditor
+            key={list.items
+              .map(
+                (item) =>
+                  `${item.id}${+item.checked}${item.sortOrder}${item.text}${item.note}`,
+              )
+              .join("|")}
+            checklistId={list.id}
+            title={list.title}
+            items={list.items.map(({ id, text, note, checked, sortOrder }) => ({
+              id,
+              text,
+              note,
+              checked,
+              sortOrder,
+            }))}
+          />
+        </section>
+      )}
 
       {nextOccurrences.length > 0 && (
         <div className="flex flex-col gap-2">

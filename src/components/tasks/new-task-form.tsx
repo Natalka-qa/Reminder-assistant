@@ -66,6 +66,10 @@ import {
   TaskDetailsFields,
 } from "@/components/tasks/task-fields/details-fields";
 import { NoteField } from "@/components/tasks/task-fields/note-field";
+import {
+  ChecklistField,
+  type ChecklistOption,
+} from "@/components/tasks/task-fields/checklist-field";
 import { RepeatShapeInputs } from "@/components/tasks/task-fields/repeat-shape-fields";
 import {
   FormActions,
@@ -127,6 +131,7 @@ export function NewTaskForm({
   initialText = "",
   slot = null,
   draft = null,
+  lists = [],
 }: {
   timezone: string;
   today: string;
@@ -135,6 +140,8 @@ export function NewTaskForm({
   hasWorkHours: boolean;
   /** Settings → Default reminder (S14-06). */
   defaultReminderMinutes: number;
+  /** sprint-25-tasks.md S25-05 — the user's lists, to link one. */
+  lists?: ChecklistOption[];
   /** A sentence to start from — an example picked on /onboarding or Home. */
   initialText?: string;
   /**
@@ -183,6 +190,8 @@ export function NewTaskForm({
       : {},
   );
   const [noteOpen, setNoteOpen] = useState(Boolean(draft?.notes));
+  const [checklistId, setChecklistId] = useState("");
+  const [checklistOpen, setChecklistOpen] = useState(false);
   const [note, setNote] = useState(draft?.notes ?? "");
   const ids = {
     input: useId(),
@@ -194,6 +203,7 @@ export function NewTaskForm({
     repeat: useId(),
     duration: useId(),
     note: useId(),
+    checklist: useId(),
   };
 
   // Relative dates ("tomorrow", "завтра") count from the user's today.
@@ -495,6 +505,7 @@ export function NewTaskForm({
         value={input.reminderOffsetMinutes}
       />
       <input type="hidden" name="description" value={input.description ?? ""} />
+      <input type="hidden" name="checklistId" value={checklistId} />
       <input
         type="hidden"
         name="confirmConflicts"
@@ -789,6 +800,18 @@ export function NewTaskForm({
         value={note}
         onChange={setNote}
       />
+
+      {/* Several tasks from one phrase are saved without a list. */}
+      {parts === null && (
+        <ChecklistField
+          id={ids.checklist}
+          lists={lists}
+          open={checklistOpen}
+          onOpen={() => setChecklistOpen(true)}
+          value={checklistId}
+          onChange={setChecklistId}
+        />
+      )}
 
       <FormActions
         submitLabel={parts ? `Create ${parts.length} tasks` : "Create task"}

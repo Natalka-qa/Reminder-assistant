@@ -27,7 +27,7 @@ export default function PrivacyPage() {
             <strong>What you add</strong> — your tasks (title, description,
             date, time, duration, priority, flexibility, repeat rule), their
             history (done, skipped, snoozed), your reminder settings and time
-            zone.
+            zone, your habits and your lists (their names and items).
           </li>
           <li>
             <strong>Reminders</strong> — when each reminder is due and whether

@@ -1,6 +1,6 @@
 import "server-only";
 import { env } from "@/lib/env";
-import type { InlineKeyboard, ReplyKeyboard } from "./bot-messages";
+import type { ForceReply, InlineKeyboard, ReplyKeyboard } from "./bot-messages";
 
 // Plain `fetch` against the Telegram Bot API — same approach as
 // lib/email/send-email.ts takes with Resend, for the same reason: a few
@@ -43,7 +43,7 @@ function format(options?: Options) {
 export function sendTelegramMessage(
   chatId: string,
   text: string,
-  replyMarkup?: InlineKeyboard | ReplyKeyboard,
+  replyMarkup?: InlineKeyboard | ReplyKeyboard | ForceReply,
   options?: Options,
 ): Promise<void> {
   return telegramApi("sendMessage", {

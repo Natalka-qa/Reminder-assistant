@@ -15,6 +15,8 @@ import { reminderChannels } from "@/features/notifications/reminder-channels";
 import { isTelegramEnabled } from "@/lib/telegram/telegram.config";
 import { sendTelegramMessage } from "@/lib/telegram/send-telegram-message";
 import { occurrenceButtons } from "@/lib/telegram/bot-messages";
+import { listButtonText } from "@/lib/telegram/checklist-messages";
+import { checklistService } from "@/features/checklists/checklist.service";
 import { buildReminderTelegramMessage } from "@/lib/telegram/reminder-telegram-message";
 import { notificationRepository } from "@/features/notifications/notification.repository";
 import { staleNotificationCutoff } from "@/features/notifications/notification.constants";
@@ -259,6 +261,10 @@ export const notificationService = {
             timeLabel,
             durationMinutes: task.durationMinutes,
           });
+          // sprint-25-tasks.md S25-06 — the task's list, a tap away.
+          const list = task.checklistId
+            ? await checklistService.getOne(user.id, task.checklistId)
+            : null;
           // Done · Snooze 15 min · Skip, then Open (sprint-15-tasks.md
           // S15-06) — pressed in the chat, handled by the bot's webhook.
           await sendTelegramMessage(
@@ -269,6 +275,18 @@ export const notificationService = {
               taskId: task.id,
               appUrl: env.AUTH_URL,
               recurring: task.recurrenceRule !== null,
+              checklist:
+                list && !list.archivedAt
+                  ? {
+                      id: list.id,
+                      label: listButtonText({
+                        id: list.id,
+                        title: list.title,
+                        icon: list.icon,
+                        ...list.progress,
+                      }),
+                    }
+                  : null,
             }),
             { html: true },
           );

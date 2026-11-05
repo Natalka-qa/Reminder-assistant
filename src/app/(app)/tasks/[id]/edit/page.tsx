@@ -6,6 +6,7 @@ import { formatDateInZone, formatTimeInZone, zonedNow } from "@/lib/date";
 import { pickCurrentOccurrence } from "@/features/scheduling/occurrence-selection";
 import { editTaskValues } from "@/features/tasks/edit-task-fields";
 import { EditTaskForm } from "@/components/tasks/edit-task-form";
+import { checklistService } from "@/features/checklists/checklist.service";
 import { EditOccurrenceForm } from "@/components/tasks/edit-occurrence-form";
 import { canRescheduleOccurrence } from "@/features/scheduling/reschedule-occurrence";
 import { currentTimeOfDay } from "@/features/scheduling/schedule-change";
@@ -101,6 +102,8 @@ export default async function EditTaskPage({
   return (
     <EditTaskForm
       taskId={task.id}
+      checklistId={task.checklistId}
+      lists={await checklistService.getOptions(user.id, task.checklistId)}
       values={editTaskValues(task, {
         date: formatDateInZone(scheduledStart, user.timezone, "yyyy-LL-dd"),
         time: formatTimeInZone(scheduledStart, user.timezone, "HH:mm"),
