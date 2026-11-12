@@ -4,6 +4,7 @@ import {
   sendDueSummaries,
 } from "@/features/telegram/telegram-summary.service";
 import { env } from "@/lib/env";
+import { withConnectionRetry } from "@/lib/db/connection-error";
 
 // An external scheduler (cron-job.org) hits this every 5 minutes, since the
 // Vercel Hobby plan only allows daily crons; a manual/local call
@@ -19,7 +20,11 @@ export async function GET(request: Request) {
 
   try {
     const now = new Date();
-    const sent = await notificationService.sendDueNotifications(now);
+    // 2026-11-12 — once more if the sleeping database didn't answer in
+    // time; a claimed reminder isn't sent twice (claim()).
+    const sent = await withConnectionRetry(() =>
+      notificationService.sendDueNotifications(now),
+    );
     // sprint-15-tasks.md S15-11 — the morning summary rides on this same
     // 5-minute run (Hobby allows only daily crons in vercel.json). Its own
     // try/catch: a failure there never touches the reminders above.

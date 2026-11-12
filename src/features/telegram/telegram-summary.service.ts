@@ -19,6 +19,7 @@ import { userService } from "@/features/user/user.service";
 import { habitService } from "@/features/habits/habit.service";
 import { dayItems, openItems } from "./bot-view";
 import { isSummaryDue } from "./summary-schedule";
+import { deliveryCutoff } from "@/features/notifications/notification.constants";
 
 /**
  * п.19 — the morning summary: the same text as /today, with a ✓ button per
@@ -70,8 +71,9 @@ export async function sendDueSummaries(now: Date): Promise<number> {
   if (!isTelegramEnabled()) return 0;
   let sent = 0;
   for (const user of await userService.getSummaryRecipients()) {
+    // A minute early, like the reminders (deliveryCutoff).
     const due = isSummaryDue({
-      now,
+      now: deliveryCutoff(now),
       timezone: user.timezone,
       summaryMinutes: user.telegramSummaryMinutes,
       sentOn: user.telegramSummarySentOn,
@@ -106,7 +108,7 @@ export async function sendDueHabitReminders(now: Date): Promise<number> {
   let sent = 0;
   for (const user of await userService.getHabitReminderRecipients()) {
     const due = isSummaryDue({
-      now,
+      now: deliveryCutoff(now),
       timezone: user.timezone,
       summaryMinutes: user.habitReminderMinutes,
       sentOn: user.habitReminderSentOn,

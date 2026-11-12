@@ -43,9 +43,10 @@ export const notificationRepository = {
 
   // Due, but not older than `staleBefore` — those are cancelled by
   // cancelStale first and never sent.
-  findDueForSending(now: Date, staleBefore: Date, db: Db = prisma) {
+  // `dueBy` — now plus the delivery lead (deliveryCutoff).
+  findDueForSending(dueBy: Date, staleBefore: Date, db: Db = prisma) {
     return db.notification.findMany({
-      where: { status: "PENDING", sendAt: { gte: staleBefore, lte: now } },
+      where: { status: "PENDING", sendAt: { gte: staleBefore, lte: dueBy } },
       orderBy: { sendAt: "asc" },
       include: { occurrence: { include: { task: true } }, user: true },
     });
