@@ -19,7 +19,10 @@ import { listButtonText } from "@/lib/telegram/checklist-messages";
 import { checklistService } from "@/features/checklists/checklist.service";
 import { buildReminderTelegramMessage } from "@/lib/telegram/reminder-telegram-message";
 import { notificationRepository } from "@/features/notifications/notification.repository";
-import { staleNotificationCutoff } from "@/features/notifications/notification.constants";
+import {
+  deliveryCutoff,
+  staleNotificationCutoff,
+} from "@/features/notifications/notification.constants";
 import { occurrenceRepository } from "@/features/scheduling/occurrence.repository";
 import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-status";
 import { dueLabel, isAhead } from "@/features/scheduling/untimed";
@@ -205,7 +208,7 @@ export const notificationService = {
     const staleBefore = staleNotificationCutoff(now);
     await notificationRepository.cancelStale(staleBefore, db);
     const allDue = await notificationRepository.findDueForSending(
-      now,
+      deliveryCutoff(now),
       staleBefore,
       db,
     );
