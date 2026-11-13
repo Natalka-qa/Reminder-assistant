@@ -173,7 +173,7 @@ describe("pictures (sprint-24-tasks.md)", () => {
           document: { file_id: "ticket", mime_type: "application/pdf" },
         },
       }),
-    ).toEqual({ kind: "pdf", chatId: "42" });
+    ).toEqual({ kind: "pdf", chatId: "42", fileId: "ticket" });
   });
 
   it("ignores other files and anything too big", () => {
@@ -190,6 +190,18 @@ describe("pictures (sprint-24-tasks.md)", () => {
         message: {
           chat: { id: 42 },
           photo: [{ file_id: "huge", file_size: 30 * 1024 * 1024 }],
+        },
+      }),
+    ).toBeNull();
+    expect(
+      parseUpdate({
+        message: {
+          chat: { id: 42 },
+          document: {
+            file_id: "huge",
+            mime_type: "application/pdf",
+            file_size: 30 * 1024 * 1024,
+          },
         },
       }),
     ).toBeNull();

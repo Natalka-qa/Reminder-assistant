@@ -22,7 +22,6 @@ import {
   notLinkedMessage,
   occurrenceButtons,
   openAppButton,
-  PDF_NOT_READ_MESSAGE,
   PICK_A_TIME_FIRST_MESSAGE,
   MOVED_TO_TOMORROW_MESSAGE,
   removedButtons,
@@ -179,7 +178,7 @@ export const telegramBotService = {
       case "picture":
         return readPictureTask(user, update.chatId, update.fileId, now);
       case "pdf":
-        return sendTelegramMessage(update.chatId, PDF_NOT_READ_MESSAGE);
+        return readPictureTask(user, update.chatId, update.fileId, now, "pdf");
       case "button":
         return pressButton(user, update, now);
       case "command":
