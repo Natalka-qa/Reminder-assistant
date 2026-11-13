@@ -1,4 +1,5 @@
 import { notificationService } from "@/features/notifications/notification.service";
+import { cronReminderCutoff } from "@/features/notifications/notification.constants";
 import {
   sendDueHabitReminders,
   sendDueSummaries,
@@ -21,9 +22,12 @@ export async function GET(request: Request) {
   try {
     const now = new Date();
     // 2026-11-12 — once more if the sleeping database didn't answer in
-    // time; a claimed reminder isn't sent twice (claim()).
+    // time; a claimed reminder isn't sent twice (claim()). Reminders due
+    // before the next run go now (cronReminderCutoff), not late.
     const sent = await withConnectionRetry(() =>
-      notificationService.sendDueNotifications(now),
+      notificationService.sendDueNotifications(now, {
+        dueBy: cronReminderCutoff(now),
+      }),
     );
     // sprint-15-tasks.md S15-11 — the morning summary rides on this same
     // 5-minute run (Hobby allows only daily crons in vercel.json). Its own
