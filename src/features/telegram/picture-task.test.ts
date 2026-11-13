@@ -104,6 +104,22 @@ describe("extractPictureTasks — the trial's screenshots", () => {
 });
 
 describe("extractPictureTasks — rules", () => {
+  it("names a ticket by its product row without the quantity and price", () => {
+    const text = [
+      "Producto Cantidad Precio",
+      "Concierto: Benjazz Big Band + Funktastiks 1 12,00 €",
+      "Fecha visita Inicio Fin Espacio",
+      "14/11/2026 19:30 21:30 BENJAZZ BIG BAND + FUNKTASTIKS",
+    ].join("\n");
+    expect(extractPictureTasks(text, "2026-11-13")).toMatchObject([
+      {
+        title: "Concierto: Benjazz Big Band + Funktastiks",
+        date: "2026-11-14",
+        time: "19:30",
+      },
+    ]);
+  });
+
   it("finds nothing without a date or a time", () => {
     expect(extractPictureTasks("Hello\nThank you!", OCTOBER)).toEqual([]);
   });

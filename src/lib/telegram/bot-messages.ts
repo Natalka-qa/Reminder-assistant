@@ -194,7 +194,7 @@ export function helpMessage(): string {
     "/lists — your lists: tick items off, add new ones",
     "/help — this message",
     "",
-    "Send a screenshot of a ticket or a booking and I'll suggest a task — you confirm it first.",
+    "Send a screenshot or a PDF of a ticket or a booking and I'll suggest a task — you confirm it first.",
     "",
     "Reminders come with Done, Snooze 15 min and Skip buttons.",
     "Today, Next and Lists are also on the keyboard below.",
@@ -567,9 +567,18 @@ export const NOTHING_IN_PICTURE_MESSAGE =
 export const PICTURE_FAILED_MESSAGE =
   "I couldn't read this picture. Try again, or write the task as text.";
 
-/** «Не входит» — a PDF ticket is sent as a screenshot. */
-export const PDF_NOT_READ_MESSAGE =
-  "I can read pictures, not PDFs yet — send a screenshot of the ticket.";
+// 2026-11-13 — a PDF ticket is read from its own text (lib/pdf).
+export const READING_PDF_MESSAGE = "🔎 Reading the PDF…";
+
+/** A scan: no text inside, only a picture of it. */
+export const PDF_WITHOUT_TEXT_MESSAGE =
+  "This PDF has no text I can read — it's a scan. Send a screenshot of the ticket, or write the task as text.";
+
+export const NOTHING_IN_PDF_MESSAGE =
+  "I couldn't find a date or time in this PDF. Write the task as text.";
+
+export const PDF_FAILED_MESSAGE =
+  "I couldn't read this PDF. Try again, or write the task as text.";
 
 export const DRAFT_GONE_MESSAGE =
   "This draft is gone — send the picture again.";

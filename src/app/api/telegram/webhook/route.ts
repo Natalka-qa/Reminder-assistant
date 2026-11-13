@@ -48,9 +48,9 @@ export async function POST(request: Request) {
     }
   };
 
-  // A picture is read after Telegram has its 200 — a slow OCR must not
-  // make Telegram send the update again.
-  if (parsed.kind === "picture") {
+  // A picture (or a PDF) is read after Telegram has its 200 — a slow OCR
+  // must not make Telegram send the update again.
+  if (parsed.kind === "picture" || parsed.kind === "pdf") {
     after(handle);
   } else {
     await handle();

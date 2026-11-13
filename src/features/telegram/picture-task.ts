@@ -411,6 +411,9 @@ const SERVICES: [RegExp, string][] = [
 /** "SPIDER-MAN: BRAND NEW DAY (ATMOS) (VOSE)" → "Spider-Man: Brand New Day". */
 function tidyTitle(line: string): string {
   const bare = line
+    // A product row: "Concierto: Benjazz Big Band 1 12,00 €" — the
+    // quantity and the price go.
+    .replace(/(?:\s+\d{1,3})?\s+\d+[.,]\d{2}\s*(?:€|eur(?:os?)?)?\s*$/iu, "")
     .replace(/(?:\s*\([^)]{1,10}\))+\s*$/u, "")
     .replace(/^[^\p{L}\d]+|[^\p{L}\d)!?]+$/gu, "")
     .trim();

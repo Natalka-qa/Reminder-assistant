@@ -44,8 +44,8 @@ export type ParsedUpdate =
   | { kind: "list-items"; chatId: string; checklistId: string; text: string }
   /** sprint-24-tasks.md — a picture to read a task from (S24-03). */
   | { kind: "picture"; chatId: string; fileId: string }
-  /** A PDF — read as a screenshot only («Не входит»). */
-  | { kind: "pdf"; chatId: string }
+  /** 2026-11-13 — a PDF ticket, read from its own text. */
+  | { kind: "pdf"; chatId: string; fileId: string }
   | {
       kind: "button";
       chatId: string;
@@ -157,14 +157,20 @@ export const PICTURE_MAX_BYTES = 20 * 1024 * 1024;
 
 function pictureOf(
   message: NonNullable<TelegramUpdate["message"]>,
-): { kind: "picture"; fileId: string } | { kind: "pdf" } | null {
+):
+  { kind: "picture"; fileId: string } | { kind: "pdf"; fileId: string } | null {
   const largest = message.photo?.at(-1);
   if (largest && (largest.file_size ?? 0) <= PICTURE_MAX_BYTES) {
     return { kind: "picture", fileId: largest.file_id };
   }
   const document = message.document;
   if (!document) return null;
-  if (document.mime_type === "application/pdf") return { kind: "pdf" };
+  if (
+    document.mime_type === "application/pdf" &&
+    (document.file_size ?? 0) <= PICTURE_MAX_BYTES
+  ) {
+    return { kind: "pdf", fileId: document.file_id };
+  }
   if (
     document.mime_type?.startsWith("image/") &&
     (document.file_size ?? 0) <= PICTURE_MAX_BYTES
