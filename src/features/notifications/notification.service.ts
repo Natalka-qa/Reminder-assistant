@@ -199,16 +199,21 @@ export const notificationService = {
   // load it happens to be retried on: the in-app channel fires once per
   // notification, independent of whether the email send itself ever
   // succeeds.
+  // `dueBy` — how far ahead counts as due: deliveryCutoff by default, the
+  // cron passes cronReminderCutoff (its next run is up to 15 minutes away).
   async sendDueNotifications(
     now: Date,
-    userId?: string,
-    db?: Db,
+    {
+      userId,
+      dueBy = deliveryCutoff(now),
+      db,
+    }: { userId?: string; dueBy?: Date; db?: Db } = {},
   ): Promise<DueNotificationResult[]> {
     // After an outage, don't flood the user with day-old reminders.
     const staleBefore = staleNotificationCutoff(now);
     await notificationRepository.cancelStale(staleBefore, db);
     const allDue = await notificationRepository.findDueForSending(
-      deliveryCutoff(now),
+      dueBy,
       staleBefore,
       db,
     );

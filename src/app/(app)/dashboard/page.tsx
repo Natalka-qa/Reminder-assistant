@@ -74,7 +74,9 @@ export default async function DashboardPage() {
   // below so a just-sent notification's occurrence still reflects its
   // current (unrelated) status in this same render.
   const dueNotifications = user
-    ? await notificationService.sendDueNotifications(new Date(), user.id)
+    ? await notificationService.sendDueNotifications(new Date(), {
+        userId: user.id,
+      })
     : [];
 
   // S12-06 — the user's hours come along with the day's tasks, for where
