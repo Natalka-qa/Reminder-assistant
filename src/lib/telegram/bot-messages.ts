@@ -15,7 +15,10 @@ export type InlineButton =
   // Opens the task in the app (п.12) — no round trip through the webhook.
   | { text: string; url: string }
   // The same, inside Telegram as the Mini App (sprint-16-tasks.md S16-06).
-  | { text: string; web_app: { url: string } };
+  | { text: string; web_app: { url: string } }
+  // 2026-11-17 — Bot API 10.3: a grey button that does nothing — what
+  // was done ("✓ Done") in place of the buttons that did it.
+  | { text: string; disabled: Record<string, never> };
 
 export type InlineKeyboard = { inline_keyboard: InlineButton[][] };
 
@@ -148,11 +151,48 @@ export function createdMessage(
 /** What a reminder message turns into once one of its buttons is pressed. */
 const REMOVED_LINE = "Removed this one";
 
+export type ButtonResult =
+  | { action: "done" | "skip" | "remove" | "undo" | "restore" }
+  | { action: "snooze15"; until: string };
+
+function resultLabel(result: ButtonResult): string {
+  return result.action === "snooze15"
+    ? `Snoozed until ${result.until}`
+    : {
+        done: "✓ Done",
+        skip: "Skipped",
+        remove: REMOVED_LINE,
+        undo: "Removed",
+        restore: "Restored",
+      }[result.action];
+}
+
+/**
+ * 2026-11-17 — a pressed message keeps its text (bold title, the live
+ * "in 5 min") and its buttons become one grey "✓ Done"; a removed day
+ * keeps Undo under it.
+ */
+export function resultButtons(
+  result: ButtonResult,
+  occurrenceId?: string,
+): InlineKeyboard {
+  const rows: InlineButton[][] = [
+    [{ text: resultLabel(result), disabled: {} }],
+  ];
+  if (result.action === "remove" && occurrenceId) {
+    rows.push(...removedButtons(occurrenceId).inline_keyboard);
+  }
+  return { inline_keyboard: rows };
+}
+
+/** A message removed before 2026-11-17 says so in its text. */
+export function saysRemoved(text: string): boolean {
+  return text.endsWith(`\n\n${REMOVED_LINE}`);
+}
+
 export function buttonResultMessage(
   original: string,
-  result:
-    | { action: "done" | "skip" | "remove" | "undo" | "restore" }
-    | { action: "snooze15"; until: string },
+  result: ButtonResult,
 ): string {
   // sprint-19-tasks.md п.8 — Undo under "Removed this one" takes that line
   // back rather than stacking a second one under it.
@@ -162,16 +202,7 @@ export function buttonResultMessage(
       : original;
     return `${base}\n\nRestored`;
   }
-  const line =
-    result.action === "snooze15"
-      ? `Snoozed until ${result.until}`
-      : {
-          done: "✓ Done",
-          skip: "Skipped",
-          remove: REMOVED_LINE,
-          undo: "Removed",
-        }[result.action];
-  return `${original}\n\n${line}`;
+  return `${original}\n\n${resultLabel(result)}`;
 }
 
 export const ALREADY_CLOSED_MESSAGE = "This one is no longer open.";
