@@ -24,7 +24,8 @@ import {
   openAppButton,
   PICK_A_TIME_FIRST_MESSAGE,
   MOVED_TO_TOMORROW_MESSAGE,
-  removedButtons,
+  resultButtons,
+  saysRemoved,
   replyKeyboard,
   summaryTaskMenu,
   todayMessage,
@@ -491,12 +492,12 @@ async function pressButton(user: User, press: Button, now: Date) {
             ? occurrenceService.skipOccurrence(user.id, id)
             : occurrenceService.removeOccurrence(user.id, id));
         revalidateAfterChange(occurrence.taskId);
-        await editTelegramMessage(
+        // 2026-11-17 — the text stays; a grey "✓ Done" replaces the
+        // buttons (sprint-19-tasks.md п.8 — a removed day keeps Undo).
+        await editTelegramButtons(
           chatId,
           messageId,
-          buttonResultMessage(messageText, { action }),
-          // sprint-19-tasks.md п.8 — a removed day can be taken back.
-          action === "remove" ? removedButtons(occurrence.id) : undefined,
+          resultButtons({ action }, occurrence.id),
         );
         break;
       }
@@ -522,11 +523,18 @@ async function pressButton(user: User, press: Button, now: Date) {
           throw error;
         }
         revalidateAfterChange(occurrence.taskId);
-        await editTelegramMessage(
-          chatId,
-          messageId,
-          buttonResultMessage(messageText, { action: "restore" }),
-        );
+        // One removed before 2026-11-17 has "Removed this one" in its text.
+        await (saysRemoved(messageText)
+          ? editTelegramMessage(
+              chatId,
+              messageId,
+              buttonResultMessage(messageText, { action: "restore" }),
+            )
+          : editTelegramButtons(
+              chatId,
+              messageId,
+              resultButtons({ action: "restore" }),
+            ));
         break;
       }
       case "snooze15": {
@@ -541,10 +549,10 @@ async function pressButton(user: User, press: Button, now: Date) {
           ),
         );
         revalidateAfterChange(occurrence.taskId);
-        await editTelegramMessage(
+        await editTelegramButtons(
           chatId,
           messageId,
-          buttonResultMessage(messageText, {
+          resultButtons({
             action: "snooze15",
             until: formatTimeInZone(addMinutes(now, 15), user.timezone),
           }),
@@ -560,10 +568,10 @@ async function pressButton(user: User, press: Button, now: Date) {
         }
         await taskService.deleteTask(user.id, id);
         revalidateAfterChange(id);
-        await editTelegramMessage(
+        await editTelegramButtons(
           chatId,
           messageId,
-          buttonResultMessage(messageText, { action: "undo" }),
+          resultButtons({ action: "undo" }),
         );
         break;
       }

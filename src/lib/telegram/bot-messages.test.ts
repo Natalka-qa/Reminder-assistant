@@ -14,6 +14,8 @@ import {
   type InlineKeyboard,
   openAppButton,
   removedButtons,
+  resultButtons,
+  saysRemoved,
   habitButtons,
   habitsSection,
   type HabitLineItem,
@@ -485,5 +487,30 @@ describe("occurrenceButtons with a list (sprint-25-tasks.md S25-06)", () => {
     expect(rows.at(-1)).toEqual([
       { text: "🛒 Groceries · 1/3", callback_data: "lshow:cl1" },
     ]);
+  });
+});
+
+describe("resultButtons (2026-11-17)", () => {
+  it("is one grey button saying what was done", () => {
+    expect(resultButtons({ action: "done" })).toEqual({
+      inline_keyboard: [[{ text: "✓ Done", disabled: {} }]],
+    });
+    expect(
+      resultButtons({ action: "snooze15", until: "18:15" }).inline_keyboard,
+    ).toEqual([[{ text: "Snoozed until 18:15", disabled: {} }]]);
+  });
+
+  it("keeps Undo under a removed day", () => {
+    const [[chip], [undo]] = resultButtons(
+      { action: "remove" },
+      "occ1",
+    ).inline_keyboard;
+    expect(chip).toEqual({ text: "Removed this one", disabled: {} });
+    expect(undo).toMatchObject({ text: "Undo" });
+  });
+
+  it("tells a message removed the old way, by its text", () => {
+    expect(saysRemoved("⏰ Gym\nat 19:00\n\nRemoved this one")).toBe(true);
+    expect(saysRemoved("⏰ Gym\nat 19:00")).toBe(false);
   });
 });

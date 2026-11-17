@@ -26,6 +26,7 @@ import {
 import { occurrenceRepository } from "@/features/scheduling/occurrence.repository";
 import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-status";
 import { dueLabel, isAhead } from "@/features/scheduling/untimed";
+import { dueTimeOf } from "@/features/tasks/new-task-fields";
 import {
   MORNING_OF_TIME,
   computeSendAt,
@@ -264,10 +265,41 @@ export const notificationService = {
       let telegramSent = false;
       if (channels.telegram && user.telegramChatId) {
         try {
+          // 2026-11-17 — without a time: "tomorrow · by 12:00", counting
+          // down to the deadline when there is one.
+          const day = task.hasTime
+            ? null
+            : formatDateInZone(
+                occurrence.scheduledStart,
+                user.timezone,
+                "yyyy-LL-dd",
+              );
           const text = buildReminderTelegramMessage({
             title: task.title,
-            timeLabel,
+            timeLabel: task.hasTime
+              ? timeLabel
+              : [
+                  reminderDayLabel(
+                    occurrence.scheduledStart,
+                    now,
+                    user.timezone,
+                  ),
+                  dueLabel(task),
+                ]
+                  .filter(Boolean)
+                  .join(" · "),
             durationMinutes: task.durationMinutes,
+            hasTime: task.hasTime,
+            startsAt: task.hasTime
+              ? occurrence.scheduledStart
+              : day && task.dueMinutes !== null
+                ? zonedDateTimeToUtc(
+                    day,
+                    dueTimeOf(task.dueMinutes),
+                    user.timezone,
+                  )
+                : null,
+            now,
           });
           // sprint-25-tasks.md S25-06 — the task's list, a tap away.
           const list = task.checklistId
