@@ -22,6 +22,7 @@ import { notificationRepository } from "@/features/notifications/notification.re
 import {
   deliveryCutoff,
   staleNotificationCutoff,
+  stuckProcessingCutoff,
 } from "@/features/notifications/notification.constants";
 import { occurrenceRepository } from "@/features/scheduling/occurrence.repository";
 import { isActionableOccurrenceStatus } from "@/features/scheduling/occurrence-status";
@@ -210,6 +211,8 @@ export const notificationService = {
       db,
     }: { userId?: string; dueBy?: Date; db?: Db } = {},
   ): Promise<DueNotificationResult[]> {
+    // S26-01 — a run that died after claim() left its reminders PROCESSING.
+    await notificationRepository.requeueStuck(stuckProcessingCutoff(now), db);
     // After an outage, don't flood the user with day-old reminders.
     const staleBefore = staleNotificationCutoff(now);
     await notificationRepository.cancelStale(staleBefore, db);

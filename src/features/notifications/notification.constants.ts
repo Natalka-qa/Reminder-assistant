@@ -12,6 +12,17 @@ export function staleNotificationCutoff(now: Date): Date {
   return new Date(now.getTime() - STALE_NOTIFICATION_MS);
 }
 
+// sprint-26-tasks.md S26-01 — a reminder claimed (PROCESSING) this long
+// ago whose run never finished (the function crashed or timed out between
+// claim and markSent) goes back to PENDING as one more attempt, instead of
+// staying claimed for ever. Far past any run's length; a send that did go
+// out but wasn't marked may then come twice — better than never.
+export const STUCK_PROCESSING_MS = 10 * 60 * 1000;
+
+export function stuckProcessingCutoff(now: Date): Date {
+  return new Date(now.getTime() - STUCK_PROCESSING_MS);
+}
+
 // 2026-11-12 — what counts as due on a run: up to this much ahead. The
 // external cron runs a minute before the quarter hours (:14, :29, :44,
 // :59 — off the :00 peak when the database wakes slowly), so a reminder
