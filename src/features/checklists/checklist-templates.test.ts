@@ -6,8 +6,8 @@ import {
 import { CHECKLIST_TEMPLATES, findTemplate } from "./checklist-templates";
 
 describe("CHECKLIST_TEMPLATES", () => {
-  it("has the nine templates of решение 6, keys unique", () => {
-    expect(CHECKLIST_TEMPLATES).toHaveLength(9);
+  it("has the nine templates of решение 6 and Lab tests (S26-12), keys unique", () => {
+    expect(CHECKLIST_TEMPLATES).toHaveLength(10);
     const keys = CHECKLIST_TEMPLATES.map((template) => template.key);
     expect(new Set(keys).size).toBe(keys.length);
   });
@@ -43,9 +43,28 @@ describe("checklist validation", () => {
     });
   });
 
+  // sprint-26-tasks.md S26-12
+  it("takes a link and a typed price", () => {
+    expect(
+      checklistItemInputSchema.parse({
+        text: "Lego",
+        url: "amazon.es/lego",
+        priceCents: "49,99",
+      }),
+    ).toMatchObject({ url: "https://amazon.es/lego", priceCents: 4999 });
+    expect(
+      checklistItemInputSchema.safeParse({ text: "Lego", priceCents: "abc" })
+        .error?.issues[0].message,
+    ).toBe("Price like 49.99.");
+    expect(
+      checklistItemInputSchema.safeParse({ text: "Lego", url: "not a link" })
+        .success,
+    ).toBe(false);
+  });
+
   it("turns an empty note into none", () => {
     expect(checklistItemInputSchema.parse({ text: "Milk", note: " " })).toEqual(
-      { text: "Milk", note: null },
+      { text: "Milk", note: null, url: null, priceCents: null },
     );
   });
 });

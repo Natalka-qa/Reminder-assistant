@@ -72,7 +72,11 @@ export async function createChecklistAction(
   try {
     ({ id } = await checklistService.create(
       user.id,
-      { title: formData.get("title"), icon: formData.get("icon") ?? undefined },
+      {
+        title: formData.get("title"),
+        icon: formData.get("icon") ?? undefined,
+        currency: formData.get("currency") ?? undefined,
+      },
       String(formData.get("template") ?? "") || undefined,
     ));
   } catch (error) {
@@ -96,6 +100,7 @@ export async function updateChecklistAction(
     await checklistService.update(user.id, checklistId, {
       title: formData.get("title"),
       icon: formData.get("icon") ?? undefined,
+      currency: formData.get("currency") ?? undefined,
     });
   } catch (error) {
     if (error instanceof InvalidChecklistError) {
@@ -162,13 +167,18 @@ export async function addChecklistItemsAction(
   return result.status === "success" ? { ...result, added } : result;
 }
 
+/** S26-12 — `price` as typed ("49,99"), `url` as typed; "" — none. */
 export async function updateChecklistItemAction(
   itemId: string,
-  text: string,
-  note: string,
+  fields: { text: string; note: string; url: string; price: string },
 ) {
   return act((userId) =>
-    checklistService.updateItem(userId, itemId, { text, note }),
+    checklistService.updateItem(userId, itemId, {
+      text: fields.text,
+      note: fields.note,
+      url: fields.url,
+      priceCents: fields.price,
+    }),
   );
 }
 

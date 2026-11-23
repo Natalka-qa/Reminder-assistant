@@ -23,7 +23,11 @@ import { GroupedRows, GroupedRow } from "@/components/ui/grouped-rows";
 import { NoteText } from "@/components/tasks/note-text";
 import { isLongNote } from "@/features/tasks/note-links";
 import { checklistService } from "@/features/checklists/checklist.service";
-import { progressLabel } from "@/features/checklists/checklist-items";
+import {
+  editorItems,
+  editorVersion,
+  progressLabel,
+} from "@/features/checklists/checklist-items";
 import { ChecklistEditor } from "@/components/checklists/checklist-editor";
 import { SectionLabel } from "@/components/ui/section-label";
 import { TaskDetailActions } from "@/components/tasks/task-detail-actions";
@@ -269,21 +273,11 @@ export default async function TaskDetailPage({
             <ChevronRight aria-hidden className="size-4" strokeWidth={1.6} />
           </Link>
           <ChecklistEditor
-            key={list.items
-              .map(
-                (item) =>
-                  `${item.id}${+item.checked}${item.sortOrder}${item.text}${item.note}`,
-              )
-              .join("|")}
+            key={editorVersion(list.items)}
             checklistId={list.id}
             title={list.title}
-            items={list.items.map(({ id, text, note, checked, sortOrder }) => ({
-              id,
-              text,
-              note,
-              checked,
-              sortOrder,
-            }))}
+            currency={list.currency}
+            items={editorItems(list.items)}
           />
         </section>
       )}

@@ -12,6 +12,8 @@ const ITEM_FIELDS = {
   id: true,
   text: true,
   note: true,
+  url: true,
+  priceCents: true,
   checked: true,
   sortOrder: true,
   createdAt: true,

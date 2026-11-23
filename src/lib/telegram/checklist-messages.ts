@@ -5,6 +5,11 @@ import {
   type InlineButton,
   type InlineKeyboard,
 } from "./bot-messages";
+import {
+  checklistTotals,
+  formatMoney,
+  totalsLabel,
+} from "@/features/checklists/money";
 
 // sprint-25-tasks.md S25-06 — lists in the chat (решение 7): /lists, one
 // list with its items as buttons (a press ticks or unticks and redraws
@@ -23,7 +28,13 @@ export type ChatItem = {
   text: string;
   note: string | null;
   checked: boolean;
+  /** sprint-26-tasks.md S26-12 — in the list's currency. */
+  priceCents?: number | null;
+  url?: string | null;
 };
+
+/** Links shown under a list in the chat; the rest are in the app. */
+const LINKS_MAX = 20;
 
 /** Telegram shows about this much of a button; longer is cut with "…". */
 const BUTTON_TEXT_MAX = 48;
@@ -67,12 +78,38 @@ export function listsButtons(
   };
 }
 
-/** One list: its name and how far along; the items are the buttons. */
-export function listMessage(list: ChatList): string {
+/**
+ * One list: its name and how far along; the items are the buttons. S26-12
+ * — the total and what's left when items have prices, and the items'
+ * links (a button can't open a page and tick at once).
+ */
+export function listMessage(
+  list: ChatList,
+  items: ChatItem[] = [],
+  currency = "EUR",
+): string {
   const head = `${list.icon} <b>${escapeHtml(list.title)}</b> · ${progress(list)}`;
   if (list.total === 0) return `${head}\n\nNo items yet — add some below.`;
-  if (list.done === list.total) return `${head}\n\nAll done ✓`;
-  return head;
+  const lines = [head];
+  const totals = checklistTotals(
+    items.map((item) => ({
+      priceCents: item.priceCents ?? null,
+      checked: item.checked,
+    })),
+  );
+  if (totals) lines.push(totalsLabel(totals, currency));
+  const linked = items.filter((item) => item.url).slice(0, LINKS_MAX);
+  if (linked.length > 0) {
+    lines.push(
+      "",
+      ...linked.map(
+        (item) =>
+          `🔗 <a href="${escapeHtml(item.url!).replaceAll('"', "&quot;")}">${escapeHtml(item.text)}</a>`,
+      ),
+    );
+  }
+  if (list.done === list.total) lines.push("", "All done ✓");
+  return lines.join("\n");
 }
 
 /**
@@ -84,12 +121,21 @@ export function listButtons(
   list: ChatList,
   items: ChatItem[],
   appUrl: string,
-  options: { back: boolean },
+  options: { back: boolean; currency?: string },
 ): InlineKeyboard {
   const rows: InlineButton[][] = items.map((item) => [
     {
+      // S26-12 — the price before the note, so a long note is what's cut.
       text: cut(
-        `${item.checked ? "✓" : "○"} ${item.text}${item.note ? ` · ${item.note}` : ""}`,
+        [
+          `${item.checked ? "✓" : "○"} ${item.text}`,
+          item.priceCents != null
+            ? formatMoney(item.priceCents, options.currency ?? "EUR")
+            : null,
+          item.note,
+        ]
+          .filter(Boolean)
+          .join(" · "),
       ),
       callback_data: buttonData("ltog", item.id),
     },

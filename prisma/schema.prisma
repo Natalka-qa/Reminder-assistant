@@ -380,6 +380,9 @@ model Checklist {
   sortOrder  Int       @default(0)
   // Hidden from Lists, Home and Telegram; items kept; null — active.
   archivedAt DateTime?
+  // sprint-26-tasks.md S26-12 — one currency for the list's prices (ISO
+  // code: EUR, USD, GBP, UAH, PLN), so it has one total.
+  currency   String    @default("EUR")
 
   user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   items ChecklistItem[]
@@ -397,6 +400,10 @@ model ChecklistItem {
   text        String
   // решение 5 — "2 l", "3×12".
   note        String?
+  // S26-12 — a link (the gift in a shop, the lab's page) and a price in
+  // the list's currency, in cents; null — none.
+  url         String?
+  priceCents  Int?
   checked     Boolean @default(false)
   // Order within the list, lowest first; checked items are shown below
   // unchecked ones whatever their order.
