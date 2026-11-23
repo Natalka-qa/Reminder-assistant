@@ -3,6 +3,7 @@ import {
   cronReminderCutoff,
   deliveryCutoff,
   staleNotificationCutoff,
+  stuckProcessingCutoff,
 } from "./notification.constants";
 
 describe("staleNotificationCutoff", () => {
@@ -35,6 +36,14 @@ describe("cronReminderCutoff", () => {
     );
     expect(sendAt <= deliveryCutoff(new Date("2026-11-12T17:44:00Z"))).toBe(
       false,
+    );
+  });
+});
+
+describe("stuckProcessingCutoff", () => {
+  it("is 10 minutes before now — longer than any run", () => {
+    expect(stuckProcessingCutoff(new Date("2026-11-17T10:00:00Z"))).toEqual(
+      new Date("2026-11-17T09:50:00Z"),
     );
   });
 });
