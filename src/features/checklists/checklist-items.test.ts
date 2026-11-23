@@ -9,7 +9,7 @@ import {
 
 describe("splitItems", () => {
   it("splits one line on commas and semicolons", () => {
-    expect(splitItems("молоко, хлеб; яйца")).toEqual([
+    expect(splitItems("молоко, хлеб; яйца")).toMatchObject([
       { text: "молоко", note: null },
       { text: "хлеб", note: null },
       { text: "яйца", note: null },
@@ -17,14 +17,14 @@ describe("splitItems", () => {
   });
 
   it("takes one item per line and keeps commas inside a line", () => {
-    expect(splitItems("Eggs, free range\nBread\n\n")).toEqual([
+    expect(splitItems("Eggs, free range\nBread\n\n")).toMatchObject([
       { text: "Eggs, free range", note: null },
       { text: "Bread", note: null },
     ]);
   });
 
   it("splits a note off after a spaced dash, not a hyphen", () => {
-    expect(splitItems("Milk — 2 l\nSquats - 3×12\nPre-workout")).toEqual([
+    expect(splitItems("Milk — 2 l\nSquats - 3×12\nPre-workout")).toMatchObject([
       { text: "Milk", note: "2 l" },
       { text: "Squats", note: "3×12" },
       { text: "Pre-workout", note: null },
@@ -32,20 +32,57 @@ describe("splitItems", () => {
   });
 
   it("drops list markers and empty parts", () => {
-    expect(splitItems("- Passport\n• Charger\n[ ] Socks\n[x] Hat")).toEqual([
+    expect(
+      splitItems("- Passport\n• Charger\n[ ] Socks\n[x] Hat"),
+    ).toMatchObject([
       { text: "Passport", note: null },
       { text: "Charger", note: null },
       { text: "Socks", note: null },
       { text: "Hat", note: null },
     ]);
-    expect(splitItems(" , ;  ")).toEqual([]);
-    expect(splitItems("")).toEqual([]);
+    expect(splitItems(" , ;  ")).toMatchObject([]);
+    expect(splitItems("")).toMatchObject([]);
   });
 
   it("caps how many one message adds", () => {
     expect(
       splitItems(Array.from({ length: 70 }, (_, i) => `i${i}`).join(",")),
     ).toHaveLength(50);
+  });
+
+  // sprint-26-tasks.md S26-12
+  it("takes a link and a price out of a line", () => {
+    expect(
+      splitItems("Lego Technic — €49.99 https://www.amazon.es/dp/B0?x=1,2"),
+    ).toEqual([
+      {
+        text: "Lego Technic",
+        note: null,
+        url: "https://www.amazon.es/dp/B0?x=1,2",
+        priceCents: 4999,
+      },
+    ]);
+  });
+
+  it("keeps a decimal comma and a link's commas when splitting one line", () => {
+    expect(splitItems("Book 12,50 €, Scarf €20")).toMatchObject([
+      { text: "Book", priceCents: 1250 },
+      { text: "Scarf", priceCents: 2000 },
+    ]);
+  });
+
+  it("keeps a note next to a price", () => {
+    expect(splitItems("Blood test — fasting — 35 €")).toMatchObject([
+      { text: "Blood test", note: "fasting", priceCents: 3500, url: null },
+    ]);
+  });
+
+  it("needs a currency for a price, so amounts stay notes", () => {
+    expect(splitItems("Milk — 2 l\nSquats — 3×12\nVitamin D 1000")).toEqual([
+      { text: "Milk", note: "2 l", url: null, priceCents: null },
+      { text: "Squats", note: "3×12", url: null, priceCents: null },
+      { text: "Vitamin D 1000", note: null, url: null, priceCents: null },
+    ]);
   });
 });
 

@@ -4,7 +4,11 @@ import { ChevronLeft } from "lucide-react";
 import { verifySession, getCurrentUser } from "@/lib/auth/dal";
 import { checklistService } from "@/features/checklists/checklist.service";
 import { updateChecklistAction } from "@/features/checklists/actions";
-import { progressLabel } from "@/features/checklists/checklist-items";
+import {
+  editorItems,
+  editorVersion,
+  progressLabel,
+} from "@/features/checklists/checklist-items";
 import { ChecklistEditor } from "@/components/checklists/checklist-editor";
 import { ChecklistEndActions } from "@/components/checklists/checklist-end-actions";
 import { ChecklistForm } from "@/components/checklists/checklist-form";
@@ -20,21 +24,7 @@ export default async function ListPage({ params }: PageProps<"/lists/[id]">) {
   const list = await checklistService.getOne(user.id, id);
   if (!list) notFound();
 
-  const items = list.items.map(({ id, text, note, checked, sortOrder }) => ({
-    id,
-    text,
-    note,
-    checked,
-    sortOrder,
-  }));
-  // A new key whenever the server's items change: the editor drops its
-  // own copy and shows these.
-  const version = items
-    .map(
-      (item) =>
-        `${item.id}${+item.checked}${item.sortOrder}${item.text}${item.note}`,
-    )
-    .join("|");
+  const items = editorItems(list.items);
 
   return (
     <div className="flex max-w-[560px] flex-col gap-7">
@@ -61,20 +51,25 @@ export default async function ListPage({ params }: PageProps<"/lists/[id]">) {
       </div>
 
       <ChecklistEditor
-        key={version}
+        key={editorVersion(items)}
         checklistId={list.id}
         title={list.title}
+        currency={list.currency}
         items={items}
       />
 
       <details className="group">
         <summary className="text-accent-text min-h-11 cursor-pointer py-2 text-sm font-semibold">
-          Rename or change icon
+          Rename, icon or currency
         </summary>
         <div className="mt-3">
           <ChecklistForm
             action={updateChecklistAction.bind(null, list.id)}
-            initial={{ title: list.title, icon: list.icon }}
+            initial={{
+              title: list.title,
+              icon: list.icon,
+              currency: list.currency,
+            }}
             submitLabel="Save"
           />
         </div>

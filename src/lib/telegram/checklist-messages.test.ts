@@ -105,3 +105,47 @@ describe("adding items (Q1)", () => {
     expect(addedItemsMessage(0, groceries)).toMatch(/^Nothing to add/);
   });
 });
+
+// sprint-26-tasks.md S26-12
+describe("prices and links", () => {
+  const gifts = { id: ID, title: "Gifts", icon: "🎁", done: 1, total: 3 };
+  const items = [
+    {
+      id: "i1",
+      text: "Lego <Technic>",
+      note: null,
+      checked: false,
+      priceCents: 4999,
+      url: 'https://shop.es/lego?a=1&b="2"',
+    },
+    { id: "i2", text: "Book", note: "signed", checked: true, priceCents: 1200 },
+    { id: "i3", text: "Card", note: null, checked: false },
+  ];
+
+  it("shows the total, what's left and the links", () => {
+    expect(listMessage(gifts, items, "EUR")).toBe(
+      [
+        "🎁 <b>Gifts</b> · 1/3",
+        "Total €61.99 · Left €49.99",
+        "",
+        '🔗 <a href="https://shop.es/lego?a=1&amp;b=&quot;2&quot;">Lego &lt;Technic&gt;</a>',
+      ].join("\n"),
+    );
+  });
+
+  it("puts the price on the item's button, before the note", () => {
+    const rows = listButtons(gifts, items, APP, {
+      back: false,
+      currency: "UAH",
+    }).inline_keyboard;
+    expect(rows.slice(0, 3).map(([button]) => button.text)).toEqual([
+      "○ Lego <Technic> · ₴49.99",
+      "✓ Book · ₴12 · signed",
+      "○ Card",
+    ]);
+  });
+
+  it("says nothing of money without prices", () => {
+    expect(listMessage(gifts, [items[2]], "EUR")).toBe("🎁 <b>Gifts</b> · 1/3");
+  });
+});

@@ -54,6 +54,8 @@ export const CHECKLIST_TEMPLATES: readonly ChecklistTemplate[] = [
     ],
   },
   { key: "gifts", title: "Gifts", icon: "🎁", items: [] },
+  // sprint-26-tasks.md S26-12 — with a price and the lab's link per test.
+  { key: "lab-tests", title: "Lab tests", icon: "🧪", items: [] },
   { key: "to-read", title: "To read & watch", icon: "📚", items: [] },
   {
     key: "appointment",

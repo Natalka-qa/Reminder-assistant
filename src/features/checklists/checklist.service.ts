@@ -119,6 +119,8 @@ export const checklistService = {
           template.items.map((value, index) => ({
             text: value.text,
             note: value.note ?? null,
+            url: null,
+            priceCents: null,
             sortOrder: index,
           })),
           tx,

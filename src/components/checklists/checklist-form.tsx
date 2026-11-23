@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { CHECKLIST_TITLE_MAX } from "@/lib/validation/checklist";
 import type { ChecklistFormState } from "@/features/checklists/actions";
 import { CHECKLIST_TEMPLATES } from "@/features/checklists/checklist-templates";
+import { CURRENCIES, DEFAULT_CURRENCY } from "@/features/checklists/money";
 
 // sprint-25-tasks.md S25-02 — a list's name and icon: the new-list page
 // and "Rename" on a list. S25-03 — on the new-list page, the templates
@@ -27,6 +28,7 @@ export const CHECKLIST_ICONS = [
   "⭐",
   "👥",
   "🍳",
+  "🧪",
 ] as const;
 
 export function ChecklistForm({
@@ -39,7 +41,7 @@ export function ChecklistForm({
     prev: ChecklistFormState,
     formData: FormData,
   ) => Promise<ChecklistFormState>;
-  initial: { title: string; icon: string };
+  initial: { title: string; icon: string; currency?: string };
   submitLabel: string;
   showTemplates?: boolean;
 }) {
@@ -49,6 +51,9 @@ export function ChecklistForm({
   });
   const [icon, setIcon] = useState(initial.icon);
   const [title, setTitle] = useState(initial.title);
+  const [currency, setCurrency] = useState(
+    initial.currency ?? DEFAULT_CURRENCY,
+  );
   const [template, setTemplate] = useState("");
   const chosen = CHECKLIST_TEMPLATES.find((value) => value.key === template);
   const titleError =
@@ -60,6 +65,7 @@ export function ChecklistForm({
     <form action={formAction} className="flex flex-col gap-6">
       <input type="hidden" name="icon" value={icon} />
       <input type="hidden" name="template" value={template} />
+      <input type="hidden" name="currency" value={currency} />
 
       {showTemplates && (
         <fieldset className="flex flex-col gap-2.5">
@@ -137,6 +143,34 @@ export function ChecklistForm({
               )}
             >
               {value}
+            </button>
+          ))}
+        </div>
+      </fieldset>
+
+      {/* sprint-26-tasks.md S26-12 — prices on items are in this. */}
+      <fieldset className="flex flex-col gap-2.5">
+        <legend className="mb-1 text-sm font-medium">Currency</legend>
+        <p className="text-tasks-meta mb-1.5 text-xs">
+          For prices on items — gifts, lab tests.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {CURRENCIES.map((value) => (
+            <button
+              key={value.code}
+              type="button"
+              aria-pressed={currency === value.code}
+              aria-label={value.code}
+              onClick={() => setCurrency(value.code)}
+              className={cn(
+                "rounded-pill flex min-h-11 min-w-11 items-center justify-center gap-1 border px-3 text-sm",
+                currency === value.code
+                  ? "bg-chip-selected-bg border-blue-ring-border text-chip-selected-text"
+                  : "bg-surface border-border text-text-primary",
+              )}
+            >
+              <span aria-hidden>{value.symbol}</span>
+              <span className="text-tasks-meta text-xs">{value.code}</span>
             </button>
           ))}
         </div>

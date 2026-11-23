@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, GripVertical } from "lucide-react";
+import { Check, ExternalLink, GripVertical } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -28,10 +28,24 @@ import {
   updateChecklistItemAction,
   type ChecklistActionState,
 } from "@/features/checklists/actions";
-import { moveId, splitItems } from "@/features/checklists/checklist-items";
+import {
+  moveId,
+  splitItems,
+  type EditorItem,
+} from "@/features/checklists/checklist-items";
+import {
+  checklistTotals,
+  currencySymbol,
+  formatMoney,
+  normalizeUrl,
+  parsePrice,
+  totalsLabel,
+  urlLabel,
+} from "@/features/checklists/money";
 import {
   CHECKLIST_ITEM_NOTE_MAX,
   CHECKLIST_ITEM_TEXT_MAX,
+  CHECKLIST_ITEM_URL_MAX,
 } from "@/lib/validation/checklist";
 
 // sprint-25-tasks.md S25-02 — one list's items (решение 4): tick, add a
@@ -39,15 +53,12 @@ import {
 // delete, drag by the grip (Q2). Checked items sit below, struck through,
 // with Uncheck all / Clear checked. Changes show at once; the page's data
 // comes back from the server and replaces this state (the parent keys it
-// on the items).
+// on the items). sprint-26-tasks.md S26-12 — a price on the right and a
+// link button per item, the list's total and what's left under the items.
 
-export type EditorItem = {
-  id: string;
-  text: string;
-  note: string | null;
-  checked: boolean;
-  sortOrder: number;
-};
+export type { EditorItem };
+
+type ItemFields = { text: string; note: string; url: string; price: string };
 
 /** The server's order (orderItems): unchecked first, each by sortOrder. */
 function sorted(items: EditorItem[]): EditorItem[] {
@@ -75,10 +86,12 @@ type Drag = {
 export function ChecklistEditor({
   checklistId,
   title,
+  currency,
   items: initial,
 }: {
   checklistId: string;
   title: string;
+  currency: string;
   items: EditorItem[];
 }) {
   const router = useRouter();
@@ -91,6 +104,9 @@ export function ChecklistEditor({
 
   const unchecked = items.filter((item) => !item.checked);
   const checked = items.filter((item) => item.checked);
+  const totals = checklistTotals(items);
+  // A link button on some rows: the others keep its room, so prices line up.
+  const anyLink = items.some((item) => item.url);
 
   /** Shows `next` now, runs `action`; on an error says so and re-reads. */
   function apply(
@@ -134,22 +150,42 @@ export function ChecklistEditor({
     );
   }
 
-  function save(item: EditorItem, text: string, note: string) {
+  /**
+   * The fields win; a price or link typed into the item's own text is
+   * taken from there when its field is empty ("Lego €49").
+   */
+  function save(item: EditorItem, fields: ItemFields) {
+    const [first] = splitItems(fields.text.replace(/\r?\n/gu, " "));
+    if (!first) {
+      setEditingId(null);
+      return;
+    }
+    const price = fields.price.trim();
+    const priceCents = price ? parsePrice(price) : first.priceCents;
+    if (priceCents !== null && Number.isNaN(priceCents)) {
+      toast.error("Price like 49.99.");
+      return;
+    }
+    const url = fields.url.trim() ? normalizeUrl(fields.url) : first.url;
+    if (url !== null && !URL.canParse(url)) {
+      toast.error("That doesn't look like a link.");
+      return;
+    }
+    const note = fields.note.trim() || first.note;
     setEditingId(null);
-    const [first] = splitItems(text);
-    if (!first) return;
     apply(
       items.map((value) =>
         value.id === item.id
-          ? { ...value, text: first.text, note: note.trim() || first.note }
+          ? { ...value, text: first.text, note, url, priceCents }
           : value,
       ),
       () =>
-        updateChecklistItemAction(
-          item.id,
-          first.text,
-          note.trim() || first.note || "",
-        ),
+        updateChecklistItemAction(item.id, {
+          text: first.text,
+          note: note ?? "",
+          url: url ?? "",
+          price: priceCents === null ? "" : (priceCents / 100).toFixed(2),
+        }),
     );
   }
 
@@ -243,7 +279,8 @@ export function ChecklistEditor({
         >
           <ItemEditor
             item={item}
-            onSave={(text, note) => save(item, text, note)}
+            currency={currency}
+            onSave={(fields) => save(item, fields)}
             onDelete={() => remove(item)}
             onCancel={() => setEditingId(null)}
           />
@@ -291,25 +328,51 @@ export function ChecklistEditor({
         <button
           type="button"
           onClick={() => setEditingId(item.id)}
-          className="flex min-h-[52px] min-w-0 flex-1 flex-col justify-center gap-0.5 py-2.5 text-left"
+          className="flex min-h-[52px] min-w-0 flex-1 items-center gap-3 py-2.5 text-left"
           aria-label={`Edit ${item.text}`}
         >
-          <span
-            className={cn(
-              "text-[15.5px] leading-[1.35] [overflow-wrap:anywhere] line-through decoration-transparent transition-[text-decoration-color] duration-(--dur-2)",
-              item.checked
-                ? "text-text-secondary decoration-tasks-done-strike"
-                : "text-text-primary",
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span
+              className={cn(
+                "text-[15.5px] leading-[1.35] [overflow-wrap:anywhere] line-through decoration-transparent transition-[text-decoration-color] duration-(--dur-2)",
+                item.checked
+                  ? "text-text-secondary decoration-tasks-done-strike"
+                  : "text-text-primary",
+              )}
+            >
+              {item.text}
+            </span>
+            {item.note && (
+              <span className="text-tasks-meta text-[13px] [overflow-wrap:anywhere]">
+                {item.note}
+              </span>
             )}
-          >
-            {item.text}
           </span>
-          {item.note && (
-            <span className="text-tasks-meta text-[13px] [overflow-wrap:anywhere]">
-              {item.note}
+          {item.priceCents !== null && (
+            <span
+              className={cn(
+                "shrink-0 text-[14px] tabular-nums",
+                item.checked ? "text-text-tertiary" : "text-text-secondary",
+              )}
+            >
+              {formatMoney(item.priceCents, currency)}
             </span>
           )}
         </button>
+        {item.url ? (
+          <a
+            href={item.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Open ${item.text} — ${urlLabel(item.url)}`}
+            title={urlLabel(item.url)}
+            className="text-accent-text -mx-1.5 flex size-11 shrink-0 items-center justify-center"
+          >
+            <ExternalLink aria-hidden className="size-4" strokeWidth={1.8} />
+          </a>
+        ) : (
+          anyLink && <span aria-hidden className="-mx-1.5 size-11 shrink-0" />
+        )}
         {!item.checked && unchecked.length > 1 && (
           <button
             type="button"
@@ -387,10 +450,16 @@ export function ChecklistEditor({
           )}
         </form>
       </div>
+      {totals && (
+        <p className="text-tasks-meta -mt-3 text-right text-sm tabular-nums">
+          {totalsLabel(totals, currency)}
+        </p>
+      )}
       {unchecked.length === 0 && checked.length === 0 && (
         <p className="text-tasks-meta -mt-3 text-sm">
           Type an item and press Enter for the next one. “Milk — 2 l” adds a
-          note; a pasted list adds every line.
+          note, “Lego {currencySymbol(currency)}49 https://…” a price and a
+          link; a pasted list adds every line.
         </p>
       )}
 
@@ -464,22 +533,30 @@ export function ChecklistEditor({
 
 function ItemEditor({
   item,
+  currency,
   onSave,
   onDelete,
   onCancel,
 }: {
   item: EditorItem;
-  onSave: (text: string, note: string) => void;
+  currency: string;
+  onSave: (fields: ItemFields) => void;
   onDelete: () => void;
   onCancel: () => void;
 }) {
   const [text, setText] = useState(item.text);
   const [note, setNote] = useState(item.note ?? "");
+  const [url, setUrl] = useState(item.url ?? "");
+  const [price, setPrice] = useState(
+    item.priceCents === null
+      ? ""
+      : (item.priceCents / 100).toFixed(item.priceCents % 100 ? 2 : 0),
+  );
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        onSave(text, note);
+        onSave({ text, note, url, price });
       }}
       onKeyDown={(event) => {
         if (event.key === "Escape") onCancel();
@@ -501,6 +578,37 @@ function ItemEditor({
         placeholder="Note — 2 l, 3×12…"
         aria-label="Note"
       />
+      <div className="flex gap-2.5">
+        <Input
+          value={url}
+          onChange={(event) => setUrl(event.target.value)}
+          maxLength={CHECKLIST_ITEM_URL_MAX}
+          // Not type="url": the browser would refuse "amazon.es/…".
+          inputMode="url"
+          autoComplete="off"
+          placeholder="Link — https://…"
+          aria-label="Link"
+          className="min-w-0 flex-1"
+        />
+        <div className="relative w-28 shrink-0">
+          <span
+            aria-hidden
+            className="text-tasks-meta pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm"
+          >
+            {currencySymbol(currency)}
+          </span>
+          <Input
+            value={price}
+            onChange={(event) => setPrice(event.target.value)}
+            inputMode="decimal"
+            autoComplete="off"
+            maxLength={12}
+            placeholder="Price"
+            aria-label={`Price, ${currency}`}
+            className="pl-8 tabular-nums"
+          />
+        </div>
+      </div>
       <div className="flex items-center gap-2">
         <Button type="submit" size="sm" className="h-10 px-4">
           Save

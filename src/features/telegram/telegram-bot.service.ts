@@ -261,8 +261,11 @@ async function showList(
   const list = await checklistService.getOne(user.id, checklistId);
   if (!list || list.archivedAt) throw new ChecklistNotFoundError();
   const view = chatList(list);
-  const text = listMessage(view);
-  const buttons = listButtons(view, list.items, env.AUTH_URL, { back: true });
+  const text = listMessage(view, list.items, list.currency);
+  const buttons = listButtons(view, list.items, env.AUTH_URL, {
+    back: true,
+    currency: list.currency,
+  });
   await (messageId === undefined
     ? sendTelegramMessage(chatId, text, buttons, { html: true })
     : editTelegramMessage(chatId, messageId, text, buttons, { html: true }));
