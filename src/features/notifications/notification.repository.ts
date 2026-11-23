@@ -59,6 +59,26 @@ export const notificationRepository = {
     });
   },
 
+  // sprint-26-tasks.md S26-01 — claimed before `stuckBefore` and never
+  // resolved: back to PENDING as one more attempt, or FAILED once that was
+  // the last one. Ordered before cancelStale, so a day-old one is then
+  // cancelled rather than sent.
+  async requeueStuck(stuckBefore: Date, db: Db = prisma) {
+    const stuck = {
+      status: "PROCESSING" as const,
+      updatedAt: { lt: stuckBefore },
+    };
+    const failed = await db.notification.updateMany({
+      where: { ...stuck, attemptCount: { gte: MAX_NOTIFICATION_ATTEMPTS - 1 } },
+      data: { status: "FAILED", attemptCount: { increment: 1 } },
+    });
+    const requeued = await db.notification.updateMany({
+      where: stuck,
+      data: { status: "PENDING", attemptCount: { increment: 1 } },
+    });
+    return { failed: failed.count, requeued: requeued.count };
+  },
+
   // Conditional update — the row only flips to PROCESSING if it was still
   // PENDING, so two triggers (dashboard-load, cron) racing for the same
   // notification can't both send it. `count === 0` means someone else
