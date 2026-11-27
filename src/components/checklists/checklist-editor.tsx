@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ExternalLink, GripVertical } from "lucide-react";
 import { toast } from "sonner";
@@ -55,6 +55,9 @@ import {
 // comes back from the server and replaces this state (the parent keys it
 // on the items). sprint-26-tasks.md S26-12 — a price on the right and a
 // link button per item, the list's total and what's left under the items.
+// 2026-11-27 (phone, Telegram) — the add row has its own price field; on a
+// touch screen a row moves after holding its grip, so a swipe over the
+// grips scrolls the page instead of dragging rows.
 
 export type { EditorItem };
 
@@ -72,6 +75,17 @@ function sorted(items: EditorItem[]): EditorItem[] {
     )
     .map(({ item }) => item);
 }
+
+/** How long a finger holds a grip before its row lifts. */
+const HOLD_MS = 280;
+/** Moving further than this before then is a scroll, not a drag. */
+const HOLD_SLOP_PX = 8;
+
+type Hold = {
+  timer: ReturnType<typeof setTimeout>;
+  x: number;
+  y: number;
+};
 
 type Drag = {
   id: string;
@@ -99,8 +113,27 @@ export function ChecklistEditor({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [draft, setDraft] = useState("");
+  const [draftPrice, setDraftPrice] = useState("");
   const [, startTransition] = useTransition();
   const rowRefs = useRef(new Map<string, HTMLLIElement>());
+  const draftRef = useRef<HTMLInputElement>(null);
+  const hold = useRef<Hold | null>(null);
+  const dragging = drag !== null;
+
+  // While a row is lifted the finger moves it, not the page.
+  useEffect(() => {
+    if (!dragging) return;
+    const stop = (event: TouchEvent) => event.preventDefault();
+    window.addEventListener("touchmove", stop, { passive: false });
+    return () => window.removeEventListener("touchmove", stop);
+  }, [dragging]);
+
+  useEffect(
+    () => () => {
+      if (hold.current) clearTimeout(hold.current.timer);
+    },
+    [],
+  );
 
   const unchecked = items.filter((item) => !item.checked);
   const checked = items.filter((item) => item.checked);
@@ -134,9 +167,22 @@ export function ChecklistEditor({
     );
   }
 
-  function add(text: string) {
+  /** `price` — the add row's own field ("" — none, or what the line has). */
+  function add(text: string, price = "") {
     const parsed = splitItems(text);
     if (parsed.length === 0) return;
+    if (price.trim()) {
+      const priceCents = parsePrice(price);
+      if (priceCents === null || Number.isNaN(priceCents)) {
+        toast.error("Price like 49.99.");
+        return;
+      }
+      if (parsed.length > 1) {
+        toast.error("A price goes with one item — add them one by one.");
+        return;
+      }
+      parsed[0] = { ...parsed[0], priceCents };
+    }
     const end = Math.max(-1, ...items.map((value) => value.sortOrder)) + 1;
     const temp = parsed.map((value, index) => ({
       id: `new-${Date.now()}-${index}`,
@@ -145,8 +191,11 @@ export function ChecklistEditor({
       sortOrder: end + index,
     }));
     setDraft("");
+    setDraftPrice("");
+    // The next item is typed straight away, even after Enter in Price.
+    draftRef.current?.focus();
     apply([...unchecked, ...temp, ...checked], () =>
-      addChecklistItemsAction(checklistId, text),
+      addChecklistItemsAction(checklistId, text, price),
     );
   }
 
@@ -221,9 +270,56 @@ export function ChecklistEditor({
 
   // --- Drag (Q2) ------------------------------------------------------------
 
-  function startDrag(event: React.PointerEvent, item: EditorItem) {
+  function clearHold() {
+    if (hold.current) clearTimeout(hold.current.timer);
+    hold.current = null;
+  }
+
+  /** A mouse drags at once; a finger first holds the grip (HOLD_MS). */
+  function pressGrip(event: React.PointerEvent, item: EditorItem) {
     if (item.id.startsWith("new-")) return;
-    event.currentTarget.setPointerCapture(event.pointerId);
+    if (event.pointerType !== "touch") {
+      startDrag(event.currentTarget, event.pointerId, event.clientY, item);
+      return;
+    }
+    clearHold();
+    const target = event.currentTarget;
+    const { pointerId, clientX, clientY } = event;
+    hold.current = {
+      x: clientX,
+      y: clientY,
+      timer: setTimeout(() => {
+        hold.current = null;
+        navigator.vibrate?.(10);
+        startDrag(target, pointerId, clientY, item);
+      }, HOLD_MS),
+    };
+  }
+
+  function moveGrip(event: React.PointerEvent) {
+    const pending = hold.current;
+    if (pending) {
+      const moved = Math.hypot(
+        event.clientX - pending.x,
+        event.clientY - pending.y,
+      );
+      if (moved > HOLD_SLOP_PX) clearHold();
+      return;
+    }
+    dragMove(event);
+  }
+
+  function startDrag(
+    target: Element,
+    pointerId: number,
+    clientY: number,
+    item: EditorItem,
+  ) {
+    try {
+      target.setPointerCapture(pointerId);
+    } catch {
+      // A touch is already held by its first target; nothing to capture.
+    }
     const rows = unchecked.map((value) => {
       const rect = rowRefs.current.get(value.id)?.getBoundingClientRect();
       return rect
@@ -235,7 +331,7 @@ export function ChecklistEditor({
       id: item.id,
       from,
       to: from,
-      startY: event.clientY,
+      startY: clientY,
       offset: 0,
       rows,
     });
@@ -376,11 +472,18 @@ export function ChecklistEditor({
         {!item.checked && unchecked.length > 1 && (
           <button
             type="button"
-            aria-label={`Move ${item.text} — drag, or use the arrow keys`}
-            onPointerDown={(event) => startDrag(event, item)}
-            onPointerMove={dragMove}
-            onPointerUp={endDrag}
-            onPointerCancel={() => setDrag(null)}
+            aria-label={`Move ${item.text} — hold and drag, or use the arrow keys`}
+            onPointerDown={(event) => pressGrip(event, item)}
+            onPointerMove={moveGrip}
+            onPointerUp={() => {
+              clearHold();
+              endDrag();
+            }}
+            onPointerCancel={() => {
+              clearHold();
+              setDrag(null);
+            }}
+            onContextMenu={(event) => event.preventDefault()}
             onKeyDown={(event) => {
               if (event.key === "ArrowUp" && index > 0) {
                 event.preventDefault();
@@ -393,7 +496,7 @@ export function ChecklistEditor({
                 moveTo(item, index + 1);
               }
             }}
-            className="text-text-tertiary -mr-2 flex size-11 shrink-0 cursor-grab touch-none items-center justify-center active:cursor-grabbing"
+            className="text-text-tertiary -mr-2 flex size-11 shrink-0 cursor-grab touch-pan-y items-center justify-center select-none [-webkit-touch-callout:none] active:cursor-grabbing"
           >
             <GripVertical aria-hidden className="size-4" strokeWidth={1.8} />
           </button>
@@ -411,7 +514,7 @@ export function ChecklistEditor({
         <form
           onSubmit={(event) => {
             event.preventDefault();
-            add(draft);
+            add(draft, draftPrice);
           }}
           className={cn(
             "flex items-center gap-3 px-4",
@@ -423,8 +526,14 @@ export function ChecklistEditor({
             className="border-border-medium size-[22px] shrink-0 rounded-full border-[1.5px] border-dashed"
           />
           <input
+            ref={draftRef}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
+            onFocus={(event) => {
+              // After the keyboard is up, so the row isn't left under it.
+              const field = event.currentTarget;
+              setTimeout(() => field.scrollIntoView({ block: "center" }), 350);
+            }}
             onPaste={(event) => {
               const text = event.clipboardData.getData("text");
               if (/\r?\n/u.test(text.trim())) {
@@ -440,6 +549,27 @@ export function ChecklistEditor({
             aria-label={`Add to ${title}`}
             className="placeholder:text-placeholder-text min-h-[52px] min-w-0 flex-1 bg-transparent text-[15.5px] outline-none"
           />
+          {(draft.trim() || draftPrice) && (
+            <div className="relative w-[84px] shrink-0">
+              <span
+                aria-hidden
+                className="text-tasks-meta pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-sm"
+              >
+                {currencySymbol(currency)}
+              </span>
+              <input
+                value={draftPrice}
+                onChange={(event) => setDraftPrice(event.target.value)}
+                inputMode="decimal"
+                enterKeyHint="next"
+                autoComplete="off"
+                maxLength={12}
+                placeholder="Price"
+                aria-label={`Price, ${currency}`}
+                className="border-border-soft placeholder:text-placeholder-text focus:border-accent-line h-9 w-full rounded-[10px] border bg-transparent pr-2 pl-7 text-[15px] tabular-nums outline-none"
+              />
+            </div>
+          )}
           {draft.trim() && (
             <button
               type="submit"
@@ -457,9 +587,10 @@ export function ChecklistEditor({
       )}
       {unchecked.length === 0 && checked.length === 0 && (
         <p className="text-tasks-meta -mt-3 text-sm">
-          Type an item and press Enter for the next one. “Milk — 2 l” adds a
-          note, “Lego {currencySymbol(currency)}49 https://…” a price and a
-          link; a pasted list adds every line.
+          Type an item and press Enter for the next one; a price has its own
+          field next to it. “Milk — 2 l” adds a note, “Lego{" "}
+          {currencySymbol(currency)}49 https://…” a price and a link; a pasted
+          list adds every line.
         </p>
       )}
 

@@ -898,3 +898,19 @@
   stroke-dasharray: 20;
   animation: checkDraw var(--dur-2) var(--ease-out);
 }
+
+/* 2026-11-27 — bottom-nav.tsx: while typing on a phone the keyboard lifts
+   the fixed nav, which then covers the field; it steps aside instead. */
+@media (pointer: coarse) {
+  body:has(
+      :is(
+        input:not([type="checkbox"], [type="radio"], [type="range"]),
+        textarea,
+        select,
+        [contenteditable="true"]
+      ):focus
+    )
+    [data-bottom-nav] {
+    display: none;
+  }
+}

@@ -159,10 +159,11 @@ export async function deleteChecklistAction(checklistId: string) {
 export async function addChecklistItemsAction(
   checklistId: string,
   text: string,
+  price = "",
 ): Promise<ChecklistActionState & { added?: number }> {
   let added = 0;
   const result = await act(async (userId) => {
-    added = await checklistService.addItems(userId, checklistId, text);
+    added = await checklistService.addItems(userId, checklistId, text, price);
   }, checklistId);
   return result.status === "success" ? { ...result, added } : result;
 }
