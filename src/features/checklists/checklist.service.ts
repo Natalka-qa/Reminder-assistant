@@ -19,6 +19,7 @@ import {
   splitItems,
 } from "./checklist-items";
 import { findTemplate } from "./checklist-templates";
+import { PRICE_MAX_CENTS, parsePrice } from "./money";
 
 // sprint-25-tasks.md S25-01 — lists for one user. Every method checks the
 // list (or the item's list) belongs to `userId`.
@@ -187,10 +188,31 @@ export const checklistService = {
    * Typed or pasted text, or a bot message → items at the end of the list
    * (Q3). Returns how many were added; 0 — nothing to add.
    */
-  async addItems(userId: string, checklistId: string, raw: string) {
+  /**
+   * 2026-11-27 — `price`, as typed in the add row's own field, goes with a
+   * single item (it wins over one typed into the line); "" — none.
+   */
+  async addItems(userId: string, checklistId: string, raw: string, price = "") {
     await owned(userId, checklistId);
     const items = splitItems(raw);
     if (items.length === 0) return 0;
+    if (price.trim()) {
+      const priceCents = parsePrice(price);
+      if (
+        priceCents === null ||
+        Number.isNaN(priceCents) ||
+        priceCents > PRICE_MAX_CENTS
+      ) {
+        throw new InvalidChecklistError("Price like 49.99.", "price");
+      }
+      if (items.length > 1) {
+        throw new InvalidChecklistError(
+          "A price goes with one item — add them one by one.",
+          "price",
+        );
+      }
+      items[0] = { ...items[0], priceCents };
+    }
     return runInTransaction(async (tx) => {
       const count = await checklistRepository.countItems(checklistId, tx);
       if (count + items.length > CHECKLIST_ITEMS_MAX) {

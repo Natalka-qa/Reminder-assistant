@@ -24,6 +24,9 @@ const AFTER_CREATE: NavItem[] = [
 // Bottom padding is at least the iPhone home-indicator inset, so the nav
 // sits above it in Safari and inside Telegram (sprint-16-tasks.md S16-05,
 // "Расхождения" п.11; needs viewportFit "cover" in the root layout).
+// 2026-11-27 — on a phone it steps aside while a text field has focus
+// (globals.css [data-bottom-nav]): with the keyboard up it rode above it
+// and covered the field being typed in (the list's "Add item" row).
 export function BottomNav() {
   const pathname = usePathname();
 
@@ -51,7 +54,10 @@ export function BottomNav() {
   }
 
   return (
-    <nav className="border-border bg-surface fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 items-end px-[18px] pt-2.5 pb-[max(1.5rem,env(safe-area-inset-bottom))] md:hidden">
+    <nav
+      data-bottom-nav
+      className="border-border bg-surface fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 items-end px-[18px] pt-2.5 pb-[max(1.5rem,env(safe-area-inset-bottom))] md:hidden"
+    >
       {BEFORE_CREATE.map(renderItem)}
       <Link
         href="/tasks/new"
