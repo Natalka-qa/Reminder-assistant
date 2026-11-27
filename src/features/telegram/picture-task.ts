@@ -327,8 +327,9 @@ function nearest(
 
 // --- Title -------------------------------------------------------------------
 
+// 2026-11-27 — with or without its colon: Yelmo's PDF says "Película:".
 const TITLE_LABEL =
-  /^(?:event|evento|pel[ií]cula|film|movie|concierto|concert|espect[aá]culo|show|servicio|service|подія|событие|послуга|услуга)$/iu;
+  /^(?:event|evento|pel[ií]cula|film|movie|concierto|concert|espect[aá]culo|show|servicio|service|подія|событие|послуга|услуга)\s*:?$/iu;
 
 const TRANSPORT: [RegExp, string][] = [
   [/\b(?:train|tren|renfe|iryo|ouigo|avlo)\b|поїзд|поезд/iu, "Train"],
@@ -415,6 +416,8 @@ function tidyTitle(line: string): string {
     // quantity and the price go.
     .replace(/(?:\s+\d{1,3})?\s+\d+[.,]\d{2}\s*(?:€|eur(?:os?)?)?\s*$/iu, "")
     .replace(/(?:\s*\([^)]{1,10}\))+\s*$/u, "")
+    // A cinema's format: "… DE LA NAVIDAD 2D".
+    .replace(/\s+(?:2D|3D|4DX|IMAX|ATMOS|VOSE|VO)$/iu, "")
     .replace(/^[^\p{L}\d]+|[^\p{L}\d)!?]+$/gu, "")
     .trim();
   const shouting = bare === bare.toUpperCase() && /\p{Lu}{3}/u.test(bare);
@@ -475,8 +478,9 @@ export function findTitle(lines: string[]): string {
 
 // --- Notes -------------------------------------------------------------------
 
+// 2026-11-27 — "Cine:" over "Mercado de Campanar" (Yelmo) is the place too.
 const PLACE_LABEL =
-  /^(?:where|d[oó]nde|direcci[oó]n|lugar|venue|location|адреса|адрес|місце проведення|место проведения)$/iu;
+  /^(?:where|d[oó]nde|direcci[oó]n|lugar|venue|location|cine|cinema|адреса|адрес|місце проведення|место проведения|кінотеатр|кинотеатр)\s*:?$/iu;
 const STREET =
   /^(?:c\/|calle\b|carrer\b|avda\.?|avenida\b|av\.|plaza\b|pl\.|paseo\b|camino\b|вул\.|ул\.|вулиця\b|улица\b)/iu;
 const POSTCODE_LINE = /^\d{5}\b/u;
@@ -503,6 +507,8 @@ export function findNotes(lines: string[]): string | null {
     const place: string[] = [];
     for (const line of lines.slice(label + 1, label + 3)) {
       if (LABEL_LINE.test(line) && place.length > 0) break;
+      // The next field's label: "Película:".
+      if (/:$/u.test(line)) break;
       place.push(line);
     }
     if (place.length > 0) notes.push(place.join(" "));
@@ -522,6 +528,21 @@ export function findNotes(lines: string[]): string | null {
   const seat: string[] = [];
   const seen = new Set<string>();
   lines.forEach((line, i) => {
+    // 2026-11-27 — Yelmo: "Butacas:" over "710, 711", and "Sala: Fecha:
+    // Sesión:" over "6 Sábado, 28 de noviembre…" (the first value).
+    const labels = /^(?:\p{L}+\s*:\s*)+$/u.test(line)
+      ? line.split(/\s*:\s*/u).filter(Boolean)
+      : null;
+    const firstName = labels && seatLabelOf(labels[0]);
+    if (labels && firstName && !seen.has(firstName)) {
+      const next = lines[i + 1] ?? "";
+      const value = labels.length === 1 ? next : next.split(" ")[0];
+      if (value && value.length <= 12 && /\d/u.test(value)) {
+        seat.push(`${firstName} ${value}`);
+        seen.add(firstName);
+      }
+      return;
+    }
     const inline = /^([\p{L}]+)\s*:\s*(.+)$/u.exec(line);
     const name = inline && seatLabelOf(inline[1]);
     if (inline && name && !seen.has(name)) {

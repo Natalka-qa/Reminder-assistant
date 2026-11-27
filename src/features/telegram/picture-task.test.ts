@@ -12,6 +12,7 @@ import {
   CINEMA,
   EVENT,
   TRAIN,
+  YELMO_PDF,
 } from "./__fixtures__/picture-texts";
 
 // sprint-24-tasks.md S24-02 — the six screenshots of the OCR trial. The
@@ -104,6 +105,19 @@ describe("extractPictureTasks — the trial's screenshots", () => {
 });
 
 describe("extractPictureTasks — rules", () => {
+  it("a Yelmo PDF: labels with colons above their values", () => {
+    expect(extractPictureTasks(YELMO_PDF, "2026-11-27")).toEqual([
+      {
+        title: "Scrooge Y Los Fantasmas De La Navidad",
+        date: "2026-11-28",
+        time: "20:00",
+        durationMinutes: 120,
+        notes: "Mercado de Campanar\nSala 6 · Seat 710, 711",
+        options: [],
+      },
+    ]);
+  });
+
   it("names a ticket by its product row without the quantity and price", () => {
     const text = [
       "Producto Cantidad Precio",
