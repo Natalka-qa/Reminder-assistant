@@ -149,3 +149,33 @@ Juan - 46007 Valencia - Espagne
 [|
 <
 o`;
+
+// 2026-11-27 — Cine Yelmo's PDF (Telegram, pdf-lines.ts): each label on
+// its own line, ending in a colon, the value below it.
+export const YELMO_PDF = `cine yelmo
+Tu entrada
+Estimado cliente:
+Gracias por usar el servicio de Cine Yelmo. Los datos de tu
+compra están indicados a continuación. ¡Que disfrutes tu
+sesión!
+Datos del pedido:
+Número de confirmación:
+333964
+Cine:
+Mercado de Campanar
+Película:
+SCROOGE Y LOS FANTASMAS DE LA NAVIDAD 2D
+INGLÉS SUBTITULADO EN ESPAÑOL (VOSE)
+Sala: Fecha: Sesión:
+6 Sábado, 28 de noviembre de 2026 20:00
+Butacas:
+710, 711
+Transacción de entradas:
+2499321
+ID del cine:
+811
+# Entradas Precio
+(2) ADULTO 17,80 €
+Total (IVA incluido): 17,80€
+Gastos de gestión, IVA/IGIC y recargos incluidos, ver detalles
+Código de tu entrada`;
