@@ -37,6 +37,11 @@ export function TelegramChrome() {
     if (!webApp || !inside) return;
     webApp.ready();
     webApp.expand();
+    // 2026-11-28 — on iPhone Telegram takes a vertical swipe for its own
+    // (pull the app down to close it) and the page stops scrolling: the
+    // new-task form stuck above Create after the time was picked. Pages
+    // scroll; the app still closes by its header and ✕.
+    webApp.disableVerticalSwipes?.();
     // setHeaderColor only takes #RRGGBB. Read on the next frame:
     // next-themes puts the theme on <html> in its own effect, which runs
     // after this one — read at once, it gave the old colour (2026-10-08).

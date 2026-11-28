@@ -43,9 +43,10 @@ export function extractPictureTasks(
 
   const title = findTitle(lines);
   const notes = findNotes(lines);
+  const said = saidDuration(lines, today);
   const draft = (options: Candidate[], ownTitle: string): PictureDraft => {
     const [first] = options;
-    const guess = guessDuration(ownTitle) ?? venueDuration(lines);
+    const guess = said ?? guessDuration(ownTitle) ?? venueDuration(lines);
     const withDuration = (candidate: Candidate): PictureOption => ({
       date: candidate.date,
       time: candidate.time,
@@ -75,6 +76,31 @@ export function extractPictureTasks(
 
 // A cinema's ticket says so in its name, not the film's: "OCINE".
 const CINEMA_VENUE = /cine|cinema|cinesa|yelmo|kinepolis|кіно|кино/iu;
+
+// 2026-11-27 — a chat says how long: "Около 2,5 час", "about 1.5 hours",
+// "40 минут". Read the way a typed task is (lib/parse-task); only lines
+// with a unit and without "before"/"in"/a range (NOT_A_LENGTH).
+const DURATION_UNIT =
+  /(?:\d|полтора|півтори)\s*(?:час|годин|hour|hrs?\b|horas?|мин|хв|min)/iu;
+// "за 4-6 годин до процедури" — how long before, not how long.
+const NOT_A_LENGTH =
+  /(?<!\p{L})(?:до|за|перед|через|before|ago|antes|hace)(?!\p{L})|\d\s*[-–]\s*\d/iu;
+const MAX_SAID_MINUTES = 12 * 60;
+
+function saidDuration(lines: string[], today: string): number | undefined {
+  for (const line of lines) {
+    if (
+      !DURATION_UNIT.test(line) ||
+      NOT_A_LENGTH.test(line) ||
+      timesIn(line).length > 0
+    ) {
+      continue;
+    }
+    const minutes = parseTask(line, today).durationMinutes;
+    if (minutes && minutes > 0 && minutes <= MAX_SAID_MINUTES) return minutes;
+  }
+  return undefined;
+}
 
 function venueDuration(lines: string[]): number | undefined {
   return lines.some((line) => CINEMA_VENUE.test(line)) ? 120 : undefined;
@@ -214,6 +240,22 @@ function timesIn(line: string): FoundTime[] {
   return found;
 }
 
+// 2026-11-27 — "В субботу 5.12 в 14:45": next to a time with a colon, a
+// dotted "5.12" that could be a day and a month is the date (December 5),
+// not 05:12. Alone ("24го на 13.00") a dotted one is still a time.
+const DOTTED = /^(\d{1,2})\.(\d{2})$/u;
+
+function withoutDottedDates(line: string, times: FoundTime[]): FoundTime[] {
+  const text = (time: FoundTime) => line.slice(time.index, time.end).trim();
+  if (!times.some((time) => text(time).includes(":"))) return times;
+  return times.filter((time) => {
+    const dotted = DOTTED.exec(text(time));
+    if (!dotted) return true;
+    const [day, month] = [Number(dotted[1]), Number(dotted[2])];
+    return !(day >= 1 && day <= 31 && month >= 1 && month <= 12);
+  });
+}
+
 const hhmm = (minutes: number) =>
   `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 
@@ -261,7 +303,7 @@ function findCandidates(lines: string[], today: string): Candidate[] {
     if (DEPARTURE.test(line) && ARRIVAL.test(line)) block = i;
     else if (DEPARTURE.test(line) && block < 0) block = i;
     if (PURCHASE.test(line) || isStatusBar(line, i)) return;
-    const times = timesIn(line);
+    const times = withoutDottedDates(line, timesIn(line));
     if (times.length === 0) return;
 
     const date =
