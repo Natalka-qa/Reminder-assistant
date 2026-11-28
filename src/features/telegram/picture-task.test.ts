@@ -8,6 +8,7 @@ import {
 import {
   BUS,
   CHAT_EPILATION,
+  CHAT_HAIRCUT,
   CHAT_MASSAGE,
   CINEMA,
   EVENT,
@@ -105,6 +106,24 @@ describe("extractPictureTasks — the trial's screenshots", () => {
 });
 
 describe("extractPictureTasks — rules", () => {
+  it("a chat: 5.12 next to 14:45 is the date; the length said in words", () => {
+    expect(extractPictureTasks(CHAT_HAIRCUT, "2026-11-28")).toEqual([
+      {
+        title: "Стрижка",
+        date: "2026-12-05",
+        time: "14:45",
+        durationMinutes: 150,
+        notes: null,
+        options: [],
+      },
+    ]);
+  });
+
+  it("a dotted time alone is still a time", () => {
+    const [draft] = extractPictureTasks("Встреча завтра в 13.00", "2026-11-28");
+    expect(draft).toMatchObject({ date: "2026-11-29", time: "13:00" });
+  });
+
   it("a Yelmo PDF: labels with colons above their values", () => {
     expect(extractPictureTasks(YELMO_PDF, "2026-11-27")).toEqual([
       {

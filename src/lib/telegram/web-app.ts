@@ -12,6 +12,8 @@ export type TelegramWebApp = {
   initData: string;
   ready(): void;
   expand(): void;
+  /** Bot API 7.7+; missing in older Telegram apps. */
+  disableVerticalSwipes?: () => void;
   openLink(url: string): void;
   setHeaderColor(color: string): void;
   setBackgroundColor(color: string): void;

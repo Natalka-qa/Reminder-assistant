@@ -179,3 +179,23 @@ ID del cine:
 Total (IVA incluido): 17,80€
 Gastos de gestión, IVA/IGIC y recargos incluidos, ver detalles
 Código de tu entrada`;
+
+// 2026-11-27 — a hairdresser's Instagram chat (OCR): the date is "5.12"
+// next to "14:45", and the length is said in words.
+export const CHAT_HAIRCUT = `13:20
+olgaa.kalinina
+Business chat
+Enquire View profile
+Доброе утро!
+На короткие волосы 120€+
+стрижка 20€
+Около 2,5 час
+На когда можно записаться?
+В какое время приблизительно,
+вечернее?
+На выходных с 11 до 18
+В субботу 5.12 в 14:45
+Окей
+Я Андрей
+Телефон 627917948
+Message...`;
